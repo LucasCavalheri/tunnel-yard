@@ -40,16 +40,18 @@ Tagged releases attach the Rust binaries built by CI:
 
 | File | Platform |
 |------|----------|
-| `my-vpns-linux-x64` | Linux |
-| `my-vpns-macos` | macOS |
+| `my-vpns-linux-x64` | Linux x86_64 |
+| `my-vpns-linux-arm64` | Linux ARM64 |
+| `my-vpns-macos` | macOS universal (Intel + Apple Silicon) |
 | `my-vpns-windows-x64.exe` | Windows x64 |
+| `my-vpns-windows-arm64.exe` | Windows ARM64 (GUI) |
 
 ```bash
 chmod +x my-vpns-linux-x64
 ./my-vpns-linux-x64
 ```
 
-On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows). Privileged helpers live in `packaging/`.
+On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows x64). Privileged helpers live in `packaging/`.
 
 On Linux, the app creates the per-user launcher
 `~/.local/share/applications/dev.cavallheri.myvpns.desktop`. Its filename
@@ -67,7 +69,11 @@ Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` 
 
 #### Windows
 
-On first launch, **Install now** downloads the pinned official OpenConnect 9.21 installer, checks its SHA256, and requests UAC authorization. Wintun is included; WSL and FortiClient are not required. Profiles live in `%APPDATA%\My VPNs\profiles`.
+On x64, **Install now** downloads the pinned official OpenConnect 9.21 installer, checks its SHA256, and requests UAC authorization. Wintun is included; WSL and FortiClient are not required. The ARM64 GUI is available, but the pinned OpenConnect installer is x64-only; ARM64 needs a native OpenConnect + Wintun package installed separately before connecting. Profiles live in `%APPDATA%\My VPNs\profiles`.
+
+#### Architecture compatibility
+
+The 2.5.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
 
 #### Linux
 

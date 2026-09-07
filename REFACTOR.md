@@ -6,8 +6,8 @@ Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays
 
 ## Resume checkpoint
 
-- **Last finished:** migrated the Rust desktop shell to GPUI Kit 0.6. The compact operations rail, profile cards, searchable list, live console, full editor, setup gate, confirmations and system/light/dark themes are native GPUI components. Window close hides to tray; Quit is explicit. 38 `tests/shipped.rs` cases.
-- **Next:** Native OS runtime on matching runners (Windows Wintun/NRPT/MTU, macOS scutil). Optional distro packages.
+- **Last finished:** released the native GPUI Kit 0.6 desktop with multi-architecture artifacts in 2.5.0: Linux x64/ARM64, macOS universal, and Windows x64/ARM64 GUI builds. Architecture-aware update metadata and APT repository generation are included.
+- **Next:** Native OS runtime acceptance on matching hosts (Windows Wintun/NRPT/MTU, macOS scutil) and a reviewed native OpenConnect + Wintun ARM64 Windows package.
 - **Remaining:** See **Native OS runtime still remaining**.
 
 ---
@@ -21,6 +21,8 @@ Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays
 | Linux | openfortivpn | `/etc/openfortivpn` | `pkexec` + `packaging/run-vpn.sh` / `stop-vpn.sh` |
 | macOS | openfortivpn (Homebrew) | `~/Library/Application Support/My VPNs/profiles` | `osascript` + `macos-vpn.sh` |
 | Windows | OpenConnect 9.21 + Wintun | `%APPDATA%\My VPNs\profiles` | UAC + `windows-vpn.ps1` |
+
+Release architecture matrix: Linux `x86_64`/`aarch64`, macOS universal (`x86_64` + `aarch64`), and Windows `x86_64`/`aarch64` GUI. The Windows ARM64 VPN engine remains dependent on a native OpenConnect + Wintun package.
 
 The GUI process never runs as root/Administrator. Password never appears on argv. `.conf` files stay openfortivpn syntax (`# my-vpns-*` comments for Windows metadata).
 

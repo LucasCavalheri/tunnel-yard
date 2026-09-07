@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.5.0
+
+### Multi-architecture release
+
+- Added native Linux x64 and ARM64 release builds.
+- Added a universal macOS binary containing Intel and Apple Silicon slices.
+- Added native Windows x64 and ARM64 GUI builds.
+- Made release metadata architecture-aware so the updater can identify the
+  matching platform artifact.
+- Made the APT repository infer and publish `amd64` and `arm64` package
+  indexes instead of hard-coding `amd64`.
+- Windows ARM64 now fails closed when the pinned x64 OpenConnect installer is
+  selected; a native OpenConnect + Wintun ARM64 package is still required for
+  VPN connections on that target.
+
 ## 2.0.0
 
 My VPNs 2.0 introduces a new native desktop experience built on GPUI Kit while

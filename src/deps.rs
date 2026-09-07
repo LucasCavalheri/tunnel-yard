@@ -1,5 +1,6 @@
 //! Distro detection, install plan, and VPN client dependency status.
 
+use crate::arch::{current_arch, native_windows_client_supported};
 use crate::install_native::{find_brew, install_native_client};
 use crate::platform::{
     config_directory_current, current_platform, engine_for_platform, find_vpn_binary, node_platform,
@@ -288,19 +289,22 @@ pub fn get_dependency_status() -> DependencyStatus {
     let client_installed = client_path.is_some() && client_version.is_some();
     let platform = current_platform();
     let can_auto_install = if platform == "windows" {
-        true
+        native_windows_client_supported(current_arch())
     } else if platform == "macos" {
         find_brew().is_some()
     } else {
         plan.can_auto_install
     };
-    let install_command = if platform == "windows" {
-        Some("OpenConnect 9.21 + Wintun (Windows administrator prompt)".into())
-    } else if platform == "macos" {
-        Some("brew install openfortivpn".into())
-    } else {
-        plan.install_command.as_ref().map(|c| format!("pkexec {c}"))
-    };
+    let install_command =
+        if platform == "windows" && native_windows_client_supported(current_arch()) {
+            Some("OpenConnect 9.21 + Wintun (Windows administrator prompt)".into())
+        } else if platform == "windows" {
+            Some("Native OpenConnect + Wintun ARM64 package required (manual installation)".into())
+        } else if platform == "macos" {
+            Some("brew install openfortivpn".into())
+        } else {
+            plan.install_command.as_ref().map(|c| format!("pkexec {c}"))
+        };
     DependencyStatus {
         engine: engine_for_platform(platform).into(),
         config_dir: config_directory_current(),

@@ -91,7 +91,7 @@ if [ -d /etc/apt/sources.list.d ] && [ -f "$KEYRING_SOURCE" ]; then
   install -d /usr/share/keyrings
   install -m 0644 "$KEYRING_SOURCE" "$KEYRING_DEST"
   cat > "$SOURCE_LIST" << EOF
-deb [arch=amd64 signed-by=$KEYRING_DEST] https://lucascavalheri.github.io/my-vpns/apt ./
+deb [arch=amd64,arm64 signed-by=$KEYRING_DEST] https://lucascavalheri.github.io/my-vpns/apt ./
 EOF
 elif [ -d /etc/apt/sources.list.d ]; then
   # Never leave an old, untrusted source enabled after an incomplete upgrade.

@@ -2,13 +2,17 @@
 
 The UI, profile editor and `.conf` files are shared. Execution, privilege elevation, networking and autostart are platform specific.
 
-| Platform | VPN engine | Current release artifact | Profile directory |
+| Platform / architecture | VPN engine | Current release artifact | Profile directory |
 | --- | --- | --- | --- |
-| Linux | openfortivpn | `my-vpns-linux-x64` | `/etc/openfortivpn` (existing location) |
-| macOS | openfortivpn from Homebrew | `my-vpns-macos` | `~/Library/Application Support/My VPNs/profiles` |
-| Windows | official OpenConnect 9.21 with Wintun | `my-vpns-windows-x64.exe` | `%APPDATA%\My VPNs\profiles` |
+| Linux x86_64 | openfortivpn | `my-vpns-linux-x64` | `/etc/openfortivpn` (existing location) |
+| Linux ARM64 | openfortivpn | `my-vpns-linux-arm64` | `/etc/openfortivpn` (existing location) |
+| macOS Intel + Apple Silicon | openfortivpn from Homebrew | `my-vpns-macos` (universal) | `~/Library/Application Support/My VPNs/profiles` |
+| Windows x64 | official OpenConnect 9.21 with Wintun | `my-vpns-windows-x64.exe` | `%APPDATA%\My VPNs\profiles` |
+| Windows ARM64 | native GUI; native OpenConnect + Wintun required | `my-vpns-windows-arm64.exe` | `%APPDATA%\My VPNs\profiles` |
 
 The new platforms must pass the native acceptance checklist below before they are considered validated for production. The code and packaging being present do not establish compatibility with every FortiGate or authentication policy.
+
+The Windows ARM64 executable is a native ARM64 GUI build. The pinned OpenConnect 9.21 installer in `packaging/windows-client.json` is currently a MinGW64/x64 package, so the app deliberately refuses to install it on ARM64 rather than silently mixing architectures. A native ARM64 OpenConnect + Wintun distribution is still required for VPN connections on that target.
 
 ## Configuration compatibility
 
@@ -76,7 +80,7 @@ same icon. On Linux it also writes a per-user launcher named after
 preventing GNOME from falling back to its generic gear icon. Re-run the script
 after changing the mark.
 
-CI runs `cargo fmt --check` (Linux), `cargo test` and `cargo build` on Linux, Windows and macOS. Release tags build `cargo build --release` and attach the binaries. Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust host are not produced yet. Unsigned builds may trigger Gatekeeper/SmartScreen; do not disable those protections globally.
+CI runs `cargo fmt --check` (Linux x64), `cargo test` and `cargo build` on Linux x64/ARM64, Windows x64/ARM64 and macOS Intel/Apple Silicon. Release tags build each native target and combine the two macOS slices with `lipo` into the universal `my-vpns-macos` artifact. Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust host are not produced yet. Unsigned builds may trigger Gatekeeper/SmartScreen; do not disable those protections globally.
 
 The OpenConnect download URL and SHA256 are pinned in `packaging/windows-client.json`. If the official artifact expires or changes, download/verification fails closed; update the reviewed metadata rather than removing the hash check.
 

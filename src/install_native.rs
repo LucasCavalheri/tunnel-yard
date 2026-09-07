@@ -1,5 +1,6 @@
 //! macOS Homebrew and Windows OpenConnect 9.21 bootstrap.
 
+use crate::arch::{current_arch, native_windows_client_supported};
 use crate::native::{encoded_powershell, powershell_path, ps_quote, secure_directory};
 use crate::platform::current_platform;
 use serde::Deserialize;
@@ -20,6 +21,20 @@ pub struct WindowsClient {
 pub fn windows_client() -> WindowsClient {
     serde_json::from_str(include_str!("../packaging/windows-client.json"))
         .expect("packaging/windows-client.json")
+}
+
+pub fn windows_client_for_arch(arch: &str) -> Result<WindowsClient, String> {
+    if native_windows_client_supported(arch) {
+        Ok(windows_client())
+    } else {
+        Err(format!(
+            "Windows {arch} includes the My VPNs UI, but the pinned OpenConnect 9.21 installer is x64-only. Install a native ARM64 OpenConnect + Wintun package manually before connecting."
+        ))
+    }
+}
+
+pub fn windows_client_for_current_arch() -> Result<WindowsClient, String> {
+    windows_client_for_arch(current_arch())
 }
 
 pub fn find_brew() -> Option<String> {
@@ -151,12 +166,21 @@ pub fn install_native_client(on_log: &mut impl FnMut(&str)) -> (i32, String) {
             }
             Err(err) => (1, err.to_string()),
         }
-    } else {
+    } else if current_platform() == "windows" {
+        let client = match windows_client_for_current_arch() {
+            Ok(client) => client,
+            Err(err) => return (1, err),
+        };
         install_windows_openconnect_with_download(
-            &windows_client(),
+            &client,
             download_https,
             on_log,
             run_uac_installer,
+        )
+    } else {
+        (
+            1,
+            "Native client bootstrap is only available on macOS and Windows.".into(),
         )
     }
 }

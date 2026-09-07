@@ -2,12 +2,18 @@
 
 use serde::Deserialize;
 
+use crate::arch::current_arch;
+use crate::platform::current_platform;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpdateArtifact {
     pub name: String,
     pub url: String,
     pub kind: String,
     pub digest: Option<String>,
+    pub platform: Option<String>,
+    pub architecture: Option<String>,
+    pub compatible: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,10 +72,18 @@ struct GithubAsset {
 
 pub fn artifact_kind(name: &str) -> Option<&'static str> {
     let lower = name.to_lowercase();
-    if lower.ends_with(".exe") && lower.contains("windows") {
+    if lower.contains("windows")
+        && (lower.ends_with(".exe") || lower.starts_with("my-vpns-windows-"))
+    {
         Some("windows")
-    } else if (lower.ends_with(".dmg") || lower.ends_with(".zip")) && lower.contains("-mac-") {
+    } else if (lower.contains("macos") || lower.contains("-mac-"))
+        && (lower.ends_with(".dmg")
+            || lower.ends_with(".zip")
+            || lower.starts_with("my-vpns-macos"))
+    {
         Some("macos")
+    } else if lower.starts_with("my-vpns-linux-") {
+        Some("linux")
     } else if lower.ends_with(".deb") {
         Some("deb")
     } else if lower.ends_with(".rpm") {
@@ -79,13 +93,60 @@ pub fn artifact_kind(name: &str) -> Option<&'static str> {
     }
 }
 
+pub fn artifact_platform(name: &str) -> Option<&'static str> {
+    match artifact_kind(name) {
+        Some("windows") => Some("windows"),
+        Some("macos") => Some("macos"),
+        Some("linux") | Some("deb") | Some("rpm") => Some("linux"),
+        _ => None,
+    }
+}
+
+pub fn artifact_architecture(name: &str) -> Option<&'static str> {
+    let lower = name.to_lowercase();
+    if lower.contains("universal") {
+        Some("universal")
+    } else if lower.contains("arm64") || lower.contains("aarch64") {
+        Some("arm64")
+    } else if lower.contains("x86_64") || lower.contains("amd64") || lower.contains("-x64") {
+        Some("x64")
+    } else if lower.contains("-x86") || lower.contains("i386") || lower.contains("i686") {
+        Some("x86")
+    } else {
+        None
+    }
+}
+
+pub fn artifact_is_compatible(name: &str) -> bool {
+    let Some(platform) = artifact_platform(name) else {
+        return true;
+    };
+    if platform != current_platform() {
+        return false;
+    }
+    let Some(architecture) = artifact_architecture(name) else {
+        return true;
+    };
+    architecture == "universal" || architecture == current_arch()
+}
+
+fn artifact_kind_for_release(name: &str) -> Option<&'static str> {
+    if name.to_ascii_lowercase().ends_with(".deb") {
+        Some("deb")
+    } else if name.to_ascii_lowercase().ends_with(".rpm") {
+        Some("rpm")
+    } else {
+        artifact_kind(name)
+    }
+}
+
 fn release_artifacts(assets: &[GithubAsset]) -> Vec<UpdateArtifact> {
     assets
         .iter()
         .filter_map(|asset| {
             let name = asset.name.as_ref()?.trim();
             let url = asset.browser_download_url.as_ref()?.trim();
-            let kind = artifact_kind(name)?;
+            let kind = artifact_kind_for_release(name)?;
             if !url.to_ascii_lowercase().starts_with("https://github.com/") {
                 return None;
             }
@@ -98,6 +159,9 @@ fn release_artifacts(assets: &[GithubAsset]) -> Vec<UpdateArtifact> {
                 url: url.to_string(),
                 kind: kind.to_string(),
                 digest,
+                platform: artifact_platform(name).map(str::to_string),
+                architecture: artifact_architecture(name).map(str::to_string),
+                compatible: artifact_is_compatible(name),
             })
         })
         .collect()

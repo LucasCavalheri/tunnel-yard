@@ -10,13 +10,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+          targets: ${{ matrix.target }}
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       - name: Install GPUI Linux dependencies
@@ -25,13 +38,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
       - name: rustfmt
-        if: runner.os == 'Linux'
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: cargo fmt --all -- --check
-      - run: cargo test
-      - run: cargo build
+      - run: cargo test --target "${{ matrix.target }}"
+      - run: cargo build --target "${{ matrix.target }}"
       - name: Smoke the shipped binary
         shell: bash
-        run: ./target/debug/my-vpns --smoke
+        run: |
+          binary="target/${{ matrix.target }}/debug/my-vpns"
+          if [ -f "${binary}.exe" ]; then
+            "${binary}.exe" --smoke
+          else
+            "$binary" --smoke
+          fi
       - name: Check macOS helper syntax
         if: runner.os == 'macOS'
         run: bash -n packaging/macos-vpn.sh

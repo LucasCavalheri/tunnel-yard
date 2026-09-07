@@ -625,6 +625,7 @@ fn smoke_report_has_engine_and_platform() {
     let report = my_vpns::smoke::smoke_report();
     assert!(!report.engine.is_empty());
     assert!(!report.platform.is_empty());
+    assert!(!report.architecture.is_empty());
     assert!(!report.config_dir.is_empty());
     assert!(report.ok);
 }
@@ -687,6 +688,11 @@ fn windows_openconnect_bootstrap_verifies_sha256_and_uac_silent_install() {
     assert_eq!(client.version, "9.21");
     assert!(client.url.contains("openconnect"));
     assert_eq!(client.sha256.len(), 64);
+    assert!(my_vpns::arch::native_windows_client_supported("x64"));
+    assert!(!my_vpns::arch::native_windows_client_supported("arm64"));
+    assert!(my_vpns::install_native::windows_client_for_arch("arm64")
+        .unwrap_err()
+        .contains("x64-only"));
 
     let bytes = b"openconnect-installer-body";
     let sha = sha256_hex(bytes);
@@ -862,7 +868,10 @@ fn notifications_and_import_picker_are_platform_specific() {
 
 #[test]
 fn github_update_check_compares_tags_and_parses_release_json() {
-    use my_vpns::updates::{check_for_app_update, compare_versions, normalize_tag};
+    use my_vpns::updates::{
+        artifact_architecture, artifact_kind, artifact_platform, check_for_app_update,
+        compare_versions, normalize_tag,
+    };
     assert!(compare_versions("1.0.2", "1.0.1") > 0);
     assert!(compare_versions("1.0.1", "1.0.2") < 0);
     assert_eq!(compare_versions("1.0.1", "1.0.1"), 0);
@@ -883,6 +892,18 @@ fn github_update_check_compares_tags_and_parses_release_json() {
     assert_eq!(info.latest, "1.1.8");
     assert_eq!(info.current, "1.1.7");
     assert!(info.url.contains("v1.1.8"));
+    assert_eq!(info.artifacts.len(), 1);
+    assert_eq!(info.artifacts[0].kind, "linux");
+    assert_eq!(info.artifacts[0].platform.as_deref(), Some("linux"));
+    assert_eq!(info.artifacts[0].architecture.as_deref(), Some("x64"));
+    assert!(info.artifacts[0].compatible);
+    assert_eq!(artifact_kind("my-vpns-macos-x64"), Some("macos"));
+    assert_eq!(artifact_architecture("my-vpns-macos-x64"), Some("x64"));
+    assert_eq!(artifact_kind("my-vpns-windows-arm64.exe"), Some("windows"));
+    assert_eq!(
+        artifact_platform("my-vpns-windows-arm64.exe"),
+        Some("windows")
+    );
 
     assert!(check_for_app_update("1.1.8", |_| Ok(body.to_string()))
         .unwrap()

@@ -2,6 +2,7 @@
 //! GUI around these units; privileged VPN work stays in `packaging/` helpers.
 
 pub mod app_icon;
+pub mod arch;
 pub mod autostart;
 pub mod conf;
 pub mod deps;
@@ -18,6 +19,7 @@ pub mod tray_menu;
 pub mod updates;
 pub mod vpn;
 
+pub use arch::{current_arch, current_artifact_name};
 pub use conf::{
     conf_path_for_id, delete_profile_file, draft_from_imported_file, empty_draft,
     is_valid_profile_id, parse_vpn_conf_content, parse_vpn_draft, read_profile_draft,

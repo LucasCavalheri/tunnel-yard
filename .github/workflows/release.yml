@@ -14,41 +14,83 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
             artifact: my-vpns-linux-x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: my-vpns-linux-arm64
+          - os: macos-15
+            target: aarch64-apple-darwin
+            artifact: my-vpns-macos-arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: my-vpns-macos-x64
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             artifact: my-vpns-windows-x64
-          - os: macos-latest
-            artifact: my-vpns-macos
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: my-vpns-windows-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - name: Install GPUI Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
-      - run: cargo test
-      - run: cargo build --release
+      - run: cargo test --target "${{ matrix.target }}"
+      - run: cargo build --release --target "${{ matrix.target }}"
       - name: Stage binary
         shell: bash
         run: |
           mkdir -p dist-release
-          if [ -f target/release/my-vpns.exe ]; then
-            cp target/release/my-vpns.exe dist-release/${{ matrix.artifact }}.exe
+          binary="target/${{ matrix.target }}/release/my-vpns"
+          if [ -f "${binary}.exe" ]; then
+            cp "${binary}.exe" "dist-release/${{ matrix.artifact }}.exe"
           else
-            cp target/release/my-vpns dist-release/${{ matrix.artifact }}
+            cp "$binary" "dist-release/${{ matrix.artifact }}"
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: build-${{ matrix.artifact }}
           if-no-files-found: error
           path: dist-release/*
 
-  publish:
+  package-macos:
     needs: build
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-my-vpns-macos-arm64
+          path: slices/arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-my-vpns-macos-x64
+          path: slices/x64
+      - name: Create universal macOS binary
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          lipo -create \
+            slices/arm64/my-vpns-macos-arm64 \
+            slices/x64/my-vpns-macos-x64 \
+            -output dist-release/my-vpns-macos
+          lipo -info dist-release/my-vpns-macos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-my-vpns-macos
+          if-no-files-found: error
+          path: dist-release/my-vpns-macos
+
+  publish:
+    needs: [build, package-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -56,6 +98,9 @@ jobs:
         with:
           merge-multiple: true
           path: dist-release
+      - name: Keep only the universal macOS artifact
+        run: |
+          rm -f dist-release/my-vpns-macos-arm64 dist-release/my-vpns-macos-x64
       - name: Create / update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,7 +133,7 @@ jobs:
               printf '%s\n' "$SECTION"
             else
               cat <<'EOF'
-          Native Rust desktop host. Linux/macOS use openfortivpn; Windows uses OpenConnect 9.21 + Wintun.
+          Native Rust desktop host. Linux/macOS use openfortivpn; Windows x64 uses OpenConnect 9.21 + Wintun. Windows ARM64 includes the native GUI and requires a native ARM64 VPN client.
           Privileged helpers remain under `packaging/`.
           EOF
             fi

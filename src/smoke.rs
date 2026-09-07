@@ -11,6 +11,7 @@ use std::path::Path;
 pub struct SmokeReport {
     pub engine: String,
     pub platform: String,
+    pub architecture: String,
     pub config_dir: String,
     pub client_installed: bool,
     pub locale: String,
@@ -27,6 +28,7 @@ pub fn smoke_report() -> SmokeReport {
     SmokeReport {
         engine: deps.engine,
         platform: deps.platform,
+        architecture: crate::arch::current_arch().into(),
         config_dir: deps.config_dir,
         client_installed: deps.client_installed,
         locale: settings.locale,
