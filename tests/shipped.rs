@@ -896,7 +896,10 @@ fn github_update_check_compares_tags_and_parses_release_json() {
     assert_eq!(info.artifacts[0].kind, "linux");
     assert_eq!(info.artifacts[0].platform.as_deref(), Some("linux"));
     assert_eq!(info.artifacts[0].architecture.as_deref(), Some("x64"));
-    assert!(info.artifacts[0].compatible);
+    assert_eq!(
+        info.artifacts[0].compatible,
+        my_vpns::platform::current_platform() == "linux" && my_vpns::arch::current_arch() == "x64"
+    );
     assert_eq!(artifact_kind("my-vpns-macos-x64"), Some("macos"));
     assert_eq!(artifact_architecture("my-vpns-macos-x64"), Some("x64"));
     assert_eq!(artifact_kind("my-vpns-windows-arm64.exe"), Some("windows"));
