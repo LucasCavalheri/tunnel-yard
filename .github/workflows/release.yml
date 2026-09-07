@@ -62,10 +62,51 @@ jobs:
           if-no-files-found: error
           path: dist-release/*
 
+  package-linux:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            package_arch: amd64
+            artifact: my-vpns-linux-x64
+          - os: ubuntu-24.04-arm
+            package_arch: arm64
+            artifact: my-vpns-linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.artifact }}
+          path: build-release
+      - name: Install package builders
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm
+      - name: Build Debian and RPM packages
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist-release
+          chmod +x packaging/build-linux-packages.sh
+          packaging/build-linux-packages.sh \
+            "build-release/${{ matrix.artifact }}" \
+            "$version" \
+            "${{ matrix.package_arch }}" \
+            dist-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux-${{ matrix.package_arch }}
+          if-no-files-found: error
+          path: dist-release/*
+
   package-macos:
     needs: build
     runs-on: macos-15
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: build-my-vpns-macos-arm64
@@ -83,14 +124,64 @@ jobs:
             slices/x64/my-vpns-macos-x64 \
             -output dist-release/my-vpns-macos
           lipo -info dist-release/my-vpns-macos
+      - name: Build macOS application bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          app="dist-release/My VPNs.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp dist-release/my-vpns-macos "$app/Contents/MacOS/my-vpns"
+          chmod 0755 "$app/Contents/MacOS/my-vpns"
+          mkdir -p icon.iconset
+          for size in 16 32 128 256 512; do
+            sips -z "$size" "$size" public/icon.png --out "icon.iconset/icon_${size}x${size}.png" >/dev/null
+            double=$((size * 2))
+            sips -z "$double" "$double" public/icon.png --out "icon.iconset/icon_${size}x${size}@2x.png" >/dev/null
+          done
+          iconutil -c icns icon.iconset -o "$app/Contents/Resources/MyVPNs.icns"
+          rm -rf icon.iconset
+          cat > "$app/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDisplayName</key>
+            <string>My VPNs</string>
+            <key>CFBundleExecutable</key>
+            <string>my-vpns</string>
+            <key>CFBundleIconFile</key>
+            <string>MyVPNs</string>
+            <key>CFBundleIdentifier</key>
+            <string>dev.cavallheri.myvpns</string>
+            <key>CFBundleName</key>
+            <string>My VPNs</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>$version</string>
+            <key>CFBundleVersion</key>
+            <string>${GITHUB_RUN_NUMBER}</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+          mkdir -p dmg-root
+          cp -R "$app" dmg-root/
+          hdiutil create -volname "My VPNs" -srcfolder dmg-root -ov -format UDZO \
+            dist-release/my-vpns-macos.dmg
+          hdiutil imageinfo dist-release/my-vpns-macos.dmg | grep -E 'Format:|Total Bytes:'
       - uses: actions/upload-artifact@v4
         with:
           name: build-my-vpns-macos
           if-no-files-found: error
-          path: dist-release/my-vpns-macos
+          path: |
+            dist-release/my-vpns-macos
+            dist-release/my-vpns-macos.dmg
 
   publish:
-    needs: [build, package-macos]
+    needs: [build, package-linux, package-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

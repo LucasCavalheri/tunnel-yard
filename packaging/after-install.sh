@@ -11,6 +11,22 @@ for candidate in "/opt/My VPNs" "/opt/my-vpns"; do
   fi
 done
 
+# Native distro packages install the binary and resources directly under /usr.
+# Keep their permissions and desktop integration intact while preserving the
+# legacy /opt bundle path used by older distributions.
+if [ -z "$APP_DIR" ] && [ -x /usr/bin/my-vpns ]; then
+  chmod 0755 /usr/bin/my-vpns
+  if [ -f /usr/lib/my-vpns/run-vpn.sh ]; then
+    chmod 0755 /usr/lib/my-vpns/run-vpn.sh /usr/lib/my-vpns/stop-vpn.sh
+  fi
+  if [ -f /usr/share/applications/dev.cavallheri.myvpns.desktop ]; then
+    sed -i 's|^Exec=.*|Exec=/usr/bin/my-vpns %U|' \
+      /usr/share/applications/dev.cavallheri.myvpns.desktop
+    sed -i 's|^StartupWMClass=.*|StartupWMClass=dev.cavallheri.myvpns|' \
+      /usr/share/applications/dev.cavallheri.myvpns.desktop
+  fi
+fi
+
 if [ -n "$APP_DIR" ]; then
   for res in "$APP_DIR/packaging" "$APP_DIR/helpers" "$APP_DIR/share/my-vpns"; do
     if [ -f "$res/run-vpn.sh" ]; then
@@ -80,6 +96,7 @@ fi
 # Signed APT repo so `sudo apt upgrade` can pull newer builds from GitHub Pages
 KEYRING_SOURCE=""
 for key in \
+  /usr/share/keyrings/my-vpns-archive-keyring.asc \
   "$APP_DIR/packaging/my-vpns-archive-keyring.asc" \
   "$APP_DIR/my-vpns-archive-keyring.asc"; do
   if [ -f "$key" ]; then KEYRING_SOURCE="$key"; break; fi
@@ -89,7 +106,9 @@ SOURCE_LIST="/etc/apt/sources.list.d/my-vpns.list"
 
 if [ -d /etc/apt/sources.list.d ] && [ -f "$KEYRING_SOURCE" ]; then
   install -d /usr/share/keyrings
-  install -m 0644 "$KEYRING_SOURCE" "$KEYRING_DEST"
+  if [ "$KEYRING_SOURCE" != "$KEYRING_DEST" ]; then
+    install -m 0644 "$KEYRING_SOURCE" "$KEYRING_DEST"
+  fi
   cat > "$SOURCE_LIST" << EOF
 deb [arch=amd64,arm64 signed-by=$KEYRING_DEST] https://lucascavalheri.github.io/my-vpns/apt ./
 EOF

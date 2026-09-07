@@ -902,6 +902,17 @@ fn github_update_check_compares_tags_and_parses_release_json() {
     );
     assert_eq!(artifact_kind("my-vpns-macos-x64"), Some("macos"));
     assert_eq!(artifact_architecture("my-vpns-macos-x64"), Some("x64"));
+    assert_eq!(artifact_kind("my-vpns-macos.dmg"), Some("macos"));
+    assert_eq!(artifact_kind("my-vpns_2.5.0_amd64.deb"), Some("deb"));
+    assert_eq!(
+        artifact_architecture("my-vpns_2.5.0_amd64.deb"),
+        Some("x64")
+    );
+    assert_eq!(artifact_kind("my-vpns-2.5.0-1.aarch64.rpm"), Some("rpm"));
+    assert_eq!(
+        artifact_architecture("my-vpns-2.5.0-1.aarch64.rpm"),
+        Some("arm64")
+    );
     assert_eq!(artifact_kind("my-vpns-windows-arm64.exe"), Some("windows"));
     assert_eq!(
         artifact_platform("my-vpns-windows-arm64.exe"),
@@ -919,6 +930,7 @@ fn helpers_exist_in_tree() {
     for name in [
         "packaging/run-vpn.sh",
         "packaging/stop-vpn.sh",
+        "packaging/build-linux-packages.sh",
         "packaging/macos-vpn.sh",
         "packaging/windows-vpn.ps1",
         "packaging/windows-network.ps1",

@@ -8,7 +8,7 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)](#-installation)
-[![Packages](https://img.shields.io/badge/packages-GitHub%20binaries-orange.svg)](#-installation)
+[![Packages](https://img.shields.io/badge/packages-GitHub%20binaries%20%7C%20deb%20%7C%20rpm%20%7C%20dmg-orange.svg)](#-installation)
 [![Built with](https://img.shields.io/badge/built%20with-Rust-informational.svg)](#-tech-stack)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
@@ -36,13 +36,18 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 ### From GitHub Releases (recommended)
 
-Tagged releases attach the Rust binaries built by CI:
+Tagged releases attach native binaries and installable packages built by CI:
 
 | File | Platform |
 |------|----------|
 | `my-vpns-linux-x64` | Linux x86_64 |
 | `my-vpns-linux-arm64` | Linux ARM64 |
+| `my-vpns_2.5.0_amd64.deb` | Debian/Ubuntu x86_64 |
+| `my-vpns_2.5.0_arm64.deb` | Debian/Ubuntu ARM64 |
+| `my-vpns-2.5.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
+| `my-vpns-2.5.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
 | `my-vpns-macos` | macOS universal (Intel + Apple Silicon) |
+| `my-vpns-macos.dmg` | macOS installer (Intel + Apple Silicon) |
 | `my-vpns-windows-x64.exe` | Windows x64 |
 | `my-vpns-windows-arm64.exe` | Windows ARM64 (GUI) |
 
@@ -53,6 +58,8 @@ chmod +x my-vpns-linux-x64
 
 On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows x64). Privileged helpers live in `packaging/`.
 
+On Debian/Ubuntu, install the matching package with `sudo apt install ./my-vpns_<version>_<arch>.deb`. On Fedora/RHEL, use `sudo dnf install ./my-vpns-<version>-1.<arch>.rpm`. The packages install the desktop launcher, icons, PolicyKit action and VPN helpers.
+
 On Linux, the app creates the per-user launcher
 `~/.local/share/applications/dev.cavallheri.myvpns.desktop`. Its filename
 matches the Wayland app id, so GNOME associates the window with the branded
@@ -61,7 +68,7 @@ dock icon instead of showing a generic gear. Packagers can use
 
 Use **1.1.3 or newer on Windows** for the Wintun MTU, tunnel-state, service-check, and HTTPS-only DTLS fixes. Unsigned builds may trigger SmartScreen / Gatekeeper.
 
-Older **1.1.x** tags still have Electron-era `.deb` / `.rpm` / `.dmg` / `.exe` installers. Distro packages for the Rust host are not produced yet.
+Older **1.1.x** tags still have Electron-era installers. The Rust host packages in this release are native packages and are not drop-in upgrades for that Electron build.
 
 #### macOS
 
@@ -92,7 +99,7 @@ da sua plataforma (ou rode `cargo build --release`).
 
 ### How to publish a release
 
-**Automatic (preferred):** bump `version` in `Cargo.toml`, tag, and push. CI runs `cargo test` / `cargo build --release` and attaches the binaries.
+**Automatic (preferred):** bump `version` in `Cargo.toml`, tag, and push. CI runs `cargo test` / `cargo build --release`, creates the native packages and attaches all artifacts.
 
 ```bash
 # 1) bump version in Cargo.toml and add a CHANGELOG.md section (e.g. 1.2.1)
@@ -306,8 +313,6 @@ Contributions are very welcome — bug fixes, UI polish, distro support, docs, p
 
 ### Good first issues
 
-- Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust binary
-- GitHub Actions release pipeline for `.deb` / `.rpm`
 - Stronger connection health checks
 - Flatpak / AppImage experiments
 - Extra openfortivpn options in the profile form
@@ -336,7 +341,7 @@ Please include:
 - [x] Create / import / edit profiles
 - [x] Multi-VPN concurrent sessions
 - [x] Start with Linux (autostart)
-- [x] GitHub Actions release pipeline (tag → `.deb` / `.rpm`)
+- [x] GitHub Actions release pipeline (tag → binaries, `.deb`, `.rpm`, `.dmg`)
 - [ ] Stronger health checks / richer log parsing
 - [ ] Flatpak / AppImage experiments
 

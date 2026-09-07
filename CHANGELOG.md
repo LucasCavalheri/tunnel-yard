@@ -5,7 +5,9 @@
 ### Multi-architecture release
 
 - Added native Linux x64 and ARM64 release builds.
+- Added Debian (`.deb`) and RPM (`.rpm`) packages for Linux x64 and ARM64.
 - Added a universal macOS binary containing Intel and Apple Silicon slices.
+- Added a universal macOS `.dmg` installer.
 - Added native Windows x64 and ARM64 GUI builds.
 - Made release metadata architecture-aware so the updater can identify the
   matching platform artifact.
