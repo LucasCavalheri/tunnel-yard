@@ -8,8 +8,8 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)](#-installation)
-[![Packages](https://img.shields.io/badge/packages-deb%20%7C%20rpm%20%7C%20dmg%20%7C%20exe-orange.svg)](#-installation)
-[![Built with](https://img.shields.io/badge/built%20with-Electron%20%2B%20React%20%2B%20TypeScript-informational.svg)](#-tech-stack)
+[![Packages](https://img.shields.io/badge/packages-GitHub%20binaries-orange.svg)](#-installation)
+[![Built with](https://img.shields.io/badge/built%20with-Rust-informational.svg)](#-tech-stack)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
 ---
@@ -34,7 +34,13 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 ## 📸 Screenshots
 
-> 🖼️ *Screenshots / GIF welcome — open a PR!*
+Dark theme:
+
+![My VPNs dark](docs/screenshots/desk-dark.png)
+
+Light theme:
+
+![My VPNs light](docs/screenshots/desk-light.png)
 
 ---
 
@@ -42,82 +48,66 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 ### From GitHub Releases (recommended)
 
-Starting with **1.1.0**, [GitHub Releases](https://github.com/LucasCavalheri/my-vpns/releases/latest) include `.deb` / `.rpm`, macOS `.dmg` / `.zip` for Intel and Apple Silicon, and a Windows x64 `.exe` installer. Use **1.1.3 or newer on Windows** for the Wintun MTU, tunnel-state, service-check, HTTPS-only DTLS compatibility and startup mutex fixes. The optional legacy FortiGate hand-off is preserved for custom patched OpenConnect builds; the standard installer uses the official client. Older releases before 1.1.0 are Linux-only. See the native validation notes below. Pre-releases remain available separately and do not update the stable APT repository.
+Tagged releases attach the Rust binaries built by CI:
+
+| File | Platform |
+|------|----------|
+| `my-vpns-linux-x64` | Linux |
+| `my-vpns-macos` | macOS |
+| `my-vpns-windows-x64.exe` | Windows x64 |
+
+```bash
+chmod +x my-vpns-linux-x64
+./my-vpns-linux-x64
+```
+
+On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows). Privileged helpers live in `packaging/`.
+
+On Linux, the app creates the per-user launcher
+`~/.local/share/applications/dev.cavallheri.myvpns.desktop`. Its filename
+matches the Wayland app id, so GNOME associates the window with the branded
+dock icon instead of showing a generic gear. Packagers can use
+`packaging/my-vpns.desktop` as the system-wide source.
+
+Use **1.1.3 or newer on Windows** for the Wintun MTU, tunnel-state, service-check, and HTTPS-only DTLS fixes. Unsigned builds may trigger SmartScreen / Gatekeeper.
+
+Older **1.1.x** tags still have Electron-era `.deb` / `.rpm` / `.dmg` / `.exe` installers. Distro packages for the Rust host are not produced yet.
 
 #### macOS
 
-Install the `.dmg` matching your architecture and copy **My VPNs** to Applications. Install [Homebrew](https://brew.sh) if needed, then run `brew install openfortivpn` (or use the app's install button when Homebrew already exists). Connecting requests macOS administrator authorization. Profiles live in `~/Library/Application Support/My VPNs/profiles`.
+Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` (or use the app's install button when Homebrew already exists). Connecting requests macOS administrator authorization. Profiles live in `~/Library/Application Support/My VPNs/profiles`.
 
 #### Windows
 
-Run the x64 `.exe` installer. On first launch, **Install now** downloads the pinned official OpenConnect 9.21 installer, checks its SHA256, and requests UAC authorization. Wintun is included; WSL and FortiClient are not required. Import your existing `.conf` through the app. Profiles live in `%APPDATA%\My VPNs\profiles`, with access restricted to your user, administrators and SYSTEM.
-
-Unsigned builds may trigger SmartScreen / Gatekeeper. Production signing and macOS notarization require the maintainer's certificates; see [distribution notes](docs/platform-support.md#distribution).
+On first launch, **Install now** downloads the pinned official OpenConnect 9.21 installer, checks its SHA256, and requests UAC authorization. Wintun is included; WSL and FortiClient are not required. Profiles live in `%APPDATA%\My VPNs\profiles`.
 
 #### Linux
 
-1. Open [Releases](https://github.com/LucasCavalheri/my-vpns/releases)
-2. Download either:
-   - `my-vpns_*_amd64.deb` or `my-vpns-*.x86_64.rpm` — installable packages
-   - **Source code** (zip/tar.gz) — always attached by GitHub for every tag/release
-
-#### Debian / Ubuntu / Mint
+Profiles live in `/etc/openfortivpn`. Connecting uses PolicyKit (`pkexec`). From source:
 
 ```bash
-sudo apt install ./my-vpns_*_amd64.deb
-```
-
-The package installs the signed APT source automatically, so future releases
-can be installed with `sudo apt upgrade`.
-
-#### Fedora / RHEL / Rocky / Alma
-
-```bash
-sudo dnf install ./my-vpns-*.x86_64.rpm
-```
-
-Then launch **My VPNs** from your app menu. Packaged binary typically lives at:
-
-```bash
-"/opt/My VPNs/my-vpns"
+cargo build --release
+./target/release/my-vpns
 ```
 
 ### Atualizações dentro do app
 
-Quando uma release estável nova é publicada, o banner do My VPNs oferece
-**Baixar e instalar**. O download é feito diretamente dos artefatos da release
-do GitHub e, quando disponível, o digest SHA-256 é conferido antes da execução.
-Windows abre o instalador NSIS com UAC; macOS substitui a aplicação pelo ZIP da
-mesma arquitetura e a reabre; Debian/Ubuntu usam `pkexec apt-get`, enquanto
-Fedora/RHEL/openSUSE usam o gerenciador RPM com autorização do sistema.
-
-As VPNs ativas são desconectadas antes da troca do programa. Se a distribuição,
-arquitetura ou política de assinatura não for compatível, o banner mantém o
-link para a página da release para instalação manual.
+Quando uma release nova aparece no GitHub, o banner e o item da bandeja
+**Verificar atualizações** apontam para as notas da release. Baixe o binário
+da sua plataforma (ou rode `cargo build --release`).
 
 ### How to publish a release
 
-**Automatic (preferred):** push a version tag — CI builds Linux, macOS and Windows installers and creates the GitHub Release.
+**Automatic (preferred):** bump `version` in `Cargo.toml`, tag, and push. CI runs `cargo test` / `cargo build --release` and attaches the binaries.
 
 ```bash
-# 1) bump version in package.json (e.g. 1.0.1)
-npm version patch   # or: minor / major
-# 2) push commit + tag
+# 1) bump version in Cargo.toml and add a CHANGELOG.md section (e.g. 1.2.1)
+# 2) commit, tag, push
+git tag v1.2.1
 git push origin master --follow-tags
 ```
 
-That triggers [`.github/workflows/release.yml`](.github/workflows/release.yml) on tags like `v1.0.1`.
-
-**Manual (from your machine):**
-
-```bash
-npm run build
-gh release create v1.0.1 \
-  release/my-vpns_*_amd64.deb \
-  release/my-vpns-*.x86_64.rpm \
-  --title "My VPNs v1.0.1" \
-  --generate-notes
-```
+That triggers [`.github/workflows/release.yml`](.github/workflows/release.yml) on tags like `v1.2.1`. The workflow copies the matching `CHANGELOG.md` section into the GitHub release notes.
 
 > GitHub always offers **Source code** downloads on the release page for the tagged commit — you don’t upload those yourself.
 
@@ -191,8 +181,10 @@ set-routes = 1
 2. Create, import, or pick an existing profile
 3. Click **Bring up** / **Conectar** and approve your system's administrator prompt
 4. Optionally enable **Auto-relink**, **Start at login**, and switch **PT / EN**
-5. Close the window anytime — it keeps running in the tray
-6. Fully quit from the tray menu
+5. Close the window or **Hide to tray** — tunnels keep running
+6. Fully quit from **Quit** in the sidebar or the tray menu
+
+Keyboard: `Ctrl+N` new profile, `Ctrl+W` hide to tray, `Ctrl+Q` quit, `Esc` close dialogs.
 
 ### Tray menu
 
@@ -208,42 +200,44 @@ set-routes = 1
 
 ### Prerequisites
 
-- Node.js **22+** (recommended)
-- npm
-- A Linux desktop, Windows x64, or macOS host (build macOS packages on macOS)
-- For RPM builds: `rpm` / `rpmbuild` (`sudo apt install rpm` on Debian/Ubuntu)
+- Rust **1.80+** (`rustup`)
+- A Linux desktop, Windows x64, or macOS host
+- Linux: OpenGL/X11 or Wayland (the same binary also supports `--smoke` without a GUI)
 
 ### Setup
 
 ```bash
 git clone https://github.com/LucasCavalheri/my-vpns.git
 cd my-vpns
-npm install
-npm run dev
+cargo run
 ```
 
-### Useful scripts
+### Useful commands
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Electron + Vite hot reload |
-| `npm test` | Run unit tests |
-| `npm run build` | Typecheck, bundle, and package for the current host |
-| `npm run build:win` | Build the Windows x64 NSIS installer |
-| `npm run build:mac` | Build macOS Intel / Apple Silicon DMG and ZIP (run on macOS) |
-| `npm run build:bundle` | Typecheck and bundle without creating an installer |
-| `npm run build:deb` | Build Debian package only |
-| `npm run build:rpm` | Build RPM package only |
-| `npm run lint` | Run oxlint |
+| `cargo run` | Desktop UI |
+| `cargo run -- --hidden` | Start hidden (tray / login item) |
+| `cargo run -- --smoke` | Print engine/settings/profile probe JSON and exit |
+| `cargo run -- --screenshot PATH` | Capture the first UI frame to a PNG and exit |
+| `cargo test` | Domain tests (conf, markers, OpenConnect translation, i18n, …) |
+| `cargo build --release` | Optimized `my-vpns` binary |
 
-Artifacts land in `release/` (gitignored).
+The product is the `my-vpns` binary (`cargo run` / `cargo build --release`).
+
+The interface follows Rust/UI's component language using native egui
+primitives and renders icons directly from Rust/UI's official `icons` crate.
+See
+[`docs/rust-ui.md`](docs/rust-ui.md) for the framework compatibility note and
+the component mapping.
 
 ---
 
 ## 🧪 Tests
 
 ```bash
-npm test
+cargo test
+./target/debug/my-vpns --smoke
 ```
 
 Coverage includes:
@@ -252,7 +246,9 @@ Coverage includes:
 - openfortivpn install plan per distro
 - VPN `.conf` parse / serialize (including profile drafts)
 - Log markers for tunnel up / errors
-- Preload packaging guard (CJS bridge)
+- OpenConnect argument translation (password never on argv)
+- trusted-cert SHA256 leaf + SPKI pin
+- native supervisor status rejection
 - i18n catalog key parity (`en` ↔ `pt-BR`)
 - XDG autostart `.desktop` snippet
 
@@ -262,23 +258,18 @@ Coverage includes:
 
 ```text
 my-vpns/
-├── electron/           # Main process
-│   ├── main.ts         # Window, tray, IPC
-│   ├── preload.ts      # contextBridge API
-│   ├── vpn.ts          # Multi-session VPN manager
-│   ├── profiles.ts     # Create / import / save / delete .conf
-│   ├── deps.ts         # Distro detect + openfortivpn install
-│   ├── autostart.ts    # XDG autostart
-│   └── settings.ts     # Locale persistence
-├── src/                # React UI
-│   ├── App.tsx
-│   ├── components/     # SetupGate, ProfileEditor
-│   ├── i18n/           # en + pt-BR messages
-│   └── types.ts
-├── packaging/          # Helpers + PolicyKit + deb/rpm scripts
-├── tests/              # Vitest unit tests
-├── build/              # App icon
-└── release/            # Built packages (generated, not committed)
+├── src/                # Rust library + desktop binary
+│   ├── main.rs         # Entry: UI or --smoke
+│   ├── ui.rs           # egui window, tray, notifications
+│   ├── vpn.rs          # Multi-session VPN manager
+│   ├── conf.rs         # Create / import / save / delete .conf
+│   ├── openconnect.rs  # Windows .conf → OpenConnect plan
+│   ├── deps.rs         # Distro detect + client install
+│   └── i18n.rs         # en + pt-BR
+├── packaging/          # Elevated helpers + PolicyKit
+├── tests/              # cargo tests + TLS fixtures
+├── REFACTOR.md         # Map + resume checkpoint
+└── Cargo.toml
 ```
 
 ### Under the hood (Linux)
@@ -301,13 +292,10 @@ Installed helper paths:
 
 ## 🧱 Tech stack
 
-- ⚡ **Electron** — desktop shell, tray, notifications, dialogs
-- ⚛️ **React 19** + **TypeScript** — UI
-- 🌀 **Vite** — fast dev & bundling
-- 🎨 **Tailwind CSS v4** — styling
-- 📦 **electron-builder** — Linux, macOS and Windows packaging
-- 🧪 **Vitest** — unit tests
+- 🦀 **Rust** — unprivileged desktop host (`eframe`/`egui`)
+- 🧪 **cargo test** — domain tests that call the shipped functions
 - 🔐 **Native authorization** — PolicyKit, macOS administrator prompt, or Windows UAC
+- 🛠️ **packaging/** — elevated `openfortivpn` / OpenConnect helpers (not the GUI)
 
 ---
 
@@ -319,13 +307,13 @@ Contributions are very welcome — bug fixes, UI polish, distro support, docs, p
 
 1. 🍴 Fork the repo
 2. 🌿 Create a branch: `git checkout -b feat/my-idea`
-3. 🧪 Smoke-test with `npm run dev`
-4. ✅ Ensure `npm test`, `npm run lint`, and `npx tsc -b` pass
+3. 🧪 Smoke-test with `cargo run -- --smoke` (and `cargo run` if you have a display)
+4. ✅ Ensure `cargo test` passes
 5. 📨 Open a Pull Request with a clear *why*
 
 ### Good first issues
 
-- Screenshots / GIF for this README
+- Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust binary
 - GitHub Actions release pipeline for `.deb` / `.rpm`
 - Stronger connection health checks
 - Flatpak / AppImage experiments
@@ -334,7 +322,7 @@ Contributions are very welcome — bug fixes, UI polish, distro support, docs, p
 ### Code style
 
 - Keep changes focused — small, reviewable PRs
-- Match existing TypeScript / React patterns
+- Match existing Rust patterns in `src/`
 - Don’t commit secrets, VPN passwords, or personal `.conf` files
 - Don’t add drive-by refactors unrelated to your PR
 

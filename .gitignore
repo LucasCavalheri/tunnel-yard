@@ -1,19 +1,13 @@
 # Logs
 logs
 *.log
-npm-debug.log*
-
-# Dependencies
-node_modules
 
 # Build
-dist
-dist-electron
 *.rpm
 release
 *.deb
-.vite
 .tmp
+/target
 
 # Env / secrets
 .env
@@ -26,4 +20,3 @@ release
 .idea
 .vscode
 *.swp
-*.tsbuildinfo

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=My VPNs
+Comment=OpenFortiVPN control desk
+Comment[pt_BR]=Mesa de controle OpenFortiVPN
+Exec=my-vpns
+Icon=my-vpns
+Terminal=false
+Categories=Network;Security;
+StartupNotify=true
+StartupWMClass=dev.cavallheri.myvpns

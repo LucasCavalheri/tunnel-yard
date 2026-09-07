@@ -8,11 +8,7 @@ $installer = Join-Path $scratch 'openconnect-installer.exe'
 Invoke-WebRequest $metadata.url -OutFile $installer
 if ((Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne $metadata.sha256) { throw 'OpenConnect checksum mismatch' }
 $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
-if (!$sevenZip) {
-    Copy-Item (Join-Path $root 'node_modules/electron-winstaller/vendor/7z-x64.exe') (Join-Path $scratch '7z.exe')
-    Copy-Item (Join-Path $root 'node_modules/electron-winstaller/vendor/7z-x64.dll') (Join-Path $scratch '7z.dll')
-    $sevenZip = Join-Path $scratch '7z.exe'
-}
+if (!$sevenZip) { throw '7z.exe is required to extract the OpenConnect installer.' }
 $destination = Join-Path $scratch 'openconnect'
 & $sevenZip x $installer "-o$destination" -y | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not extract OpenConnect' }

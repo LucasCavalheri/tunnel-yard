@@ -1,0 +1,61 @@
+# Changelog
+
+## 1.2.0
+
+First native Rust desktop host. Electron, Node and the Chromium shell are gone.
+Profiles stay as openfortivpn `.conf` files; the GUI process still never runs as
+root or Administrator.
+
+### What changed
+
+- Native `eframe`/`egui` desk: profile list, editor, live console, setup gate,
+  light/dark theme, pt-BR + EN
+- Close the window to park in the tray; **Quit** in the sidebar or tray menu
+  disconnects then exits
+- Linux/macOS continue to use **openfortivpn**; Windows continues to use
+  **OpenConnect 9.21 + Wintun**
+- Privileged work stays in `packaging/` helpers (PolicyKit, macOS administrator
+  prompt, Windows UAC)
+- In-app update check opens the GitHub release page; it does not download or
+  run installers
+
+### Downloads
+
+| File | Platform |
+|------|----------|
+| `my-vpns-linux-x64` | Linux |
+| `my-vpns-macos` | macOS |
+| `my-vpns-windows-x64.exe` | Windows x64 |
+
+```bash
+chmod +x my-vpns-linux-x64
+./my-vpns-linux-x64
+```
+
+On first launch the app can install the platform VPN client. Unsigned binaries
+may trigger SmartScreen / Gatekeeper.
+
+### Upgrading from 1.1.x (Electron)
+
+This is a new desktop host, not an installer drop-in. **Do not use the in-app
+updater in 1.1.x** to apply this release — those builds look for `.deb` /
+`.rpm` / `.dmg` / NSIS `.exe` packages, which this tag does not ship.
+
+1. Download the binary for your OS from this page
+2. Quit the old Electron app
+3. Run the new binary
+4. Existing `.conf` profiles continue to work:
+   - Linux: `/etc/openfortivpn`
+   - macOS: `~/Library/Application Support/My VPNs/profiles`
+   - Windows: `%APPDATA%\My VPNs\profiles`
+
+Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust host are not produced
+yet. Older **1.1.x** tags still have the Electron-era installers.
+
+### Validation
+
+Automated checks cover configuration translation, certificate pins, native
+status policy and i18n. Windows MTU, split-DNS and service probes were checked
+on a real FortiGate session in 1.1.x; other gateways and macOS still need
+native acceptance testing. Windows currently supports IPv4 SSL VPN. SAML and
+all MFA variants are not verified.

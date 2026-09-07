@@ -14,21 +14,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Prepare real Windows client for localhost tests
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/prepare-windows-test.ps1
-      - run: npm test
-      - run: npm run lint
-      - run: npm run build:bundle
-      - name: Open the native Electron UI and verify the preload bridge
-        if: runner.os == 'Windows' || runner.os == 'macOS'
-        run: npx electron scripts/smoke-electron.cjs
+          components: rustfmt
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - run: cargo test
+      - run: cargo build
+      - name: Smoke the shipped binary
+        shell: bash
+        run: ./target/debug/my-vpns --smoke
       - name: Check macOS helper syntax
         if: runner.os == 'macOS'
         run: bash -n packaging/macos-vpn.sh

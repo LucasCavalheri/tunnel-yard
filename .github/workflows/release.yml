@@ -7,98 +7,50 @@ on:
 
 permissions:
   contents: write
-  pages: write
 
 jobs:
-  build-native:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-latest
+            artifact: my-vpns-linux-x64
           - os: windows-latest
-            command: build:win
+            artifact: my-vpns-windows-x64
           - os: macos-latest
-            command: build:mac
+            artifact: my-vpns-macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Prepare real Windows client for localhost tests
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/prepare-windows-test.ps1
-      - run: npm test
-      - run: npm run lint
-      - name: Build native installer
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: cargo build --release
+      - name: Stage binary
         shell: bash
         run: |
-          # Missing GitHub secrets become empty strings. electron-builder
-          # treats an empty CSC_LINK as a certificate path to the cwd.
-          for variable in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            if [[ -z "${!variable}" ]]; then unset "$variable"; fi
-          done
-          npm run ${{ matrix.command }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          mkdir -p dist-release
+          if [ -f target/release/my-vpns.exe ]; then
+            cp target/release/my-vpns.exe dist-release/${{ matrix.artifact }}.exe
+          else
+            cp target/release/my-vpns dist-release/${{ matrix.artifact }}
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: native-${{ matrix.os }}
+          name: ${{ matrix.artifact }}
           if-no-files-found: error
-          path: |
-            release/*.exe
-            release/*.dmg
-            release/*.zip
+          path: dist-release/*
 
-  build-and-release:
-    needs: build-native
+  publish:
+    needs: build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-          cache: npm
-
-      - name: Install system deps for packaging
-        run: sudo apt-get update && sudo apt-get install -y rpm dpkg-dev apt-utils gnupg
-
-      - name: Install npm deps
-        run: npm ci
-
-      - name: Test
-        run: npm test
-
-      - name: Build .deb + .rpm
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Collect artifacts
-        run: |
-          set -euo pipefail
-          mkdir -p dist-release
-          cp release/*.deb release/*.rpm dist-release/
-          ls -lh dist-release
-
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
-          pattern: native-*
           merge-multiple: true
           path: dist-release
-
       - name: Create / update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -111,93 +63,31 @@ jobs:
           else
             FLAGS+=(--prerelease=false --latest)
           fi
-          cat > release-notes.md <<'EOF'
-          ## Installing updates on Windows
-
-          - Launch the downloaded installer through ShellExecute so Windows raises
-            the UAC prompt. The per-machine installer requires administrator
-            rights, which `CreateProcess` refuses outright — updating from inside
-            the application failed with `spawn ... EACCES`.
-          - Report a declined elevation prompt instead of quitting the running
-            application. The spawn failure arrived asynchronously and escaped the
-            surrounding error handling, crashing the main process.
-          - Attach the same error handling to the macOS update helper.
-
-          Upgrading **to** this version from 1.1.6 or earlier still needs the
-          installer to be run manually, because the fix lives in the update path.
-
-          ## Application icon and form focus
-
-          - Replace the placeholder application mark with the shield icon used in
-            the interface. Windows takes its taskbar and toast-notification icons
-            from the installed executable, so both now match the window.
-          - Give desktop notifications an explicit icon instead of the shell default.
-          - Restore a visible focus indicator on profile fields, buttons and toggles;
-            the previous ring was too faint to see over the dark surface.
-          - `public/icon.svg` is now the single source for the mark, rasterized by
-            `npm run build:icons`.
-
-          ## Earlier in 1.1.x
-
-          - Apply and verify the MTU negotiated for each session before installing tunnel IP/routes.
-          - Validate adapter, IP, routes and effective MTU before showing connected; optionally check an internal TCP service configured in the profile editor.
-          - Recheck isolated service-probe failures without reauthenticating; show verification in progress and disconnect after three consecutive failures. Topology loss remains immediate.
-          - Detect tunnel loss and stale supervisor status; stop retrying rejected cookies or sessions where the gateway forbids reconnect-after-drop.
-          - Apply Fortinet split-DNS with scoped Windows NRPT policies and remove owned settings on disconnect.
-          - Retain secure CA/fingerprint verification and distinguish an unknown-CA warning from a verified certificate pin.
-          - Install application updates from official releases only.
-
-          ## Packages
-
-          - `.deb` — Debian / Ubuntu / Mint
-          - `.rpm` — Fedora / RHEL / Rocky / Alma / openSUSE
-          - `.dmg` / `.zip` — macOS, Intel and Apple Silicon (requires openfortivpn via Homebrew)
-          - `.exe` — Windows x64 (setup installs OpenConnect 9.21 on first use)
-
-          All platforms import openfortivpn `.conf` profiles. See the README for
-          Windows option compatibility and signing / notarization notes.
-
-          ### New platforms: validation limits
-
-          Windows and macOS support is new. Automated checks cover profile
-          translation, local TLS/authentication and network cleanup logic.
-          Windows MTU, service reachability and split-DNS were also checked on a
-          real FortiGate session; other gateways and macOS still require native validation.
-          Windows currently supports IPv4 SSL VPN. SAML and all MFA variants
-          are not verified. The packages may trigger SmartScreen/Gatekeeper
-          warnings when signing credentials are not configured.
-
-          ### Install / upgrade (Debian & Ubuntu)
-
-          After installing once, updates come with `sudo apt upgrade`:
-
-          ```bash
-          sudo apt install ./my-vpns_*_amd64.deb
-          # postinst installs the archive key and APT source automatically
-          sudo apt update && sudo apt upgrade
-          ```
-
-          Or add the repo manually:
-
-          ```bash
-          curl -fsSL https://lucascavalheri.github.io/my-vpns/apt/my-vpns-archive-keyring.asc \
-            | sudo tee /usr/share/keyrings/my-vpns-archive-keyring.asc >/dev/null
-          echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/my-vpns-archive-keyring.asc] https://lucascavalheri.github.io/my-vpns/apt ./' \
-            | sudo tee /etc/apt/sources.list.d/my-vpns.list
-          sudo apt update && sudo apt install my-vpns
-          ```
-
-          ### Fedora / RPM
-
-          ```bash
-          sudo dnf install ./my-vpns-*.x86_64.rpm
-          ```
+          VERSION="${TAG#v}"
+          notes_from_changelog() {
+            awk -v ver="$1" '
+              BEGIN { p = 0 }
+              $0 ~ "^## " ver "($| )" || $0 ~ "^## v" ver "($| )" { p = 1; next }
+              p && /^## / { exit }
+              p { print }
+            ' CHANGELOG.md | sed -e 's/[[:space:]]*$//'
+          }
+          {
+            echo "## My VPNs ${VERSION}"
+            echo
+            SECTION=""
+            if [ -f CHANGELOG.md ]; then
+              SECTION="$(notes_from_changelog "$VERSION" | sed -e '/./,$!d')"
+            fi
+            if [ -n "$SECTION" ]; then
+              printf '%s\n' "$SECTION"
+            else
+              cat <<'EOF'
+          Native Rust desktop host. Linux/macOS use openfortivpn; Windows uses OpenConnect 9.21 + Wintun.
+          Privileged helpers remain under `packaging/`.
           EOF
-
-          if [[ "$TAG" == *-* ]]; then
-            printf '\nThis is a pre-release for manual testing. It is not published to the stable APT repository.\n' >> release-notes.md
-          fi
-
+            fi
+          } > release-notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist-release/* --clobber
             gh release edit "$TAG" --notes-file release-notes.md "${FLAGS[@]}"
@@ -205,72 +95,4 @@ jobs:
             gh release create "$TAG" dist-release/* \
               --title "My VPNs ${TAG}" \
               --notes-file release-notes.md "${FLAGS[@]}"
-          fi
-
-      - name: Publish APT repo to GitHub Pages
-        if: ${{ !contains(github.ref_name, '-') }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          DEBS=(dist-release/*.deb)
-          if [ "${#DEBS[@]}" -ne 1 ]; then
-            echo "expected exactly one .deb, found ${#DEBS[@]}" >&2
-            exit 1
-          fi
-          DEB="${DEBS[0]}"
-
-          if [ -z "${APT_SIGNING_KEY:-}" ]; then
-            echo "GitHub secret APT_SIGNING_KEY is required to publish the signed APT repo" >&2
-            exit 1
-          fi
-          export GNUPGHOME="$(mktemp -d)"
-          chmod 700 "$GNUPGHOME"
-          trap 'gpgconf --kill all 2>/dev/null || true; rm -rf "$GNUPGHOME"' EXIT
-          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
-          APT_SIGNING_KEY_ID="$(gpg --batch --with-colons --list-secret-keys \
-            | awk -F: '$1 == "fpr" { print $10; exit }')"
-          EXPECTED_KEY_ID="$(gpg --batch --show-keys --with-colons \
-            packaging/my-vpns-archive-keyring.asc \
-            | awk -F: '$1 == "fpr" { print $10; exit }')"
-          if [ -z "$APT_SIGNING_KEY_ID" ] || [ "$APT_SIGNING_KEY_ID" != "$EXPECTED_KEY_ID" ]; then
-            echo "APT_SIGNING_KEY does not match the committed public archive key" >&2
-            exit 1
-          fi
-          export APT_SIGNING_KEY_ID
-
-          WORK="$(mktemp -d)"
-          if git clone --depth 1 --branch gh-pages \
-            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
-            "$WORK"; then
-            true
-          else
-            rm -rf "$WORK"
-            mkdir -p "$WORK"
-            git -C "$WORK" init
-            git -C "$WORK" checkout -b gh-pages
-            git -C "$WORK" remote add origin \
-              "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          fi
-
-          mkdir -p "$WORK/apt"
-          bash packaging/build-apt-repo.sh "$WORK/apt" "$DEB"
-
-          cat > "$WORK/index.html" << 'EOF'
-          <!doctype html>
-          <meta charset="utf-8">
-          <title>My VPNs</title>
-          <p><a href="https://github.com/LucasCavalheri/my-vpns">My VPNs</a> APT repo lives under <a href="./apt/">/apt/</a>.</p>
-          EOF
-
-          git -C "$WORK" config user.name "github-actions[bot]"
-          git -C "$WORK" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C "$WORK" add -A
-          if git -C "$WORK" diff --cached --quiet; then
-            echo "APT repo unchanged"
-          else
-            git -C "$WORK" commit -m "apt: publish ${{ github.ref_name }}"
-            git -C "$WORK" push -u origin gh-pages
           fi

@@ -4,7 +4,6 @@ set -e
 install -d /usr/lib/my-vpns
 
 APP_DIR=""
-RES_DIR="/nonexistent"
 for candidate in "/opt/My VPNs" "/opt/my-vpns"; do
   if [ -x "$candidate/my-vpns" ]; then
     APP_DIR="$candidate"
@@ -13,53 +12,78 @@ for candidate in "/opt/My VPNs" "/opt/my-vpns"; do
 done
 
 if [ -n "$APP_DIR" ]; then
-  RES_DIR="$APP_DIR/resources"
+  for res in "$APP_DIR/packaging" "$APP_DIR/helpers" "$APP_DIR/share/my-vpns"; do
+    if [ -f "$res/run-vpn.sh" ]; then
+      install -m 0755 "$res/run-vpn.sh" /usr/lib/my-vpns/run-vpn.sh
+      install -m 0755 "$res/stop-vpn.sh" /usr/lib/my-vpns/stop-vpn.sh
+      break
+    fi
+  done
 
-  if [ -f "$RES_DIR/helpers/run-vpn.sh" ]; then
-    install -m 0755 "$RES_DIR/helpers/run-vpn.sh" /usr/lib/my-vpns/run-vpn.sh
-    install -m 0755 "$RES_DIR/helpers/stop-vpn.sh" /usr/lib/my-vpns/stop-vpn.sh
-  fi
+  for polkit in \
+    "$APP_DIR/packaging/polkit/dev.cavallheri.myvpns.policy" \
+    "$APP_DIR/polkit/dev.cavallheri.myvpns.policy"; do
+    if [ -f "$polkit" ]; then
+      install -d /usr/share/polkit-1/actions
+      install -m 0644 "$polkit" /usr/share/polkit-1/actions/dev.cavallheri.myvpns.policy
+      break
+    fi
+  done
 
-  if [ -f "$RES_DIR/polkit/dev.cavallheri.myvpns.policy" ]; then
-    install -d /usr/share/polkit-1/actions
-    install -m 0644 "$RES_DIR/polkit/dev.cavallheri.myvpns.policy" \
-      /usr/share/polkit-1/actions/dev.cavallheri.myvpns.policy
-  fi
-
-  # Electron SUID sandbox — required or the app exits immediately on launch
-  SANDBOX="$APP_DIR/chrome-sandbox"
-  if [ -f "$SANDBOX" ]; then
-    chown root:root "$SANDBOX"
-    chmod 4755 "$SANDBOX"
-  fi
-
-  # Ubuntu 24+ userns / AppArmor profile shipped by electron-builder
-  if [ -f "$RES_DIR/apparmor-profile" ] && command -v apparmor_parser >/dev/null 2>&1; then
-    install -m 0644 "$RES_DIR/apparmor-profile" /etc/apparmor.d/my-vpns || true
-    apparmor_parser -r /etc/apparmor.d/my-vpns 2>/dev/null || true
-  fi
-
-  # Stable launcher (spaces in /opt path + --no-sandbox fallback for modern kernels)
   cat > /usr/bin/my-vpns << EOF
 #!/bin/bash
-exec "$APP_DIR/my-vpns" --no-sandbox "\$@"
+exec "$APP_DIR/my-vpns" "\$@"
 EOF
   chmod 755 /usr/bin/my-vpns
 
+  for src_desktop in \
+    "$APP_DIR/packaging/my-vpns.desktop" \
+    "$APP_DIR/my-vpns.desktop"; do
+    if [ -f "$src_desktop" ]; then
+      install -d /usr/share/applications
+      install -m 0644 "$src_desktop" /usr/share/applications/dev.cavallheri.myvpns.desktop
+      break
+    fi
+  done
   for DESKTOP in \
+    /usr/share/applications/dev.cavallheri.myvpns.desktop \
     /usr/share/applications/my-vpns.desktop \
     /usr/share/applications/My\ VPNs.desktop; do
     if [ -f "$DESKTOP" ]; then
       sed -i 's|^Exec=.*|Exec=/usr/bin/my-vpns %U|' "$DESKTOP"
+      sed -i 's|^StartupWMClass=.*|StartupWMClass=dev.cavallheri.myvpns|' "$DESKTOP"
       if ! grep -q '^StartupWMClass=' "$DESKTOP"; then
-        printf '\nStartupWMClass=my-vpns\n' >> "$DESKTOP"
+        printf '\nStartupWMClass=dev.cavallheri.myvpns\n' >> "$DESKTOP"
       fi
     fi
   done
+  if [ -f "$APP_DIR/public/icon.png" ] || [ -f "$APP_DIR/icon.png" ]; then
+    src256="$APP_DIR/public/icon.png"
+    [ -f "$src256" ] || src256="$APP_DIR/icon.png"
+    install -d /usr/share/icons/hicolor/256x256/apps
+    install -m 0644 "$src256" /usr/share/icons/hicolor/256x256/apps/my-vpns.png
+    if [ -f "$APP_DIR/public/icon-64.png" ]; then
+      install -d /usr/share/icons/hicolor/64x64/apps
+      install -m 0644 "$APP_DIR/public/icon-64.png" /usr/share/icons/hicolor/64x64/apps/my-vpns.png
+    fi
+    if [ -f "$APP_DIR/public/icon-32.png" ]; then
+      install -d /usr/share/icons/hicolor/32x32/apps
+      install -m 0644 "$APP_DIR/public/icon-32.png" /usr/share/icons/hicolor/32x32/apps/my-vpns.png
+    fi
+    if [ -f "$APP_DIR/public/icon.ico" ]; then
+      install -d /usr/share/pixmaps
+      install -m 0644 "$APP_DIR/public/icon.png" /usr/share/pixmaps/my-vpns.png
+    fi
+  fi
 fi
 
 # Signed APT repo so `sudo apt upgrade` can pull newer builds from GitHub Pages
-KEYRING_SOURCE="$RES_DIR/my-vpns-archive-keyring.asc"
+KEYRING_SOURCE=""
+for key in \
+  "$APP_DIR/packaging/my-vpns-archive-keyring.asc" \
+  "$APP_DIR/my-vpns-archive-keyring.asc"; do
+  if [ -f "$key" ]; then KEYRING_SOURCE="$key"; break; fi
+done
 KEYRING_DEST="/usr/share/keyrings/my-vpns-archive-keyring.asc"
 SOURCE_LIST="/etc/apt/sources.list.d/my-vpns.list"
 

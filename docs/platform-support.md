@@ -2,11 +2,11 @@
 
 The UI, profile editor and `.conf` files are shared. Execution, privilege elevation, networking and autostart are platform specific.
 
-| Platform | VPN engine | Installer | Profile directory |
+| Platform | VPN engine | Current release artifact | Profile directory |
 | --- | --- | --- | --- |
-| Linux | openfortivpn | `.deb`, `.rpm` | `/etc/openfortivpn` (existing location) |
-| macOS | openfortivpn from Homebrew | `.dmg`, `.zip`; arm64 and x64 | `~/Library/Application Support/My VPNs/profiles` |
-| Windows | official OpenConnect 9.21 with Wintun | NSIS `.exe`; x64 | `%APPDATA%\My VPNs\profiles` |
+| Linux | openfortivpn | `my-vpns-linux-x64` | `/etc/openfortivpn` (existing location) |
+| macOS | openfortivpn from Homebrew | `my-vpns-macos` | `~/Library/Application Support/My VPNs/profiles` |
+| Windows | official OpenConnect 9.21 with Wintun | `my-vpns-windows-x64.exe` | `%APPDATA%\My VPNs\profiles` |
 
 The new platforms must pass the native acceptance checklist below before they are considered validated for production. The code and packaging being present do not establish compatibility with every FortiGate or authentication policy.
 
@@ -49,7 +49,7 @@ The initial Windows backend configures IPv4 tunnels (`--disable-ipv6`). Fortinet
 
 ## Process and network lifecycle
 
-The Electron UI never runs as administrator/root. Each native connection starts a supervisor after an OS authorization prompt. Windows uses PowerShell and macOS uses `osascript` plus a Bash supervisor. Profiles and temporary credentials are restricted to the current user and privileged accounts. The Linux PolicyKit flow remains in place.
+The GUI process never runs as administrator/root. Each native connection starts a supervisor after an OS authorization prompt. Windows uses PowerShell and macOS uses `osascript` plus a Bash supervisor. Profiles and temporary credentials are restricted to the current user and privileged accounts. The Linux PolicyKit flow remains in place.
 
 Each Windows connection uses a distinct Wintun interface. The network script records only changes it owns, restores previous DNS, suffix and interface metric, and removes its own IP/routes. A global mutex serializes changes; shared transport routes are retained while another My VPNs session needs them. Network setup failure triggers rollback instead of reporting a successful tunnel.
 
@@ -65,15 +65,20 @@ Supervisors observe a heartbeat. Closing the window keeps the app in the tray; q
 
 ## Distribution
 
-`public/icon.svg` is the single source for the application mark. `npm run build:icons` rasterizes it into `build/icon.png` (the master electron-builder converts to `.ico`/`.icns`) and `public/icon.png`; run it after editing the SVG. Windows takes the taskbar and toast-notification icons from the installed executable, so an icon change only becomes visible after reinstalling.
+The mark is a coral squircle with two white tunnel arches meeting at a hub. The
+concept was explored with OpenAI ImageGen and rebuilt as precise geometry in
+`scripts/generate-icon.py`, which writes `public/icon.svg`, `public/icon.png`,
+`public/icon-32.png`, `public/icon-64.png`, `public/icon.ico`, and
+`build/icon.png`. The binary embeds the PNG/ICO (`include_bytes`) and copies
+them into the user cache so the window, tray and notifications all show the
+same icon. On Linux it also writes a per-user launcher named after
+`dev.cavallheri.myvpns`, matching the Wayland app id used by the window and
+preventing GNOME from falling back to its generic gear icon. Re-run the script
+after changing the mark.
 
-Run `npm run build:win` on Windows for the NSIS installer. Run `npm run build:mac` on macOS for both CPU architectures. `npm run build` packages for the current host. Linux's dedicated `build:deb` and `build:rpm` scripts remain available.
+CI runs `cargo fmt --check` (Linux), `cargo test` and `cargo build` on Linux, Windows and macOS. Release tags build `cargo build --release` and attach the binaries. Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust host are not produced yet. Unsigned builds may trigger Gatekeeper/SmartScreen; do not disable those protections globally.
 
-The release workflow builds native packages on Windows and macOS runners, then combines them with the Linux artifacts in the GitHub Release. Tags with a version suffix such as `v1.1.0-beta.1` create a pre-release without replacing the latest stable release or publishing to APT. Stable releases retain the existing signed APT repository publishing flow. The CI workflow tests all three operating systems on PRs and master pushes; tests that invoke Windows cmdlets run only on Windows.
-
-The OpenConnect download URL and SHA256 are pinned in `packaging/windows-client.json`. The same metadata is used for installation and the extracted test client. The installer includes Wintun and its DLL dependencies. My VPNs does not redistribute those binaries inside its own installer. If the official artifact expires or changes, download/verification fails closed; update the reviewed metadata rather than removing the hash check.
-
-macOS signing/notarization uses electron-builder's `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` secrets. Windows signing likewise needs the maintainer's appropriate signing credentials/configuration. Without credentials, build artifacts are for manual testing and may be blocked or warned about by Gatekeeper/SmartScreen. Never disable those protections globally to install a test build.
+The OpenConnect download URL and SHA256 are pinned in `packaging/windows-client.json`. If the official artifact expires or changes, download/verification fails closed; update the reviewed metadata rather than removing the hash check.
 
 ## Verification
 
@@ -91,7 +96,7 @@ A controlled Windows firewall test blocked only the supervisor's service probe o
 
 On Windows, `scripts/prepare-windows-test.ps1` extracts the pinned official OpenConnect binary without installing it. The runtime tests execute the real client and supervisor against a localhost HTTPS server to verify username/password/realm handling (including non-ASCII passwords), authentication failure and graceful cancellation. They **do not** prove PPP negotiation or real network connectivity.
 
-`npx electron scripts/smoke-electron.cjs`, after `npm run build:bundle`, checks the real Electron main process, preload bridge, dependency detection and rendered setup screen. It does not install dependencies or touch system networking.
+`my-vpns --smoke` prints engine, platform, profile directory, client status and locale from the same binary. It does not install dependencies or touch system networking.
 
 Native acceptance checklist (requires a test FortiGate and a Mac/Windows host):
 
