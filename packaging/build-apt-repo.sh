@@ -82,7 +82,7 @@ cp -f "$KEYRING_FILE" "$REPO_ROOT/my-vpns-archive-keyring.asc"
 )
 
 # Tiny index for humans
-cat > "$REPO_ROOT/README.md" << EOF
+cat > "$REPO_ROOT/README.md" << 'EOF'
 # My VPNs APT repository
 
 The repository metadata is signed with the My VPNs archive key.
@@ -91,7 +91,7 @@ Fingerprint: `A9F137BEE74B623131071358FB0EC1D5A01262F0`
 ```bash
 curl -fsSL https://lucascavalheri.github.io/my-vpns/apt/my-vpns-archive-keyring.asc \
   | sudo tee /usr/share/keyrings/my-vpns-archive-keyring.asc >/dev/null
-echo 'deb [arch=$APT_ARCHITECTURES_DISPLAY signed-by=/usr/share/keyrings/my-vpns-archive-keyring.asc] https://lucascavalheri.github.io/my-vpns/apt ./' \
+echo 'deb [arch=__APT_ARCHITECTURES__ signed-by=/usr/share/keyrings/my-vpns-archive-keyring.asc] https://lucascavalheri.github.io/my-vpns/apt ./' \
   | sudo tee /etc/apt/sources.list.d/my-vpns.list
 sudo apt update
 sudo apt install my-vpns
@@ -99,6 +99,7 @@ sudo apt install my-vpns
 
 After installation, upgrades come with `sudo apt upgrade`.
 EOF
+sed -i "s/__APT_ARCHITECTURES__/$APT_ARCHITECTURES_DISPLAY/" "$REPO_ROOT/README.md"
 
 echo "Signed APT repo ready at $REPO_ROOT"
 ls -lh "$REPO_ROOT"
