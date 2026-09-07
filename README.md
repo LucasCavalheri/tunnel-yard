@@ -42,6 +42,8 @@ Tagged releases attach native binaries and installable packages built by CI:
 |------|----------|
 | `my-vpns-linux-x64` | Linux x86_64 |
 | `my-vpns-linux-arm64` | Linux ARM64 |
+| `my-vpns-linux-x64.tar.gz` | Linux x86_64 archive (executable) |
+| `my-vpns-linux-arm64.tar.gz` | Linux ARM64 archive (executable) |
 | `my-vpns_2.5.0_amd64.deb` | Debian/Ubuntu x86_64 |
 | `my-vpns_2.5.0_arm64.deb` | Debian/Ubuntu ARM64 |
 | `my-vpns-2.5.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
@@ -60,6 +62,13 @@ On first launch the app can install the platform VPN client (`openfortivpn` on L
 
 On Debian/Ubuntu, install the matching package with `sudo apt install ./my-vpns_<version>_<arch>.deb`. On Fedora/RHEL, use `sudo dnf install ./my-vpns-<version>-1.<arch>.rpm`. The packages install the desktop launcher, icons, PolicyKit action and VPN helpers.
 
+If you prefer the standalone Linux binary, download the matching `.tar.gz`; it preserves the executable permission when extracted:
+
+```bash
+tar -xzf my-vpns-linux-x64.tar.gz
+./my-vpns-linux-x64
+```
+
 On Linux, the app creates the per-user launcher
 `~/.local/share/applications/dev.cavallheri.myvpns.desktop`. Its filename
 matches the Wayland app id, so GNOME associates the window with the branded
@@ -68,7 +77,7 @@ dock icon instead of showing a generic gear. Packagers can use
 
 Use **1.1.3 or newer on Windows** for the Wintun MTU, tunnel-state, service-check, and HTTPS-only DTLS fixes. Unsigned builds may trigger SmartScreen / Gatekeeper.
 
-Older **1.1.x** tags still have Electron-era installers. The Rust host packages in this release are native packages and are not drop-in upgrades for that Electron build.
+Older **1.1.x** tags still have Electron-era installers. The Rust host packages in this release are native packages and are not drop-in upgrades for that Electron build. The macOS `.dmg` is ad-hoc signed but not Apple-notarized, so Gatekeeper may still require opening it from Finder with secondary confirmation.
 
 #### macOS
 

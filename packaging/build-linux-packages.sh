@@ -73,7 +73,7 @@ Section: net
 Priority: optional
 Architecture: $DEB_ARCH
 Maintainer: Lucas Cavalheri <lucas.dev.carvalho@gmail.com>
-Depends: libc6, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libx11-xcb1, libxau6, libxdmcp6, policykit-1
+Depends: libc6, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libx11-xcb1, libxau6, libxdmcp6, pkexec, polkitd | policykit-1
 Description: My VPNs graphical OpenFortiVPN manager
  A native desktop application for managing FortiGate SSL VPN connections.
  Includes PolicyKit helpers and a desktop launcher.

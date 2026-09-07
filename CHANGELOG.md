@@ -6,8 +6,13 @@
 
 - Added native Linux x64 and ARM64 release builds.
 - Added Debian (`.deb`) and RPM (`.rpm`) packages for Linux x64 and ARM64.
+- Debian packages accept both the current `polkitd`/`pkexec` split and older
+  `policykit-1` transitional packages.
+- Added executable Linux `.tar.gz` archives so downloaded binaries retain
+  their execute permission.
 - Added a universal macOS binary containing Intel and Apple Silicon slices.
 - Added a universal macOS `.dmg` installer.
+- The macOS binary and application bundle are ad-hoc signed during packaging.
 - Added native Windows x64 and ARM64 GUI builds.
 - Made release metadata architecture-aware so the updater can identify the
   matching platform artifact.

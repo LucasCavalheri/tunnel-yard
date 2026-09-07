@@ -903,6 +903,7 @@ fn github_update_check_compares_tags_and_parses_release_json() {
     assert_eq!(artifact_kind("my-vpns-macos-x64"), Some("macos"));
     assert_eq!(artifact_architecture("my-vpns-macos-x64"), Some("x64"));
     assert_eq!(artifact_kind("my-vpns-macos.dmg"), Some("macos"));
+    assert_eq!(artifact_kind("my-vpns-linux-x64.tar.gz"), Some("linux"));
     assert_eq!(artifact_kind("my-vpns_2.5.0_amd64.deb"), Some("deb"));
     assert_eq!(
         artifact_architecture("my-vpns_2.5.0_amd64.deb"),

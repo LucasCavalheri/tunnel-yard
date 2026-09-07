@@ -4,8 +4,8 @@ The UI, profile editor and `.conf` files are shared. Execution, privilege elevat
 
 | Platform / architecture | VPN engine | Current release artifact | Profile directory |
 | --- | --- | --- | --- |
-| Linux x86_64 | openfortivpn | `my-vpns-linux-x64` or `.deb` / `.rpm` | `/etc/openfortivpn` (existing location) |
-| Linux ARM64 | openfortivpn | `my-vpns-linux-arm64` or `.deb` / `.rpm` | `/etc/openfortivpn` (existing location) |
+| Linux x86_64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`my-vpns-linux-x64`) | `/etc/openfortivpn` (existing location) |
+| Linux ARM64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`my-vpns-linux-arm64`) | `/etc/openfortivpn` (existing location) |
 | macOS Intel + Apple Silicon | openfortivpn from Homebrew | `my-vpns-macos` or `.dmg` (universal) | `~/Library/Application Support/My VPNs/profiles` |
 | Windows x64 | official OpenConnect 9.21 with Wintun | `my-vpns-windows-x64.exe` | `%APPDATA%\My VPNs\profiles` |
 | Windows ARM64 | native GUI; native OpenConnect + Wintun required | `my-vpns-windows-arm64.exe` | `%APPDATA%\My VPNs\profiles` |
@@ -80,7 +80,7 @@ same icon. On Linux it also writes a per-user launcher named after
 preventing GNOME from falling back to its generic gear icon. Re-run the script
 after changing the mark.
 
-CI runs `cargo fmt --check` (Linux x64), `cargo test` and `cargo build` on Linux x64/ARM64, Windows x64/ARM64 and macOS Intel/Apple Silicon. Release tags build each native target, create Debian/RPM packages for Linux, and combine the two macOS slices with `lipo` into the universal binary and `.dmg` installer. Unsigned builds may trigger Gatekeeper/SmartScreen; do not disable those protections globally.
+CI runs `cargo fmt --check` (Linux x64), `cargo test` and `cargo build` on Linux x64/ARM64, Windows x64/ARM64 and macOS Intel/Apple Silicon. Release tags build each native target, create executable Linux archives plus Debian/RPM packages, and combine the two macOS slices with `lipo` into the universal binary and `.dmg` installer. The macOS artifacts are ad-hoc signed but not notarized; Gatekeeper may still require a one-time confirmation.
 
 The OpenConnect download URL and SHA256 are pinned in `packaging/windows-client.json`. If the official artifact expires or changes, download/verification fails closed; update the reviewed metadata rather than removing the hash check.
 

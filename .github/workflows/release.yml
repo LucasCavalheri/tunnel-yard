@@ -81,6 +81,12 @@ jobs:
         with:
           name: build-${{ matrix.artifact }}
           path: build-release
+      - name: Create executable Linux archive
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          chmod 0755 "build-release/${{ matrix.artifact }}"
+          tar -C build-release -czf "dist-release/${{ matrix.artifact }}.tar.gz" "${{ matrix.artifact }}"
       - name: Install package builders
         run: |
           sudo apt-get update
@@ -124,6 +130,8 @@ jobs:
             slices/x64/my-vpns-macos-x64 \
             -output dist-release/my-vpns-macos
           lipo -info dist-release/my-vpns-macos
+          codesign --force --sign - dist-release/my-vpns-macos
+          codesign --verify --strict --verbose=2 dist-release/my-vpns-macos
       - name: Build macOS application bundle
         shell: bash
         run: |
@@ -167,6 +175,8 @@ jobs:
           </dict>
           </plist>
           EOF
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
           mkdir -p dmg-root
           cp -R "$app" dmg-root/
           hdiutil create -volname "My VPNs" -srcfolder dmg-root -ov -format UDZO \
