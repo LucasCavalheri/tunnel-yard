@@ -1,11 +1,17 @@
-//! Unprivileged egui desktop: profiles, editor, setup gate, console, tray.
+//! Native GPUI Kit desktop shell.
+//!
+//! VPN processes, profile persistence and tray behavior remain in the domain
+//! modules. This module owns only presentation and interaction.
 
-use crate::icons::{self, Glyph};
-use crate::theme::{self, Palette};
-use eframe::egui::{
-    self, Color32, CornerRadius, Frame, Key, Margin, RichText, Stroke, TextureHandle, Ui,
-    ViewportCommand,
+use gpui_kit::component::{
+    button::{Button, ButtonVariants},
+    input::{Input, InputState},
+    scroll::ScrollableElement as _,
+    switch::Switch,
+    ActiveTheme, Disableable, Icon, IconName, Root, Selectable, Sizable, StyledExt as _, Theme,
+    ThemeMode, TitleBar,
 };
+use gpui_kit::{prelude::*, *};
 use my_vpns::autostart::{get_autostart_path, is_autostart_enabled, set_autostart_enabled};
 use my_vpns::conf::{
     delete_profile_file, draft_from_imported_file, empty_draft, save_profile_draft, VpnProfileDraft,
@@ -16,10 +22,15 @@ use my_vpns::i18n::translate;
 use my_vpns::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
 use my_vpns::updates::{perform_update_check, UpdateCheckResult, UpdateInfo, FIRST_CHECK_DELAY_MS};
 use my_vpns::vpn::{summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+const BRAND: u32 = 0xff5f2d;
+const BRAND_HOVER: u32 = 0xf04f20;
+const BRAND_ACTIVE: u32 = 0xd94317;
+const SIDEBAR_WIDTH: Pixels = px(276.);
 
 #[allow(dead_code)]
 fn surfaces_are_shipped() -> bool {
@@ -27,6 +38,56 @@ fn surfaces_are_shipped() -> bool {
         && TRAY_MENU_KEYS.len() == 4
         && EDITOR_FIELDS.len() >= 14
         && SETUP_GATE_KEYS.len() >= 5
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CheckFeedback {
+    Idle,
+    Checking,
+    UpToDate,
+    Error,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EditorMode {
+    Create,
+    Edit,
+    Import,
+}
+
+#[derive(Clone)]
+struct ProfileEditor {
+    mode: EditorMode,
+    id: Entity<InputState>,
+    host: Entity<InputState>,
+    port: Entity<InputState>,
+    username: Entity<InputState>,
+    password: Entity<InputState>,
+    trusted_cert: Entity<InputState>,
+    realm: Entity<InputState>,
+    persistent: Entity<InputState>,
+    health_host: Entity<InputState>,
+    health_port: Entity<InputState>,
+    set_dns: bool,
+    set_routes: bool,
+    no_dtls: bool,
+    legacy_tunnel: bool,
+    extra_options: Vec<(String, String)>,
+}
+
+enum SetupMsg {
+    Log(String),
+    Done(Box<InstallResult>),
+}
+
+#[derive(Clone)]
+enum TrayCmd {
+    Show,
+    Quit,
+    Refresh,
+    DisconnectAll,
+    CheckUpdates,
+    Toggle(String),
 }
 
 struct Desk {
@@ -41,7 +102,7 @@ struct Desk {
     logs: Vec<String>,
     install_logs: Vec<String>,
     autostart: bool,
-    editor: Option<Editor>,
+    editor: Option<ProfileEditor>,
     editor_error: Option<String>,
     confirm_delete: Option<String>,
     confirm_quit: bool,
@@ -49,9 +110,8 @@ struct Desk {
     events: Receiver<VpnEvent>,
     last_connected: std::collections::HashSet<String>,
     setup_busy: bool,
-    visible: bool,
     quitting: Arc<Mutex<bool>>,
-    tray_rx: Option<std::sync::mpsc::Receiver<TrayCmd>>,
+    tray_rx: Option<Receiver<TrayCmd>>,
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     os_tray: Option<tray_icon::TrayIcon>,
     update: Option<UpdateInfo>,
@@ -63,116 +123,102 @@ struct Desk {
     dismissed_update: Option<String>,
     setup_rx: Receiver<SetupMsg>,
     setup_tx: mpsc::Sender<SetupMsg>,
-    last_close_ms: Option<u128>,
-    pending_hide: bool,
-    filter: String,
     console_open: bool,
-    screenshot_path: Option<PathBuf>,
-    screenshot_armed: bool,
-    icon_tex: TextureHandle,
+    search: Entity<InputState>,
+    theme_applied: bool,
 }
 
-enum SetupMsg {
-    Log(String),
-    Done(InstallResult),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CheckFeedback {
-    Idle,
-    Checking,
-    UpToDate,
-    Error,
-}
-
-struct Editor {
-    mode: &'static str,
-    draft: VpnProfileDraft,
-    show_password: bool,
-}
-
-#[derive(Clone)]
-enum TrayCmd {
-    Show,
-    Quit,
-    Refresh,
-    DisconnectAll,
-    CheckUpdates,
-    Toggle(String),
-}
-
-pub fn run(hidden: bool, screenshot: Option<String>) -> Result<(), String> {
+pub fn run(hidden: bool) -> Result<(), String> {
     let _ = my_vpns::app_icon::ensure_app_icon_files();
     #[cfg(target_os = "linux")]
     let _ = my_vpns::app_icon::ensure_linux_desktop_entry();
-    let icon = eframe::icon_data::from_png_bytes(my_vpns::app_icon::APP_ICON_PNG).ok();
-    let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size([1080.0, 720.0])
-        .with_min_inner_size([900.0, 600.0])
-        .with_title("My VPNs")
-        .with_app_id(my_vpns::APP_ID)
-        .with_decorations(true);
-    if let Some(icon) = icon {
-        viewport = viewport.with_icon(icon);
-    }
-    if hidden {
-        viewport = viewport.with_visible(false);
-    }
-    if screenshot.is_some() {
-        std::thread::spawn(|| {
-            std::thread::sleep(std::time::Duration::from_secs(12));
-            eprintln!("[my-vpns] screenshot watchdog");
-            std::process::exit(2);
+
+    gpui_kit::application()
+        .with_assets(gpui_kit::assets::Assets)
+        .run(move |cx| {
+            gpui_kit::init(cx);
+            let settings = load_settings();
+            let initial_theme = std::env::var("MY_VPNS_THEME")
+                .ok()
+                .filter(|value| matches!(value.as_str(), "light" | "dark" | "system"))
+                .unwrap_or(settings.theme);
+            let icon = image::load_from_memory(my_vpns::app_icon::APP_ICON_PNG)
+                .ok()
+                .map(|image| Arc::new(image.into_rgba8()));
+            let mut options = TitleBar::window_options();
+            options.window_bounds = Some(WindowBounds::centered(size(px(1180.), px(760.)), cx));
+            options.window_min_size = Some(size(px(940.), px(620.)));
+            options.app_id = Some(my_vpns::APP_ID.into());
+            options.show = !hidden;
+            options.icon = icon;
+
+            let locale = settings.locale;
+            let dismissed_update = settings.dismissed_update_version;
+            cx.spawn(async move |cx| {
+                cx.open_window(options, move |window, cx| {
+                    apply_theme(&initial_theme, window, cx);
+                    let desk =
+                        cx.new(|cx| Desk::new(locale, initial_theme, dismissed_update, window, cx));
+                    let quitting = desk.read(cx).quitting.clone();
+                    window.on_window_should_close(cx, move |window, _| {
+                        if *quitting.lock().unwrap() {
+                            true
+                        } else {
+                            window.minimize_window();
+                            false
+                        }
+                    });
+                    cx.new(|cx| Root::new(desk, window, cx))
+                })
+                .map_err(|error| eprintln!("[my-vpns] failed to open window: {error}"))
+                .ok();
+            })
+            .detach();
         });
+    Ok(())
+}
+
+impl Drop for Desk {
+    fn drop(&mut self) {
+        *self.quitting.lock().unwrap() = true;
+        self.vpn.lock().unwrap().disconnect(None);
     }
-    let options = eframe::NativeOptions {
-        viewport,
-        ..Default::default()
-    };
-    eframe::run_native(
-        "My VPNs",
-        options,
-        Box::new(move |cc| Ok(Box::new(Desk::new(cc, hidden, screenshot)))),
-    )
-    .map_err(|e| e.to_string())
 }
 
 impl Desk {
-    fn new(cc: &eframe::CreationContext<'_>, hidden: bool, screenshot: Option<String>) -> Self {
-        let settings = load_settings();
-        crate::theme::install_fonts(&cc.egui_ctx);
-        apply_theme(&cc.egui_ctx, &settings.theme);
-        let icon_tex = cc.egui_ctx.load_texture(
-            "my-vpns-mark",
-            png_to_color_image(my_vpns::app_icon::APP_ICON_PNG),
-            egui::TextureOptions::LINEAR,
-        );
+    fn new(
+        locale: String,
+        theme: String,
+        dismissed_update: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let (vpn, events) = VpnManager::subscribe();
         let vpn = Arc::new(Mutex::new(vpn));
         let quitting = Arc::new(Mutex::new(false));
-        let (tray_tx, tray_rx) = std::sync::mpsc::channel();
-        let (update_tx, update_rx) = std::sync::mpsc::channel();
-        let (setup_tx, setup_rx) = std::sync::mpsc::channel();
-        spawn_tray(
-            vpn.clone(),
-            settings.locale.clone(),
-            tray_tx,
-            quitting.clone(),
-        );
+        let (tray_tx, tray_rx) = mpsc::channel();
+        let (update_tx, update_rx) = mpsc::channel();
+        let (setup_tx, setup_rx) = mpsc::channel();
+        spawn_tray(vpn.clone(), locale.clone(), tray_tx, quitting.clone());
+
+        let search = cx.new(|cx| {
+            InputState::new(window, cx).placeholder(translate(&locale, "ops.search", &[]))
+        });
+
         let mut desk = Self {
-            locale: settings.locale,
-            theme: settings.theme,
+            locale,
+            theme,
             version: my_vpns::APP_VERSION.into(),
             deps: None,
             deps_ready: false,
             boot_error: None,
-            profiles: vec![],
+            profiles: Vec::new(),
             state: VpnState {
                 sessions: Default::default(),
                 auto_reconnect: false,
             },
-            logs: vec![],
-            install_logs: vec![],
+            logs: Vec::new(),
+            install_logs: Vec::new(),
             autostart: is_autostart_enabled(),
             editor: None,
             editor_error: None,
@@ -182,7 +228,6 @@ impl Desk {
             events,
             last_connected: Default::default(),
             setup_busy: false,
-            visible: !hidden,
             quitting,
             tray_rx: Some(tray_rx),
             #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -193,21 +238,19 @@ impl Desk {
             update_tx,
             started_at: Instant::now(),
             auto_check_sent: false,
-            dismissed_update: settings.dismissed_update_version.clone(),
+            dismissed_update,
             setup_rx,
             setup_tx,
-            last_close_ms: None,
-            pending_hide: hidden,
-            filter: String::new(),
             console_open: true,
-            screenshot_path: screenshot.map(PathBuf::from),
-            screenshot_armed: false,
-            icon_tex,
+            search,
+            theme_applied: false,
         };
+
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
             desk.os_tray = create_os_tray(&desk.locale, &desk.vpn.lock().unwrap());
         }
+
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(get_dependency_status)) {
             Ok(status) => {
                 desk.deps_ready = status.client_installed;
@@ -219,14 +262,32 @@ impl Desk {
             desk.profiles = desk.vpn.lock().unwrap().get_profiles();
             desk.state = desk.vpn.lock().unwrap().get_state();
         }
+
         if std::env::var("MY_VPNS_SHOT").as_deref() == Ok("editor") {
-            desk.open_create();
+            desk.editor = Some(ProfileEditor::from_draft(
+                EditorMode::Create,
+                empty_draft(),
+                window,
+                cx,
+            ));
         }
-        if let Ok(theme) = std::env::var("MY_VPNS_THEME") {
-            if matches!(theme.as_str(), "light" | "dark" | "system") {
-                desk.theme = theme;
+
+        cx.spawn_in(window, async move |this, cx| loop {
+            cx.background_executor()
+                .timer(Duration::from_millis(250))
+                .await;
+            if this
+                .update_in(cx, |this, window, cx| {
+                    this.pump(window, cx);
+                    cx.notify();
+                })
+                .is_err()
+            {
+                break;
             }
-        }
+        })
+        .detach();
+
         desk
     }
 
@@ -246,25 +307,22 @@ impl Desk {
         });
     }
 
-    fn request_quit(&mut self, ctx: &egui::Context) {
+    fn request_quit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         *self.quitting.lock().unwrap() = true;
         self.vpn.lock().unwrap().disconnect(None);
-        ctx.send_viewport_cmd(ViewportCommand::Close);
+        window.remove_window();
+        cx.quit();
     }
 
-    fn palette(&self) -> Palette {
-        theme::palette(theme_is_dark(&self.theme))
-    }
-
-    fn pump(&mut self, ctx: &egui::Context) {
+    fn pump(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.auto_check_sent
             && self.started_at.elapsed().as_millis() as u64 >= FIRST_CHECK_DELAY_MS
         {
             self.auto_check_sent = true;
             self.spawn_update_check();
         }
-        while let Ok(msg) = self.setup_rx.try_recv() {
-            match msg {
+        while let Ok(message) = self.setup_rx.try_recv() {
+            match message {
                 SetupMsg::Log(line) => {
                     self.install_logs.push(line);
                     if self.install_logs.len() > 200 {
@@ -272,9 +330,10 @@ impl Desk {
                     }
                 }
                 SetupMsg::Done(result) => {
+                    let result = *result;
                     self.setup_busy = false;
                     if result.ok {
-                        self.deps = Some(result.status.clone());
+                        self.deps = Some(result.status);
                         self.deps_ready = true;
                         self.profiles = self.vpn.lock().unwrap().refresh_profiles();
                     } else {
@@ -290,45 +349,32 @@ impl Desk {
         while let Ok(result) = self.update_rx.try_recv() {
             match result {
                 UpdateCheckResult::Available(info) => {
-                    let dismissed = self
-                        .dismissed_update
-                        .as_deref()
-                        .map(|v| v == info.latest)
-                        .unwrap_or(false);
-                    if !dismissed {
+                    if self.dismissed_update.as_deref() != Some(info.latest.as_str()) {
                         self.update = Some(info);
                     }
                     self.check_feedback = CheckFeedback::Idle;
                 }
-                UpdateCheckResult::UpToDate { .. } => {
-                    self.check_feedback = CheckFeedback::UpToDate;
-                }
-                UpdateCheckResult::Error { .. } => {
-                    self.check_feedback = CheckFeedback::Error;
-                }
+                UpdateCheckResult::UpToDate { .. } => self.check_feedback = CheckFeedback::UpToDate,
+                UpdateCheckResult::Error { .. } => self.check_feedback = CheckFeedback::Error,
             }
         }
-        while let Ok(ev) = self.events.try_recv() {
-            match ev {
-                VpnEvent::State(state) => {
-                    self.on_state(state);
-                    self.rebuild_os_tray();
-                }
+        while let Ok(event) = self.events.try_recv() {
+            match event {
+                VpnEvent::State(state) => self.on_state(state),
                 VpnEvent::Log(line) => {
                     self.logs.push(line);
                     if self.logs.len() > 400 {
                         self.logs.drain(0..self.logs.len() - 400);
                     }
                 }
-                VpnEvent::Profiles(p) => {
-                    self.profiles = p;
+                VpnEvent::Profiles(profiles) => {
+                    self.profiles = profiles;
                     self.rebuild_os_tray();
                 }
-                VpnEvent::NeedReconnect(id) => {
-                    self.vpn.lock().unwrap().connect(&id);
-                }
+                VpnEvent::NeedReconnect(id) => self.vpn.lock().unwrap().connect(&id),
             }
         }
+
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
             while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
@@ -341,69 +387,71 @@ impl Desk {
                             ..
                         }
                 ) {
-                    show_window(ctx, &mut self.visible);
+                    window.activate_window();
                 }
             }
             while let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
-                let id = event.id.as_ref();
-                if id == "show" {
-                    let _ = self.tray_rx.as_ref();
-                    show_window(ctx, &mut self.visible);
-                } else if id == "quit" {
-                    self.request_quit(ctx);
-                } else if id == "refresh" {
+                self.handle_tray_id(event.id.as_ref(), window, cx);
+            }
+        }
+
+        let mut commands = Vec::new();
+        if let Some(receiver) = &self.tray_rx {
+            while let Ok(command) = receiver.try_recv() {
+                commands.push(command);
+            }
+        }
+        for command in commands {
+            match command {
+                TrayCmd::Show => window.activate_window(),
+                TrayCmd::Quit => self.request_quit(window, cx),
+                TrayCmd::Refresh => {
                     self.profiles = self.vpn.lock().unwrap().refresh_profiles();
                     self.rebuild_os_tray();
-                } else if id == "check_updates" {
+                }
+                TrayCmd::CheckUpdates => {
                     self.check_feedback = CheckFeedback::Checking;
                     self.spawn_update_check();
-                } else if id == "disconnect_all" {
-                    self.vpn.lock().unwrap().disconnect(None);
-                } else if let Some(pid) = id.strip_prefix("profile:") {
-                    let session = self.state.sessions.get(pid);
-                    if session
-                        .map(|s| s.status != VpnStatus::Disconnected)
-                        .unwrap_or(false)
-                    {
-                        self.vpn.lock().unwrap().disconnect(Some(pid));
-                    } else {
-                        self.vpn.lock().unwrap().connect(pid);
-                    }
+                }
+                TrayCmd::DisconnectAll => self.vpn.lock().unwrap().disconnect(None),
+                TrayCmd::Toggle(id) => self.toggle_profile(&id),
+            }
+        }
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    fn handle_tray_id(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        match id {
+            "show" => window.activate_window(),
+            "quit" => self.request_quit(window, cx),
+            "refresh" => {
+                self.profiles = self.vpn.lock().unwrap().refresh_profiles();
+                self.rebuild_os_tray();
+            }
+            "check_updates" => {
+                self.check_feedback = CheckFeedback::Checking;
+                self.spawn_update_check();
+            }
+            "disconnect_all" => self.vpn.lock().unwrap().disconnect(None),
+            _ => {
+                if let Some(profile_id) = id.strip_prefix("profile:") {
+                    self.toggle_profile(profile_id);
                 }
             }
         }
-        if let Some(rx) = &self.tray_rx {
-            while let Ok(cmd) = rx.try_recv() {
-                match cmd {
-                    TrayCmd::Show => {
-                        show_window(ctx, &mut self.visible);
-                    }
-                    TrayCmd::Quit => {
-                        *self.quitting.lock().unwrap() = true;
-                        self.vpn.lock().unwrap().disconnect(None);
-                        ctx.send_viewport_cmd(ViewportCommand::Close);
-                    }
-                    TrayCmd::Refresh => {
-                        self.profiles = self.vpn.lock().unwrap().refresh_profiles();
-                    }
-                    TrayCmd::CheckUpdates => {
-                        self.check_feedback = CheckFeedback::Checking;
-                        self.spawn_update_check();
-                    }
-                    TrayCmd::DisconnectAll => self.vpn.lock().unwrap().disconnect(None),
-                    TrayCmd::Toggle(id) => {
-                        let session = self.state.sessions.get(&id);
-                        if session
-                            .map(|s| s.status != VpnStatus::Disconnected)
-                            .unwrap_or(false)
-                        {
-                            self.vpn.lock().unwrap().disconnect(Some(&id));
-                        } else {
-                            self.vpn.lock().unwrap().connect(&id);
-                        }
-                    }
-                }
-            }
+    }
+
+    fn toggle_profile(&self, id: &str) {
+        let active = self
+            .state
+            .sessions
+            .get(id)
+            .map(|session| session.status != VpnStatus::Disconnected)
+            .unwrap_or(false);
+        if active {
+            self.vpn.lock().unwrap().disconnect(Some(id));
+        } else {
+            self.vpn.lock().unwrap().connect(id);
         }
     }
 
@@ -411,15 +459,16 @@ impl Desk {
         let connected_now: std::collections::HashSet<String> = state
             .sessions
             .values()
-            .filter(|s| s.status == VpnStatus::Connected)
-            .map(|s| s.profile_id.clone())
+            .filter(|session| session.status == VpnStatus::Connected)
+            .map(|session| session.profile_id.clone())
             .collect();
         let transitional: std::collections::HashSet<String> = state
             .sessions
             .values()
-            .filter(|s| s.status == VpnStatus::Connecting)
-            .map(|s| s.profile_id.clone())
+            .filter(|session| session.status == VpnStatus::Connecting)
+            .map(|session| session.profile_id.clone())
             .collect();
+
         for id in &connected_now {
             if !self.last_connected.contains(id) {
                 notify(
@@ -430,13 +479,13 @@ impl Desk {
         }
         for id in self.last_connected.clone() {
             if !connected_now.contains(&id) && !transitional.contains(&id) {
-                let msg = state
+                let message = state
                     .sessions
                     .get(&id)
-                    .map(|s| s.message.clone())
-                    .filter(|m| !m.is_empty())
+                    .map(|session| session.message.clone())
+                    .filter(|message| !message.is_empty())
                     .unwrap_or_else(|| self.tv("notify.disconnectedBody", &[("id", id.clone())]));
-                notify(&self.t("notify.disconnectedTitle"), &msg);
+                notify(&self.t("notify.disconnectedTitle"), &message);
             }
         }
         self.last_connected = connected_now
@@ -456,279 +505,78 @@ impl Desk {
 
     fn rebuild_os_tray(&mut self) {
         #[cfg(any(target_os = "windows", target_os = "macos"))]
-        {
-            if let Some(tray) = self.os_tray.as_mut() {
-                if let Some(menu) = os_tray_menu(&self.locale, &self.profiles, &self.state) {
-                    let _ = tray.set_menu(Some(Box::new(menu)));
-                }
+        if let Some(tray) = self.os_tray.as_mut() {
+            if let Some(menu) = os_tray_menu(&self.locale, &self.profiles, &self.state) {
+                let _ = tray.set_menu(Some(Box::new(menu)));
             }
         }
     }
 
-    fn handle_close_and_keys(&mut self, ctx: &egui::Context) {
-        let quitting = *self.quitting.lock().unwrap();
-        if ctx.input(|i| i.viewport().close_requested()) && !quitting {
-            let now = now_ms();
-            if my_vpns::desktop::should_quit_on_repeated_close(self.last_close_ms, now) {
-                self.request_quit(ctx);
-            } else {
-                self.last_close_ms = Some(now);
-                ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-                self.pending_hide = true;
-            }
-        }
-        if let Ok(ms) = std::env::var("MY_VPNS_HIDE_AFTER_MS") {
-            if let Ok(ms) = ms.parse::<u128>() {
-                if self.visible && self.started_at.elapsed().as_millis() as u128 >= ms {
-                    self.pending_hide = true;
-                }
-            }
-        }
-        if self.pending_hide && !*self.quitting.lock().unwrap() {
-            self.pending_hide = false;
-            let was_visible = self.visible;
-            hide_window(ctx, &mut self.visible);
-            if was_visible && self.screenshot_path.is_none() {
-                notify(&self.t("notify.parkedTitle"), &self.t("notify.parkedBody"));
-            }
-        }
-
-        let ctrl = ctx.input(|i| i.modifiers.command);
-        if ctrl && ctx.input(|i| i.key_pressed(Key::Q)) {
-            let summary = summarize_vpn_state(&self.state);
-            if summary.connected_count + summary.connecting_count > 0 {
-                self.confirm_quit = true;
-            } else {
-                self.request_quit(ctx);
-            }
-        }
-        if ctrl && ctx.input(|i| i.key_pressed(Key::W)) {
-            self.pending_hide = true;
-        }
-        if ctrl && ctx.input(|i| i.key_pressed(Key::N)) && self.deps_ready {
-            self.open_create();
-        }
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.editor = None;
-            self.confirm_delete = None;
-            self.confirm_quit = false;
-        }
-    }
-
-    fn open_create(&mut self) {
+    fn open_editor(
+        &mut self,
+        mode: EditorMode,
+        draft: VpnProfileDraft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.editor_error = None;
-        self.editor = Some(Editor {
-            mode: "create",
-            draft: empty_draft(),
-            show_password: false,
-        });
+        self.editor = Some(ProfileEditor::from_draft(mode, draft, window, cx));
     }
 
-    fn take_screenshot_if_needed(&mut self, ctx: &egui::Context) {
-        let Some(path) = self.screenshot_path.clone() else {
-            return;
-        };
-        if !self.screenshot_armed && self.started_at.elapsed().as_millis() > 900 {
-            self.screenshot_armed = true;
-            ctx.send_viewport_cmd(ViewportCommand::Screenshot(Default::default()));
-        }
-        let mut captured: Option<std::sync::Arc<egui::ColorImage>> = None;
-        ctx.input(|i| {
-            for ev in &i.events {
-                if let egui::Event::Screenshot { image, .. } = ev {
-                    captured = Some(image.clone());
+    fn open_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(path) = pick_conf_file() {
+            let (ok, message, draft) = draft_from_imported_file(&path);
+            if ok {
+                if let Some(draft) = draft {
+                    self.open_editor(EditorMode::Import, draft, window, cx);
                 }
-            }
-        });
-        if let Some(image) = captured {
-            match save_color_image(&image, &path) {
-                Ok(()) => std::process::exit(0),
-                Err(err) => {
-                    eprintln!("[my-vpns] screenshot failed: {err}");
-                    std::process::exit(1);
-                }
+            } else {
+                self.editor_error = Some(message);
             }
         }
-        if self.screenshot_armed && self.started_at.elapsed().as_secs() >= 8 {
-            eprintln!("[my-vpns] screenshot timed out");
-            std::process::exit(2);
-        }
-    }
-}
-
-impl eframe::App for Desk {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        self.pump(ctx);
-        self.handle_close_and_keys(ctx);
-
-        apply_theme(ctx, &self.theme);
-
-        if let Some(err) = &self.boot_error.clone() {
-            self.ui_boot_fault(ctx, err);
-            self.take_screenshot_if_needed(ctx);
-            return;
-        }
-
-        if !self.deps_ready {
-            self.ui_setup(ctx);
-            self.take_screenshot_if_needed(ctx);
-            return;
-        }
-
-        self.ui_desk(ctx);
-        if self.editor.is_some() {
-            self.ui_editor(ctx);
-        }
-        if let Some(id) = self.confirm_delete.clone() {
-            self.ui_confirm_delete(ctx, &id);
-        }
-        if self.confirm_quit {
-            self.ui_confirm_quit(ctx);
-        }
-        self.take_screenshot_if_needed(ctx);
-        let _ = surfaces_are_shipped();
     }
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        *self.quitting.lock().unwrap() = true;
-        self.vpn.lock().unwrap().disconnect(None);
-    }
-}
-
-impl Desk {
-    fn ui_boot_fault(&mut self, ctx: &egui::Context, err: &str) {
-        let p = self.palette();
-        egui::CentralPanel::default()
-            .frame(theme::workspace_frame(&p))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(80.0);
-                    theme::card(&p).show(ui, |ui| {
-                        ui.set_max_width(420.0);
-                        ui.heading(self.t("boot.fault"));
-                        ui.add_space(8.0);
-                        ui.label(RichText::new(err).color(p.fault));
-                        ui.add_space(12.0);
-                        if accent_button(ui, &p, Glyph::Refresh, self.t("boot.retry")).clicked() {
-                            self.boot_error = None;
-                            let status = get_dependency_status();
-                            self.deps_ready = status.client_installed;
-                            self.deps = Some(status);
-                        }
-                    });
-                });
-            });
-    }
-
-    fn ui_setup(&mut self, ctx: &egui::Context) {
-        let Some(status) = self.deps.clone() else {
+    fn save_editor(&mut self, cx: &mut Context<Self>) {
+        let Some(editor) = self.editor.clone() else {
             return;
         };
-        let p = self.palette();
-        egui::CentralPanel::default()
-            .frame(theme::workspace_frame(&p))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(48.0);
-                    theme::card(&p).show(ui, |ui| {
-                        ui.set_max_width(520.0);
-                        ui.heading(self.t("setup.title"));
-                        ui.add_space(6.0);
-                        ui.label(RichText::new(self.t("setup.missing")).color(p.muted));
-                        ui.add_space(10.0);
-                        ui.label(RichText::new(&status.engine).size(20.0).strong());
-                        ui.label(
-                            self.tv("setup.needsClient", &[("engine", status.engine.clone())]),
-                        );
-                        ui.label(RichText::new(&status.distro.pretty).strong());
-                        ui.add_space(12.0);
-                        Frame::new()
-                            .fill(p.surface2)
-                            .corner_radius(CornerRadius::same(12))
-                            .inner_margin(Margin::same(12))
-                            .show(ui, |ui| {
-                                ui.label(self.tv(
-                                    "setup.installPlan",
-                                    &[("family", status.distro.family.clone())],
-                                ));
-                                ui.monospace(
-                                    status
-                                        .install_command
-                                        .clone()
-                                        .unwrap_or_else(|| self.t("setup.noAutoInstall")),
-                                );
-                            });
-                        if status.platform == "darwin" && !status.can_auto_install {
-                            ui.label(self.t("setup.homebrew"));
-                        }
-                        if let Some(err) = &self.editor_error {
-                            ui.colored_label(p.fault, err);
-                        }
-                        if !self.install_logs.is_empty() {
-                            egui::ScrollArea::vertical()
-                                .max_height(120.0)
-                                .show(ui, |ui| {
-                                    for line in &self.install_logs {
-                                        ui.monospace(line);
-                                    }
-                                });
-                        }
-                        ui.add_space(12.0);
-                        ui.horizontal(|ui| {
-                            let install = ui.add_enabled(
-                                status.can_auto_install && !self.setup_busy,
-                                egui::Button::new(
-                                    RichText::new(if self.setup_busy {
-                                        self.t("setup.working")
-                                    } else {
-                                        self.t("setup.installNow")
-                                    })
-                                    .color(Color32::WHITE)
-                                    .strong(),
-                                )
-                                .fill(p.accent)
-                                .min_size(egui::vec2(140.0, 34.0)),
-                            );
-                            if install.clicked() {
-                                self.setup_busy = true;
-                                self.install_logs.clear();
-                                self.editor_error = None;
-                                let tx = self.setup_tx.clone();
-                                std::thread::spawn(move || {
-                                    let result = install_vpn_client(|line| {
-                                        let _ = tx.send(SetupMsg::Log(line.to_string()));
-                                    });
-                                    let _ = tx.send(SetupMsg::Done(result));
-                                });
-                            }
-                            if ui
-                                .add_enabled(
-                                    !self.setup_busy,
-                                    egui::Button::new(self.t("setup.recheck")),
-                                )
-                                .clicked()
-                            {
-                                let next = get_dependency_status();
-                                if next.client_installed {
-                                    self.deps = Some(next);
-                                    self.deps_ready = true;
-                                    self.profiles = self.vpn.lock().unwrap().refresh_profiles();
-                                } else {
-                                    self.editor_error = Some(self.t("setup.stillMissing"));
-                                }
-                            }
-                        });
-                    });
-                });
-            });
+        let draft = editor.to_draft(cx);
+        let result = save_profile_draft(&draft, editor.mode == EditorMode::Edit);
+        if result.ok {
+            self.profiles = self.vpn.lock().unwrap().refresh_profiles();
+            self.editor = None;
+            self.editor_error = None;
+        } else {
+            self.editor_error = Some(result.message);
+        }
     }
 
-    fn ui_desk(&mut self, ctx: &egui::Context) {
-        let p = self.palette();
+    fn set_theme(&mut self, theme: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.theme = theme.into();
+        save_settings(AppSettingsPatch {
+            theme: Some(theme.into()),
+            ..Default::default()
+        });
+        apply_theme(theme, window, cx);
+        self.theme_applied = true;
+        cx.notify();
+    }
+
+    fn set_locale(&mut self, locale: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.locale = locale.into();
+        save_settings(AppSettingsPatch {
+            locale: Some(locale.into()),
+            ..Default::default()
+        });
+        self.search.update(cx, |search, cx| {
+            search.set_placeholder(self.t("ops.search"), window, cx)
+        });
+        cx.notify();
+    }
+
+    fn summary_label(&self) -> String {
         let summary = summarize_vpn_state(&self.state);
-        let any_up = summary.connected_count + summary.connecting_count > 0;
-        let summary_label = if !any_up {
+        if summary.connected_count + summary.connecting_count == 0 {
             self.t("ops.noneActive")
         } else {
             self.tv(
@@ -738,963 +586,1709 @@ impl Desk {
                     ("handshake", summary.connecting_count.to_string()),
                 ],
             )
-        };
-
-        egui::SidePanel::left("rail")
-            .exact_width(248.0)
-            .resizable(false)
-            .show_separator_line(false)
-            .frame(theme::rail_frame(&p))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add(
-                        egui::Image::new((self.icon_tex.id(), egui::vec2(28.0, 28.0)))
-                            .corner_radius(7),
-                    );
-                    ui.label(RichText::new("My VPNs").size(20.0).strong().color(p.text));
-                });
-                ui.label(
-                    RichText::new(format!("v{}", self.version))
-                        .small()
-                        .color(p.muted),
-                );
-                ui.add_space(14.0);
-                status_chip(ui, &p, summary.overall, &self.locale);
-                ui.label(RichText::new(&summary_label).color(p.muted).small());
-                if let Some(deps) = &self.deps {
-                    ui.label(
-                        RichText::new(&deps.config_dir)
-                            .small()
-                            .color(p.muted)
-                            .monospace(),
-                    );
-                }
-                ui.add_space(16.0);
-                if accent_button(ui, &p, Glyph::Plus, self.t("ops.newProfile")).clicked() {
-                    self.open_create();
-                }
-                if ghost_button(ui, &p, Glyph::Import, self.t("ops.importConf")).clicked() {
-                    if let Some(path) = pick_conf_file() {
-                        let (ok, message, draft) = draft_from_imported_file(&path);
-                        if ok {
-                            if let Some(draft) = draft {
-                                self.editor_error = None;
-                                self.editor = Some(Editor {
-                                    mode: "import",
-                                    draft,
-                                    show_password: false,
-                                });
-                            }
-                        } else {
-                            self.editor_error = Some(message);
-                        }
-                    }
-                }
-                if ghost_button(ui, &p, Glyph::Refresh, self.t("ops.reloadProfiles")).clicked() {
-                    self.profiles = self.vpn.lock().unwrap().refresh_profiles();
-                }
-                ui.add_enabled_ui(any_up, |ui| {
-                    if ghost_button(ui, &p, Glyph::Unplug, self.t("ops.killAll")).clicked() {
-                        self.vpn.lock().unwrap().disconnect(None);
-                    }
-                });
-                ui.add_space(16.0);
-                ui.separator();
-                ui.add_space(10.0);
-                let mut auto = self.state.auto_reconnect;
-                if toggle_row(ui, &p, &mut auto, &self.t("ops.autoRelink")).clicked() {
-                    self.vpn.lock().unwrap().set_auto_reconnect(auto);
-                    self.state.auto_reconnect = auto;
-                }
-                let mut autostart = self.autostart;
-                if toggle_row(ui, &p, &mut autostart, &self.t("ops.startWithLinux"))
-                    .on_hover_text(get_autostart_path())
-                    .clicked()
-                    && set_autostart_enabled(autostart)
-                {
-                    self.autostart = is_autostart_enabled();
-                }
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    for (code, label) in [("pt-BR", "PT"), ("en", "EN")] {
-                        if chip(ui, &p, label, self.locale == code).clicked() {
-                            self.locale = code.into();
-                            save_settings(AppSettingsPatch {
-                                locale: Some(code.into()),
-                                ..Default::default()
-                            });
-                        }
-                    }
-                });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    for (value, key, glyph) in [
-                        ("system", "theme.shortSystem", Glyph::Monitor),
-                        ("light", "theme.shortLight", Glyph::Sun),
-                        ("dark", "theme.shortDark", Glyph::Moon),
-                    ] {
-                        let selected = self.theme == value;
-                        if icons::icon_chip(
-                            ui,
-                            glyph,
-                            selected,
-                            if selected { p.accent_soft } else { p.surface2 },
-                            if selected { p.accent } else { p.line },
-                            p.text,
-                        )
-                        .on_hover_text(self.t(key))
-                        .clicked()
-                        {
-                            self.theme = value.into();
-                            save_settings(AppSettingsPatch {
-                                theme: Some(value.into()),
-                                ..Default::default()
-                            });
-                        }
-                    }
-                });
-                let bottom_h = 188.0;
-                let spacer = (ui.available_height() - bottom_h).max(10.0);
-                ui.add_space(spacer);
-                ui.separator();
-                ui.add_space(8.0);
-                let check_label = match self.check_feedback {
-                    CheckFeedback::Checking => self.t("update.checking"),
-                    _ => self.t("update.checkNow"),
-                };
-                ui.add_enabled_ui(self.check_feedback != CheckFeedback::Checking, |ui| {
-                    if ghost_button(ui, &p, Glyph::Download, check_label).clicked() {
-                        self.check_feedback = CheckFeedback::Checking;
-                        self.spawn_update_check();
-                    }
-                });
-                if self.check_feedback == CheckFeedback::UpToDate {
-                    ui.label(
-                        RichText::new(
-                            self.tv("update.upToDate", &[("version", self.version.clone())]),
-                        )
-                        .small()
-                        .color(p.live),
-                    );
-                }
-                if self.check_feedback == CheckFeedback::Error {
-                    ui.label(
-                        RichText::new(self.t("update.checkFailed"))
-                            .small()
-                            .color(p.fault),
-                    );
-                }
-                ui.add_space(6.0);
-                if ghost_button(ui, &p, Glyph::Hide, self.t("ops.hideToTray"))
-                    .on_hover_text(self.t("chrome.closeHides"))
-                    .clicked()
-                {
-                    self.pending_hide = true;
-                }
-                ui.add_space(6.0);
-                let quit = icons::action_button(
-                    ui,
-                    Glyph::Quit,
-                    &self.t("ops.quit"),
-                    p.fault_soft,
-                    Stroke::new(1.0_f32, p.fault.gamma_multiply(0.4)),
-                    p.fault,
-                    egui::vec2(208.0, 32.0),
-                );
-                if quit.clicked() {
-                    if any_up {
-                        self.confirm_quit = true;
-                    } else {
-                        self.request_quit(ctx);
-                    }
-                }
-            });
-
-        egui::CentralPanel::default()
-            .frame(theme::workspace_frame(&p))
-            .show(ctx, |ui| {
-                if let Some(info) = self.update.clone() {
-                    theme::card(&p).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(self.tv(
-                                    "update.available",
-                                    &[
-                                        ("latest", info.latest.clone()),
-                                        ("current", info.current.clone()),
-                                    ],
-                                ))
-                                .color(p.accent),
-                            );
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if ui.small_button(self.t("update.dismiss")).clicked() {
-                                        save_settings(AppSettingsPatch {
-                                            dismissed_update_version: Some(info.latest.clone()),
-                                            ..Default::default()
-                                        });
-                                        self.dismissed_update = Some(info.latest.clone());
-                                        self.update = None;
-                                    }
-                                    if ui.button(self.t("update.open")).clicked() {
-                                        let _ = open::that(&info.url);
-                                    }
-                                },
-                            );
-                        });
-                    });
-                    ui.add_space(12.0);
-                }
-
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(self.t("ops.tunnels"))
-                            .size(22.0)
-                            .strong()
-                            .color(p.text),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let hint = self.t("ops.search");
-                        Frame::new()
-                            .fill(p.surface)
-                            .stroke(Stroke::new(1.0_f32, p.line))
-                            .corner_radius(CornerRadius::same(10))
-                            .inner_margin(Margin::symmetric(8, 6))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let (icon_rect, _) = ui.allocate_exact_size(
-                                        egui::vec2(16.0, 16.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    icons::paint(ui, icon_rect, Glyph::Search, p.muted);
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut self.filter)
-                                            .hint_text(RichText::new(hint).color(p.muted))
-                                            .frame(false)
-                                            .desired_width(200.0),
-                                    );
-                                });
-                            });
-                    });
-                });
-                ui.add_space(10.0);
-
-                let console_h = if self.console_open { 168.0 } else { 36.0 };
-                let list_h = (ui.available_height() - console_h - 14.0).max(140.0);
-                let filter = self.filter.to_lowercase();
-                let visible: Vec<VpnProfile> = self
-                    .profiles
-                    .iter()
-                    .filter(|pr| {
-                        if filter.is_empty() {
-                            return true;
-                        }
-                        [
-                            pr.id.as_str(),
-                            pr.name.as_str(),
-                            pr.host.as_str(),
-                            pr.username.as_str(),
-                        ]
-                        .iter()
-                        .any(|s| s.to_lowercase().contains(&filter))
-                    })
-                    .cloned()
-                    .collect();
-
-                egui::ScrollArea::vertical()
-                    .id_salt("profile-list")
-                    .max_height(list_h)
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
-                        if self.profiles.is_empty() {
-                            ui.add_space(40.0);
-                            ui.vertical_centered(|ui| {
-                                ui.label(
-                                    RichText::new(self.t("profiles.emptyTitle"))
-                                        .size(20.0)
-                                        .strong(),
-                                );
-                                ui.add_space(6.0);
-                                ui.label(
-                                    RichText::new(self.t("profiles.emptyBody")).color(p.muted),
-                                );
-                                ui.add_space(14.0);
-                                ui.horizontal(|ui| {
-                                    if accent_button(ui, &p, Glyph::Plus, self.t("ops.newProfile"))
-                                        .clicked()
-                                    {
-                                        self.open_create();
-                                    }
-                                    if ghost_button(ui, &p, Glyph::Import, self.t("ops.importConf"))
-                                        .clicked()
-                                    {
-                                        if let Some(path) = pick_conf_file() {
-                                            let (ok, message, draft) =
-                                                draft_from_imported_file(&path);
-                                            if ok {
-                                                if let Some(draft) = draft {
-                                                    self.editor_error = None;
-                                                    self.editor = Some(Editor {
-                                                        mode: "import",
-                                                        draft,
-                                                        show_password: false,
-                                                    });
-                                                }
-                                            } else {
-                                                self.editor_error = Some(message);
-                                            }
-                                        }
-                                    }
-                                });
-                            });
-                        } else if visible.is_empty() {
-                            ui.add_space(32.0);
-                            ui.vertical_centered(|ui| {
-                                ui.label(RichText::new(self.t("profiles.noMatch")).color(p.muted));
-                            });
-                        } else {
-                            for profile in visible {
-                                self.profile_card(ui, &p, &profile);
-                            }
-                        }
-                    });
-
-                ui.add_space(12.0);
-                theme::console_frame(&p).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let (icon_rect, _) =
-                            ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-                        icons::paint(ui, icon_rect, Glyph::Console, p.muted);
-                        ui.label(
-                            RichText::new(self.tv("console.title", &[("label", summary_label)]))
-                                .strong()
-                                .color(p.text),
-                        );
-                        if summary.connecting_count > 0 {
-                            ui.label(RichText::new(self.t("console.working")).color(p.hold));
-                        }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if icons::icon_button(
-                                ui,
-                                if self.console_open {
-                                    Glyph::Hide
-                                } else {
-                                    Glyph::Console
-                                },
-                                p.muted,
-                                &if self.console_open {
-                                    self.t("console.hide")
-                                } else {
-                                    self.t("console.show")
-                                },
-                            )
-                            .clicked()
-                            {
-                                self.console_open = !self.console_open;
-                            }
-                            if icons::icon_button(
-                                ui,
-                                Glyph::Trash,
-                                p.muted,
-                                &self.t("console.clear"),
-                            )
-                            .clicked()
-                            {
-                                self.logs.clear();
-                            }
-                        });
-                    });
-                    if self.console_open {
-                        ui.add_space(6.0);
-                        egui::ScrollArea::vertical()
-                            .id_salt("console")
-                            .stick_to_bottom(true)
-                            .max_height(120.0)
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                if self.logs.is_empty() {
-                                    ui.label(RichText::new(self.t("console.empty")).color(p.muted));
-                                } else {
-                                    for line in &self.logs {
-                                        let color = if line.to_lowercase().contains("error")
-                                            || line.contains('✗')
-                                            || line.to_lowercase().contains("failed")
-                                        {
-                                            p.fault
-                                        } else if line.contains('→') || line.contains('↻') {
-                                            p.accent
-                                        } else {
-                                            p.muted
-                                        };
-                                        ui.label(
-                                            RichText::new(line).monospace().size(12.5).color(color),
-                                        );
-                                    }
-                                }
-                            });
-                    }
-                });
-            });
+        }
     }
 
-    fn profile_card(&mut self, ui: &mut Ui, p: &Palette, profile: &VpnProfile) {
+    fn render_title_bar(&self, cx: &mut Context<Self>) -> TitleBar {
+        let subtitle = self.summary_label();
+        let parked_title = self.t("notify.parkedTitle");
+        let parked_body = self.t("notify.parkedBody");
+        TitleBar::new()
+            .on_close_window(move |_, window, _| {
+                window.minimize_window();
+                notify(&parked_title, &parked_body);
+            })
+            .child(
+                div()
+                    .h_full()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .px_3()
+                    .child(brand_mark(cx, px(22.)))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).child("My VPNs"))
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(cx.theme().muted_foreground)
+                            .child("·"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(subtitle),
+                    ),
+            )
+    }
+
+    fn render_sidebar(&self, cx: &mut Context<Self>) -> Div {
+        let summary = summarize_vpn_state(&self.state);
+        let any_up = summary.connected_count + summary.connecting_count > 0;
+        let status = self.render_status(summary.overall, cx);
+        let config_dir = self
+            .deps
+            .as_ref()
+            .map(|deps| deps.config_dir.clone())
+            .unwrap_or_default();
+        let auto_reconnect = self.state.auto_reconnect;
+        let autostart = self.autostart;
+
+        div()
+            .w(SIDEBAR_WIDTH)
+            .h_full()
+            .flex_none()
+            .v_flex()
+            .border_r_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().sidebar)
+            .p_4()
+            .gap_4()
+            .child(
+                div()
+                    .v_flex()
+                    .gap_1()
+                    .child(status)
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.summary_label()),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(11.))
+                            .text_color(cx.theme().muted_foreground.opacity(0.72))
+                            .font_family("monospace")
+                            .overflow_hidden()
+                            .child(config_dir),
+                    ),
+            )
+            .child(
+                div()
+                    .v_flex()
+                    .gap_2()
+                    .child(
+                        Button::new("new-profile")
+                            .primary()
+                            .large()
+                            .w_full()
+                            .icon(IconName::Plus)
+                            .label(self.t("ops.newProfile"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_editor(EditorMode::Create, empty_draft(), window, cx)
+                            })),
+                    )
+                    .child(
+                        Button::new("import-profile")
+                            .w_full()
+                            .icon(IconName::FileText)
+                            .label(self.t("ops.importConf"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.open_import(window, cx)),
+                            ),
+                    )
+                    .child(
+                        Button::new("reload-profiles")
+                            .w_full()
+                            .icon(IconName::RotateCw)
+                            .label(self.t("ops.reloadProfiles"))
+                            .on_click(cx.listener(|this, _, _, _| {
+                                this.profiles = this.vpn.lock().unwrap().refresh_profiles();
+                                this.rebuild_os_tray();
+                            })),
+                    )
+                    .child(
+                        Button::new("disconnect-all")
+                            .w_full()
+                            .danger()
+                            .outline()
+                            .disabled(!any_up)
+                            .icon(IconName::Pause)
+                            .label(self.t("ops.killAll"))
+                            .on_click(cx.listener(|this, _, _, _| {
+                                this.vpn.lock().unwrap().disconnect(None)
+                            })),
+                    ),
+            )
+            .child(separator(cx))
+            .child(
+                div()
+                    .v_flex()
+                    .gap_3()
+                    .child(
+                        Switch::new("auto-reconnect")
+                            .checked(auto_reconnect)
+                            .label(self.t("ops.autoRelink"))
+                            .on_click(cx.listener(|this, next, _, _| {
+                                this.vpn.lock().unwrap().set_auto_reconnect(*next);
+                                this.state.auto_reconnect = *next;
+                            })),
+                    )
+                    .child(
+                        Switch::new("autostart")
+                            .checked(autostart)
+                            .label(self.t("ops.startWithLinux"))
+                            .tooltip(get_autostart_path())
+                            .on_click(cx.listener(|this, next, _, _| {
+                                if set_autostart_enabled(*next) {
+                                    this.autostart = is_autostart_enabled();
+                                }
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .v_flex()
+                    .gap_2()
+                    .child(section_label(self.t("ops.language"), cx))
+                    .child(
+                        div()
+                            .h_flex()
+                            .gap_2()
+                            .child(
+                                Button::new("locale-pt")
+                                    .small()
+                                    .selected(self.locale == "pt-BR")
+                                    .label("PT")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_locale("pt-BR", window, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("locale-en")
+                                    .small()
+                                    .selected(self.locale == "en")
+                                    .label("EN")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_locale("en", window, cx)
+                                    })),
+                            ),
+                    )
+                    .child(section_label(self.t("ops.desk"), cx))
+                    .child(
+                        div()
+                            .h_flex()
+                            .gap_2()
+                            .child(theme_button(
+                                "theme-system",
+                                IconName::LayoutDashboard,
+                                self.theme == "system",
+                                self.t("theme.system"),
+                                cx.listener(|this, _, window, cx| {
+                                    this.set_theme("system", window, cx)
+                                }),
+                            ))
+                            .child(theme_button(
+                                "theme-light",
+                                IconName::Sun,
+                                self.theme == "light",
+                                self.t("theme.light"),
+                                cx.listener(|this, _, window, cx| {
+                                    this.set_theme("light", window, cx)
+                                }),
+                            ))
+                            .child(theme_button(
+                                "theme-dark",
+                                IconName::Moon,
+                                self.theme == "dark",
+                                self.t("theme.dark"),
+                                cx.listener(|this, _, window, cx| {
+                                    this.set_theme("dark", window, cx)
+                                }),
+                            )),
+                    ),
+            )
+            .child(
+                div()
+                    .mt_auto()
+                    .v_flex()
+                    .gap_2()
+                    .child(self.render_update_feedback(cx))
+                    .child(
+                        Button::new("check-updates")
+                            .w_full()
+                            .icon(IconName::ArrowDown)
+                            .loading(self.check_feedback == CheckFeedback::Checking)
+                            .label(match self.check_feedback {
+                                CheckFeedback::Checking => self.t("update.checking"),
+                                _ => self.t("update.checkNow"),
+                            })
+                            .on_click(cx.listener(|this, _, _, _| {
+                                this.check_feedback = CheckFeedback::Checking;
+                                this.spawn_update_check();
+                            })),
+                    )
+                    .child(
+                        Button::new("hide-window")
+                            .w_full()
+                            .ghost()
+                            .icon(IconName::PanelLeftClose)
+                            .label(self.t("ops.hideToTray"))
+                            .tooltip(self.t("chrome.closeHides"))
+                            .on_click(|_, window, _| window.minimize_window()),
+                    )
+                    .child(
+                        Button::new("quit-app")
+                            .w_full()
+                            .danger()
+                            .outline()
+                            .icon(IconName::Close)
+                            .label(self.t("ops.quit"))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                if any_up {
+                                    this.confirm_quit = true;
+                                } else {
+                                    this.request_quit(window, cx);
+                                }
+                            })),
+                    )
+                    .child(
+                        div()
+                            .text_center()
+                            .text_size(px(10.))
+                            .text_color(cx.theme().muted_foreground.opacity(0.68))
+                            .child(format!("My VPNs · v{}", self.version)),
+                    ),
+            )
+    }
+
+    fn render_update_feedback(&self, cx: &mut Context<Self>) -> Div {
+        let text = match self.check_feedback {
+            CheckFeedback::UpToDate => {
+                self.tv("update.upToDate", &[("version", self.version.clone())])
+            }
+            CheckFeedback::Error => self.t("update.checkFailed"),
+            _ => String::new(),
+        };
+        let color = if self.check_feedback == CheckFeedback::Error {
+            cx.theme().danger
+        } else {
+            cx.theme().success
+        };
+        div().when(!text.is_empty(), |this| {
+            this.p_2()
+                .rounded(px(8.))
+                .bg(color.opacity(0.1))
+                .text_color(color)
+                .text_size(px(11.))
+                .child(text)
+        })
+    }
+
+    fn render_status(&self, status: VpnStatus, cx: &mut Context<Self>) -> Div {
+        let (key, color) = match status {
+            VpnStatus::Connected => ("status.linkUp", cx.theme().success),
+            VpnStatus::Connecting => ("status.handshake", cx.theme().warning),
+            VpnStatus::Error => ("status.fault", cx.theme().danger),
+            VpnStatus::Disconnected => ("status.idle", cx.theme().muted_foreground),
+        };
+        div()
+            .h_flex()
+            .gap_2()
+            .px_2()
+            .py_1()
+            .rounded(px(999.))
+            .border_1()
+            .border_color(color.opacity(0.28))
+            .bg(color.opacity(0.09))
+            .text_color(color)
+            .text_size(px(11.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(div().size(px(7.)).rounded(px(999.)).bg(color))
+            .child(self.t(key))
+    }
+
+    fn render_workspace(&self, cx: &mut Context<Self>) -> Div {
+        let filter = self.search.read(cx).value().to_lowercase();
+        let visible: Vec<VpnProfile> = self
+            .profiles
+            .iter()
+            .filter(|profile| {
+                filter.is_empty()
+                    || [
+                        profile.id.as_str(),
+                        profile.name.as_str(),
+                        profile.host.as_str(),
+                        profile.username.as_str(),
+                    ]
+                    .iter()
+                    .any(|value| value.to_lowercase().contains(&filter))
+            })
+            .cloned()
+            .collect();
+
+        div()
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .v_flex()
+            .bg(cx.theme().background)
+            .children(self.render_update_banner(cx))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .v_flex()
+                    .px_6()
+                    .pt_5()
+                    .pb_4()
+                    .gap_4()
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .v_flex()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_size(px(24.))
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(self.t("ops.tunnels")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(12.))
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(self.t("brand.subtitleMulti")),
+                                    ),
+                            )
+                            .child(
+                                div().w(px(270.)).child(
+                                    Input::new(&self.search)
+                                        .prefix(IconName::Search)
+                                        .cleanable(true),
+                                ),
+                            ),
+                    )
+                    .child(self.render_profiles(visible, cx))
+                    .child(self.render_console(cx)),
+            )
+    }
+
+    fn render_update_banner(&self, cx: &mut Context<Self>) -> Option<Div> {
+        let info = self.update.clone()?;
+        Some(
+            div()
+                .h_flex()
+                .justify_between()
+                .px_6()
+                .py_3()
+                .border_b_1()
+                .border_color(cx.theme().primary.opacity(0.24))
+                .bg(cx.theme().primary.opacity(0.08))
+                .child(
+                    div()
+                        .h_flex()
+                        .gap_2()
+                        .text_color(cx.theme().primary)
+                        .child(Icon::new(IconName::Info))
+                        .child(self.tv(
+                            "update.available",
+                            &[
+                                ("latest", info.latest.clone()),
+                                ("current", info.current.clone()),
+                            ],
+                        )),
+                )
+                .child(
+                    div()
+                        .h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new("open-release")
+                                .small()
+                                .primary()
+                                .outline()
+                                .icon(IconName::ExternalLink)
+                                .label(self.t("update.open"))
+                                .on_click(move |_, _, _| {
+                                    let _ = open::that(&info.url);
+                                }),
+                        )
+                        .child(
+                            Button::new("dismiss-update")
+                                .small()
+                                .ghost()
+                                .label(self.t("update.dismiss"))
+                                .on_click(cx.listener(move |this, _, _, _| {
+                                    save_settings(AppSettingsPatch {
+                                        dismissed_update_version: Some(info.latest.clone()),
+                                        ..Default::default()
+                                    });
+                                    this.dismissed_update = Some(info.latest.clone());
+                                    this.update = None;
+                                })),
+                        ),
+                ),
+        )
+    }
+
+    fn render_profiles(
+        &self,
+        visible: Vec<VpnProfile>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let body = div()
+            .id("profile-list")
+            .flex_1()
+            .min_h_0()
+            .v_flex()
+            .gap_3()
+            .overflow_y_scrollbar();
+
+        if self.profiles.is_empty() {
+            return body.child(self.render_empty_state(cx));
+        }
+        if visible.is_empty() {
+            return body.child(
+                div()
+                    .flex_1()
+                    .v_flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(Icon::new(IconName::Search).size(px(28.)))
+                    .child(self.t("profiles.noMatch")),
+            );
+        }
+        body.children(
+            visible
+                .into_iter()
+                .map(|profile| self.render_profile_card(profile, cx)),
+        )
+    }
+
+    fn render_empty_state(&self, cx: &mut Context<Self>) -> Div {
+        div()
+            .flex_1()
+            .v_flex()
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .rounded(px(16.))
+            .border_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().muted.opacity(0.3))
+            .child(
+                div()
+                    .size(px(54.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(16.))
+                    .bg(cx.theme().primary.opacity(0.12))
+                    .text_color(cx.theme().primary)
+                    .child(Icon::new(IconName::Network).size(px(28.))),
+            )
+            .child(
+                div()
+                    .text_size(px(20.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(self.t("profiles.emptyTitle")),
+            )
+            .child(
+                div()
+                    .max_w(px(440.))
+                    .text_center()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.t("profiles.emptyBody")),
+            )
+            .child(
+                div()
+                    .h_flex()
+                    .gap_2()
+                    .child(
+                        Button::new("empty-new")
+                            .primary()
+                            .icon(IconName::Plus)
+                            .label(self.t("ops.newProfile"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_editor(EditorMode::Create, empty_draft(), window, cx)
+                            })),
+                    )
+                    .child(
+                        Button::new("empty-import")
+                            .icon(IconName::FileText)
+                            .label(self.t("ops.importConf"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.open_import(window, cx)),
+                            ),
+                    ),
+            )
+    }
+
+    fn render_profile_card(&self, profile: VpnProfile, cx: &mut Context<Self>) -> Div {
         let session = self.state.sessions.get(&profile.id).cloned();
         let status = session
             .as_ref()
-            .map(|s| s.status)
+            .map(|session| session.status)
             .unwrap_or(VpnStatus::Disconnected);
-        let connected = status == VpnStatus::Connected;
-        let connecting = status == VpnStatus::Connecting;
-        let frame = if connected {
-            theme::live_card(p)
-        } else {
-            theme::card(p)
+        let active = matches!(status, VpnStatus::Connected | VpnStatus::Connecting);
+        let (status_key, status_color) = match status {
+            VpnStatus::Connected => ("status.linkUp", cx.theme().success),
+            VpnStatus::Connecting => ("status.handshake", cx.theme().warning),
+            VpnStatus::Error => ("status.fault", cx.theme().danger),
+            VpnStatus::Disconnected => ("status.idle", cx.theme().muted_foreground),
         };
-        let inner = frame.show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let color = match status {
-                    VpnStatus::Connected => p.live,
-                    VpnStatus::Connecting => p.hold,
-                    VpnStatus::Error => p.fault,
-                    VpnStatus::Disconnected => p.muted,
-                };
-                let (dot_rect, _) =
-                    ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                if status == VpnStatus::Disconnected {
-                    ui.painter()
-                        .circle_stroke(dot_rect.center(), 5.0, Stroke::new(1.6_f32, color));
-                } else {
-                    icons::status_dot(ui, dot_rect.center(), 5.0, color);
-                }
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(&profile.name)
-                            .size(16.0)
-                            .strong()
-                            .color(p.text),
-                    );
-                    let user = if profile.username.is_empty() {
-                        self.t("profiles.noUser")
-                    } else {
-                        profile.username.clone()
-                    };
-                    let on = self.t("profiles.flagOn");
-                    let off = self.t("profiles.flagOff");
-                    ui.label(
-                        RichText::new(format!(
-                            "{}:{}  ·  {}  ·  {} {}  ·  dns {}",
-                            profile.host,
-                            profile.port,
-                            user,
-                            self.t("profiles.routesShort"),
-                            if profile.set_routes { &on } else { &off },
-                            if profile.set_dns { &on } else { &off },
-                        ))
-                        .small()
-                        .color(p.muted),
-                    );
-                    if connected {
-                        if let Some(at) = session.as_ref().and_then(|s| s.connected_at) {
-                            ui.label(
-                                RichText::new(
-                                    self.tv("profiles.live", &[("uptime", format_duration(at))]),
+        let user = if profile.username.is_empty() {
+            self.t("profiles.noUser")
+        } else {
+            profile.username.clone()
+        };
+        let metadata = format!(
+            "{}:{}  ·  {}  ·  {} {}  ·  dns {}",
+            profile.host,
+            profile.port,
+            user,
+            self.t("profiles.routesShort"),
+            self.t(if profile.set_routes {
+                "profiles.flagOn"
+            } else {
+                "profiles.flagOff"
+            }),
+            self.t(if profile.set_dns {
+                "profiles.flagOn"
+            } else {
+                "profiles.flagOff"
+            }),
+        );
+        let detail = match status {
+            VpnStatus::Connected => session
+                .as_ref()
+                .and_then(|session| session.connected_at)
+                .map(|at| self.tv("profiles.live", &[("uptime", format_duration(at))])),
+            VpnStatus::Connecting => Some(self.t("profiles.handshake")),
+            _ => session
+                .as_ref()
+                .map(|session| session.message.clone())
+                .filter(|message| !message.is_empty()),
+        };
+        let profile_id = profile.id.clone();
+        let edit_id = profile.id.clone();
+        let delete_id = profile.id.clone();
+
+        div()
+            .flex_none()
+            .h_flex()
+            .justify_between()
+            .gap_4()
+            .p_4()
+            .rounded(px(14.))
+            .border_1()
+            .border_color(if active {
+                status_color.opacity(0.32)
+            } else {
+                cx.theme().border
+            })
+            .bg(if active {
+                status_color.opacity(0.055)
+            } else {
+                cx.theme().secondary.opacity(0.32)
+            })
+            .hover(|style| {
+                style
+                    .border_color(cx.theme().primary.opacity(0.38))
+                    .bg(cx.theme().secondary.opacity(0.55))
+            })
+            .child(
+                div()
+                    .h_flex()
+                    .min_w_0()
+                    .gap_3()
+                    .child(
+                        div()
+                            .size(px(42.))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(12.))
+                            .bg(status_color.opacity(0.12))
+                            .text_color(status_color)
+                            .child(Icon::new(IconName::Network).size(px(21.))),
+                    )
+                    .child(
+                        div()
+                            .v_flex()
+                            .min_w_0()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_size(px(16.))
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .child(profile.name),
+                                    )
+                                    .child(
+                                        div()
+                                            .px_2()
+                                            .py(px(2.))
+                                            .rounded(px(999.))
+                                            .bg(status_color.opacity(0.1))
+                                            .text_color(status_color)
+                                            .text_size(px(10.))
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .child(self.t(status_key)),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(12.))
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(metadata),
+                            )
+                            .when_some(detail, |this, detail| {
+                                this.child(
+                                    div()
+                                        .text_size(px(11.))
+                                        .text_color(status_color)
+                                        .child(detail),
                                 )
-                                .small()
-                                .color(p.live),
-                            );
-                        }
-                    }
-                    if connecting {
-                        ui.label(
-                            RichText::new(self.t("profiles.handshake"))
-                                .small()
-                                .color(p.hold),
-                        );
-                    }
-                    if let Some(session) = &session {
-                        if status != VpnStatus::Disconnected && !session.message.is_empty() {
-                            ui.label(RichText::new(&session.message).small().color(p.muted));
-                        }
-                    }
-                });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let id = profile.id.clone();
-                    if icons::icon_button(ui, Glyph::Trash, p.fault, &self.t("profiles.delete"))
-                        .clicked()
-                    {
-                        self.confirm_delete = Some(id.clone());
-                    }
-                    if icons::icon_button(ui, Glyph::Pencil, p.muted, &self.t("profiles.edit"))
-                        .clicked()
-                    {
-                        if let Some(draft) = my_vpns::read_profile_draft(&id) {
-                            self.editor_error = None;
-                            self.editor = Some(Editor {
-                                mode: "edit",
-                                draft,
-                                show_password: false,
-                            });
-                        }
-                    }
-                    let label = if connected || connecting {
-                        self.t("profiles.killLink")
-                    } else {
-                        self.t("profiles.bringUp")
-                    };
-                    let btn = if connected || connecting {
-                        ui.add_enabled_ui(!connecting, |ui| {
-                            icons::action_button(
-                                ui,
-                                Glyph::Unplug,
-                                &label,
-                                p.fault_soft,
-                                Stroke::new(1.0_f32, p.fault.gamma_multiply(0.5)),
-                                p.fault,
-                                egui::vec2(124.0, 32.0),
-                            )
-                        })
-                        .inner
-                    } else {
-                        icons::action_button(
-                            ui,
-                            Glyph::Plug,
-                            &label,
-                            p.accent,
-                            Stroke::NONE,
-                            Color32::WHITE,
-                            egui::vec2(124.0, 32.0),
-                        )
-                    };
-                    if btn.clicked() {
-                        if connected || connecting {
-                            self.vpn.lock().unwrap().disconnect(Some(&profile.id));
-                        } else {
-                            self.vpn.lock().unwrap().connect(&profile.id);
-                        }
-                    }
-                });
-            });
-        });
-        if inner.response.double_clicked() {
-            if let Some(draft) = my_vpns::read_profile_draft(&profile.id) {
-                self.editor_error = None;
-                self.editor = Some(Editor {
-                    mode: "edit",
-                    draft,
-                    show_password: false,
-                });
-            }
-        }
-        ui.add_space(10.0);
-    }
-
-    fn ui_editor(&mut self, ctx: &egui::Context) {
-        let Some(editor) = self.editor.as_mut() else {
-            return;
-        };
-        let p = theme::palette(theme_is_dark(&self.theme));
-        let title = match editor.mode {
-            "edit" => translate(&self.locale, "form.editTitle", &[]),
-            "import" => translate(&self.locale, "form.importTitle", &[]),
-            _ => translate(&self.locale, "form.createTitle", &[]),
-        };
-        let mut save = false;
-        let mut close = false;
-        egui::Window::new(title)
-            .collapsible(false)
-            .resizable(false)
-            .vscroll(true)
-            .default_width(560.0)
-            .max_height((ctx.screen_rect().height() - 48.0).max(480.0))
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(theme::card(&p))
-            .show(ctx, |ui| {
-                ui.label(
-                    RichText::new("openfortivpn  ·  .conf")
-                        .small()
-                        .color(p.muted),
-                );
-                if !editor.draft.extra_options.is_empty() {
-                    ui.label(translate(
-                        &self.locale,
-                        "form.extraOptions",
-                        &[("count", editor.draft.extra_options.len().to_string())],
-                    ));
-                    for (key, value) in &editor.draft.extra_options {
-                        ui.monospace(format!("{key} = {value}"));
-                    }
-                }
-                ui.add_space(8.0);
-                ui.label(RichText::new(translate(&self.locale, "form.sectionConn", &[])).strong());
-                egui::Grid::new("editor-conn")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(translate(&self.locale, "form.id", &[]));
-                        ui.add_enabled(
-                            editor.mode != "edit",
-                            egui::TextEdit::singleline(&mut editor.draft.id).desired_width(280.0),
-                        );
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.host", &[]));
-                        ui.text_edit_singleline(&mut editor.draft.host);
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.port", &[]));
-                        ui.add(egui::DragValue::new(&mut editor.draft.port).range(1..=65535));
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.realm", &[]));
-                        ui.text_edit_singleline(&mut editor.draft.realm);
-                        ui.end_row();
-                    });
-                ui.add_space(8.0);
-                ui.label(RichText::new(translate(&self.locale, "form.sectionAuth", &[])).strong());
-                egui::Grid::new("editor-auth")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(translate(&self.locale, "form.username", &[]));
-                        ui.text_edit_singleline(&mut editor.draft.username);
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.password", &[]));
-                        ui.horizontal(|ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut editor.draft.password)
-                                    .password(!editor.show_password)
-                                    .desired_width(220.0),
-                            );
-                            let pw = if editor.show_password {
-                                translate(&self.locale, "form.hidePassword", &[])
+                            }),
+                    ),
+            )
+            .child(
+                div()
+                    .h_flex()
+                    .flex_none()
+                    .gap_2()
+                    .child(
+                        Button::new(format!("toggle-{profile_id}"))
+                            .when(active, |button| button.danger().outline())
+                            .when(!active, |button| button.primary())
+                            .disabled(status == VpnStatus::Connecting)
+                            .icon(if active {
+                                IconName::Pause
                             } else {
-                                translate(&self.locale, "form.showPassword", &[])
-                            };
-                            let eye = if editor.show_password {
-                                Glyph::EyeOff
+                                IconName::Play
+                            })
+                            .label(if active {
+                                self.t("profiles.killLink")
                             } else {
-                                Glyph::Eye
-                            };
-                            if icons::icon_button(ui, eye, p.muted, &pw).clicked() {
-                                editor.show_password = !editor.show_password;
-                            }
-                        });
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.trustedCert", &[]));
-                        ui.text_edit_singleline(&mut editor.draft.trusted_cert);
-                        ui.end_row();
-                    });
-                ui.add_space(8.0);
-                ui.label(RichText::new(translate(&self.locale, "form.sectionOpts", &[])).strong());
-                egui::Grid::new("editor-opts")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(translate(&self.locale, "form.healthHost", &[]));
-                        let mut hh = editor.draft.health_host.clone().unwrap_or_default();
-                        if ui.text_edit_singleline(&mut hh).changed() {
-                            editor.draft.health_host = if hh.is_empty() { None } else { Some(hh) };
-                        }
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.healthPort", &[]));
-                        let mut hp = editor.draft.health_port.unwrap_or(0);
-                        if ui
-                            .add(egui::DragValue::new(&mut hp).range(0..=65535))
-                            .changed()
-                        {
-                            editor.draft.health_port = if hp == 0 { None } else { Some(hp) };
-                        }
-                        ui.end_row();
-                        ui.label(translate(&self.locale, "form.persistent", &[]));
-                        ui.add(
-                            egui::DragValue::new(&mut editor.draft.persistent).range(0..=86_400),
-                        );
-                        ui.end_row();
-                    });
-                toggle_row(
-                    ui,
-                    &p,
-                    &mut editor.draft.no_dtls,
-                    &translate(&self.locale, "form.noDtls", &[]),
-                );
-                ui.label(
-                    RichText::new(translate(&self.locale, "form.noDtlsHint", &[]))
-                        .small()
-                        .color(p.muted),
-                );
-                toggle_row(
-                    ui,
-                    &p,
-                    &mut editor.draft.legacy_tunnel,
-                    &translate(&self.locale, "form.legacyTunnel", &[]),
-                );
-                toggle_row(
-                    ui,
-                    &p,
-                    &mut editor.draft.set_routes,
-                    &translate(&self.locale, "form.setRoutes", &[]),
-                );
-                toggle_row(
-                    ui,
-                    &p,
-                    &mut editor.draft.set_dns,
-                    &translate(&self.locale, "form.setDns", &[]),
-                );
-                if let Some(err) = &self.editor_error {
-                    ui.colored_label(p.fault, err);
-                }
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    if accent_button(
-                        ui,
-                        &p,
-                        Glyph::Check,
-                        translate(&self.locale, "form.save", &[]),
+                                self.t("profiles.bringUp")
+                            })
+                            .on_click(
+                                cx.listener(move |this, _, _, _| this.toggle_profile(&profile_id)),
+                            ),
                     )
-                    .clicked()
-                    {
-                        save = true;
-                    }
-                    if ghost_button(
-                        ui,
-                        &p,
-                        Glyph::Close,
-                        translate(&self.locale, "form.cancel", &[]),
+                    .child(
+                        Button::new(format!("edit-{edit_id}"))
+                            .ghost()
+                            .icon(IconName::Settings)
+                            .tooltip(self.t("profiles.edit"))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                if let Some(draft) = my_vpns::read_profile_draft(&edit_id) {
+                                    this.open_editor(EditorMode::Edit, draft, window, cx);
+                                }
+                            })),
                     )
-                    .clicked()
-                    {
-                        close = true;
-                    }
-                });
-            });
-        if close {
-            self.editor = None;
-            self.editor_error = None;
-            return;
-        }
-        if save {
-            if let Some(editor) = self.editor.take() {
-                let overwrite = editor.mode == "edit";
-                let result = save_profile_draft(&editor.draft, overwrite);
-                if result.ok {
-                    self.profiles = self.vpn.lock().unwrap().refresh_profiles();
-                    self.editor_error = None;
-                } else {
-                    self.editor_error = Some(result.message);
-                    self.editor = Some(editor);
-                }
-            }
-        }
+                    .child(
+                        Button::new(format!("delete-{delete_id}"))
+                            .ghost()
+                            .icon(IconName::Delete)
+                            .tooltip(self.t("profiles.delete"))
+                            .on_click(cx.listener(move |this, _, _, _| {
+                                this.confirm_delete = Some(delete_id.clone())
+                            })),
+                    ),
+            )
     }
 
-    fn ui_confirm_delete(&mut self, ctx: &egui::Context, id: &str) {
-        let p = self.palette();
-        egui::Window::new(self.t("profiles.delete"))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(theme::card(&p))
-            .show(ctx, |ui| {
-                ui.label(self.tv("profiles.deleteConfirm", &[("id", id.to_string())]));
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new(self.t("profiles.delete")).color(Color32::WHITE),
+    fn render_console(&self, cx: &mut Context<Self>) -> Div {
+        let summary = summarize_vpn_state(&self.state);
+        let label = self.tv("console.title", &[("label", self.summary_label())]);
+        div()
+            .flex_none()
+            .h(if self.console_open { px(170.) } else { px(42.) })
+            .v_flex()
+            .rounded(px(14.))
+            .border_1()
+            .border_color(cx.theme().border)
+            .bg(cx.theme().secondary.opacity(0.25))
+            .child(
+                div()
+                    .h(px(42.))
+                    .h_flex()
+                    .justify_between()
+                    .px_3()
+                    .child(
+                        div()
+                            .h_flex()
+                            .gap_2()
+                            .text_size(px(12.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(
+                                Icon::new(IconName::SquareTerminal)
+                                    .text_color(cx.theme().muted_foreground),
                             )
-                            .fill(p.fault),
-                        )
-                        .clicked()
-                    {
-                        self.vpn.lock().unwrap().disconnect(Some(id));
-                        let result = delete_profile_file(id);
-                        if result.ok {
-                            self.profiles = self.vpn.lock().unwrap().refresh_profiles();
+                            .child(label)
+                            .when(summary.connecting_count > 0, |this| {
+                                this.child(
+                                    div()
+                                        .text_color(cx.theme().warning)
+                                        .child(self.t("console.working")),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .gap_1()
+                            .child(
+                                Button::new("clear-console")
+                                    .xsmall()
+                                    .ghost()
+                                    .icon(IconName::Delete)
+                                    .tooltip(self.t("console.clear"))
+                                    .on_click(cx.listener(|this, _, _, _| this.logs.clear())),
+                            )
+                            .child(
+                                Button::new("toggle-console")
+                                    .xsmall()
+                                    .ghost()
+                                    .icon(if self.console_open {
+                                        IconName::PanelBottom
+                                    } else {
+                                        IconName::PanelBottomOpen
+                                    })
+                                    .tooltip(if self.console_open {
+                                        self.t("console.hide")
+                                    } else {
+                                        self.t("console.show")
+                                    })
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.console_open = !this.console_open
+                                    })),
+                            ),
+                    ),
+            )
+            .when(self.console_open, |this| {
+                this.child(
+                    div()
+                        .id("console-lines")
+                        .h(px(126.))
+                        .overflow_y_scrollbar()
+                        .border_t_1()
+                        .border_color(cx.theme().border)
+                        .px_3()
+                        .py_2()
+                        .v_flex()
+                        .gap_1()
+                        .font_family("monospace")
+                        .text_size(px(11.))
+                        .children(if self.logs.is_empty() {
+                            vec![div()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.t("console.empty"))]
                         } else {
-                            self.editor_error = Some(result.message);
-                        }
-                        self.confirm_delete = None;
-                    }
-                    if ghost_button(ui, &p, Glyph::Close, self.t("form.cancel")).clicked() {
-                        self.confirm_delete = None;
-                    }
-                });
-            });
+                            self.logs
+                                .iter()
+                                .rev()
+                                .take(80)
+                                .rev()
+                                .map(|line| {
+                                    let lower = line.to_lowercase();
+                                    let color = if lower.contains("error")
+                                        || lower.contains("failed")
+                                        || line.contains('✗')
+                                    {
+                                        cx.theme().danger
+                                    } else if line.contains('→') || line.contains('↻') {
+                                        cx.theme().primary
+                                    } else {
+                                        cx.theme().muted_foreground
+                                    };
+                                    div().text_color(color).child(line.clone())
+                                })
+                                .collect()
+                        }),
+                )
+            })
     }
 
-    fn ui_confirm_quit(&mut self, ctx: &egui::Context) {
-        let p = self.palette();
-        egui::Window::new(self.t("ops.quitConfirm"))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .frame(theme::card(&p))
-            .show(ctx, |ui| {
-                ui.label(self.t("ops.quitConfirmBody"));
-                ui.add_space(10.0);
-                ui.horizontal(|ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new(self.t("ops.quit")).color(Color32::WHITE),
-                            )
-                            .fill(p.fault),
+    fn render_boot_fault(&self, error: String, cx: &mut Context<Self>) -> Div {
+        centered_page(cx).child(
+            surface(cx)
+                .w(px(460.))
+                .v_flex()
+                .gap_4()
+                .p_6()
+                .child(
+                    div()
+                        .size(px(52.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(14.))
+                        .bg(cx.theme().danger.opacity(0.12))
+                        .text_color(cx.theme().danger)
+                        .child(Icon::new(IconName::TriangleAlert).size(px(26.))),
+                )
+                .child(
+                    div()
+                        .text_size(px(22.))
+                        .font_weight(FontWeight::BOLD)
+                        .child(self.t("boot.fault")),
+                )
+                .child(div().text_color(cx.theme().danger).child(error))
+                .child(
+                    Button::new("retry-boot")
+                        .primary()
+                        .icon(IconName::RotateCw)
+                        .label(self.t("boot.retry"))
+                        .on_click(cx.listener(|this, _, _, _| {
+                            this.boot_error = None;
+                            let status = get_dependency_status();
+                            this.deps_ready = status.client_installed;
+                            this.deps = Some(status);
+                        })),
+                ),
+        )
+    }
+
+    fn render_setup(&self, status: DependencyStatus, cx: &mut Context<Self>) -> Div {
+        let error = self.editor_error.clone();
+        let logs = self.install_logs.clone();
+        centered_page(cx).child(
+            surface(cx)
+                .w(px(600.))
+                .max_h(px(600.))
+                .v_flex()
+                .gap_4()
+                .p_6()
+                .child(
+                    div()
+                        .h_flex()
+                        .gap_3()
+                        .child(
+                            div()
+                                .size(px(54.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(15.))
+                                .bg(cx.theme().primary.opacity(0.12))
+                                .text_color(cx.theme().primary)
+                                .child(Icon::new(IconName::ArrowDown).size(px(27.))),
                         )
-                        .clicked()
-                    {
-                        self.confirm_quit = false;
-                        self.request_quit(ctx);
-                    }
-                    if ghost_button(ui, &p, Glyph::Close, self.t("form.cancel")).clicked() {
-                        self.confirm_quit = false;
-                    }
-                });
-            });
+                        .child(
+                            div()
+                                .v_flex()
+                                .child(
+                                    div()
+                                        .text_size(px(22.))
+                                        .font_weight(FontWeight::BOLD)
+                                        .child(self.t("setup.title")),
+                                )
+                                .child(
+                                    div()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(self.t("setup.missing")),
+                                ),
+                        ),
+                )
+                .child(
+                    div()
+                        .v_flex()
+                        .gap_1()
+                        .child(
+                            div()
+                                .text_size(px(18.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(status.engine.clone()),
+                        )
+                        .child(self.tv("setup.needsClient", &[("engine", status.engine.clone())]))
+                        .child(
+                            div()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(status.distro.pretty.clone()),
+                        ),
+                )
+                .child(
+                    div()
+                        .v_flex()
+                        .gap_2()
+                        .p_4()
+                        .rounded(px(12.))
+                        .border_1()
+                        .border_color(cx.theme().border)
+                        .bg(cx.theme().muted.opacity(0.35))
+                        .child(
+                            div()
+                                .text_size(px(11.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(cx.theme().muted_foreground)
+                                .child(self.tv(
+                                    "setup.installPlan",
+                                    &[("family", status.distro.family.clone())],
+                                )),
+                        )
+                        .child(
+                            div().font_family("monospace").text_size(px(12.)).child(
+                                status
+                                    .install_command
+                                    .clone()
+                                    .unwrap_or_else(|| self.t("setup.noAutoInstall")),
+                            ),
+                        ),
+                )
+                .when_some(error, |this, error| {
+                    this.child(
+                        div()
+                            .p_3()
+                            .rounded(px(10.))
+                            .bg(cx.theme().danger.opacity(0.1))
+                            .text_color(cx.theme().danger)
+                            .child(error),
+                    )
+                })
+                .when(!logs.is_empty(), |this| {
+                    this.child(
+                        div()
+                            .h(px(110.))
+                            .overflow_y_scrollbar()
+                            .rounded(px(10.))
+                            .bg(cx.theme().background)
+                            .p_3()
+                            .font_family("monospace")
+                            .text_size(px(11.))
+                            .children(logs.into_iter().map(|line| div().child(line))),
+                    )
+                })
+                .child(
+                    div()
+                        .h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new("install-client")
+                                .primary()
+                                .disabled(!status.can_auto_install || self.setup_busy)
+                                .loading(self.setup_busy)
+                                .icon(IconName::ArrowDown)
+                                .label(if self.setup_busy {
+                                    self.t("setup.working")
+                                } else {
+                                    self.t("setup.installNow")
+                                })
+                                .on_click(cx.listener(|this, _, _, _| {
+                                    this.setup_busy = true;
+                                    this.install_logs.clear();
+                                    this.editor_error = None;
+                                    let tx = this.setup_tx.clone();
+                                    std::thread::spawn(move || {
+                                        let result = install_vpn_client(|line| {
+                                            let _ = tx.send(SetupMsg::Log(line.to_string()));
+                                        });
+                                        let _ = tx.send(SetupMsg::Done(Box::new(result)));
+                                    });
+                                })),
+                        )
+                        .child(
+                            Button::new("recheck-client")
+                                .disabled(self.setup_busy)
+                                .icon(IconName::RotateCw)
+                                .label(self.t("setup.recheck"))
+                                .on_click(cx.listener(|this, _, _, _| {
+                                    let status = get_dependency_status();
+                                    if status.client_installed {
+                                        this.deps = Some(status);
+                                        this.deps_ready = true;
+                                        this.profiles = this.vpn.lock().unwrap().refresh_profiles();
+                                    } else {
+                                        this.editor_error = Some(this.t("setup.stillMissing"));
+                                    }
+                                })),
+                        ),
+                ),
+        )
+    }
+
+    fn render_editor_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
+        let editor = self.editor.clone()?;
+        let title = self.t(match editor.mode {
+            EditorMode::Create => "form.createTitle",
+            EditorMode::Edit => "form.editTitle",
+            EditorMode::Import => "form.importTitle",
+        });
+        let error = self.editor_error.clone();
+        Some(
+            overlay().child(
+                surface(cx)
+                    .w(px(700.))
+                    .h(relative(0.9))
+                    .max_h(relative(0.9))
+                    .v_flex()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_between()
+                            .px_5()
+                            .py_4()
+                            .border_b_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                div()
+                                    .v_flex()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_size(px(20.))
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(title),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(11.))
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child("openfortivpn · .conf"),
+                                    ),
+                            )
+                            .child(
+                                Button::new("close-editor")
+                                    .ghost()
+                                    .icon(IconName::Close)
+                                    .tooltip(self.t("form.cancel"))
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.editor = None;
+                                        this.editor_error = None;
+                                    })),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("editor-scroll")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scrollbar()
+                            .v_flex()
+                            .gap_5()
+                            .p_5()
+                            .when(!editor.extra_options.is_empty(), |this| {
+                                this.child(
+                                    div()
+                                        .p_3()
+                                        .rounded(px(10.))
+                                        .bg(cx.theme().warning.opacity(0.1))
+                                        .text_color(cx.theme().warning)
+                                        .text_size(px(12.))
+                                        .child(self.tv(
+                                            "form.extraOptions",
+                                            &[("count", editor.extra_options.len().to_string())],
+                                        )),
+                                )
+                            })
+                            .child(form_section(
+                                self.t("form.sectionConn"),
+                                vec![
+                                    field(
+                                        self.t("form.id"),
+                                        self.t("form.idHint"),
+                                        &editor.id,
+                                        editor.mode == EditorMode::Edit,
+                                        cx,
+                                    ),
+                                    field(
+                                        self.t("form.host"),
+                                        "vpn.example.com".into(),
+                                        &editor.host,
+                                        false,
+                                        cx,
+                                    ),
+                                    field(
+                                        self.t("form.port"),
+                                        "10443".into(),
+                                        &editor.port,
+                                        false,
+                                        cx,
+                                    ),
+                                    field(
+                                        self.t("form.realm"),
+                                        self.t("form.optional"),
+                                        &editor.realm,
+                                        false,
+                                        cx,
+                                    ),
+                                ],
+                                cx,
+                            ))
+                            .child(form_section(
+                                self.t("form.sectionAuth"),
+                                vec![
+                                    field(
+                                        self.t("form.username"),
+                                        self.t("form.optional"),
+                                        &editor.username,
+                                        false,
+                                        cx,
+                                    ),
+                                    password_field(
+                                        self.t("form.password"),
+                                        self.t("form.passwordHint"),
+                                        &editor.password,
+                                        cx,
+                                    ),
+                                    field_wide(
+                                        self.t("form.trustedCert"),
+                                        self.t("form.trustedCertHint"),
+                                        &editor.trusted_cert,
+                                        false,
+                                        cx,
+                                    ),
+                                ],
+                                cx,
+                            ))
+                            .child(
+                                form_section(
+                                    self.t("form.sectionOpts"),
+                                    vec![
+                                        field(
+                                            self.t("form.healthHost"),
+                                            self.t("form.optional"),
+                                            &editor.health_host,
+                                            false,
+                                            cx,
+                                        ),
+                                        field(
+                                            self.t("form.healthPort"),
+                                            "0".into(),
+                                            &editor.health_port,
+                                            false,
+                                            cx,
+                                        ),
+                                        field(
+                                            self.t("form.persistent"),
+                                            self.t("form.persistentHint"),
+                                            &editor.persistent,
+                                            false,
+                                            cx,
+                                        ),
+                                    ],
+                                    cx,
+                                )
+                                .child(
+                                    div()
+                                        .flex()
+                                        .flex_wrap()
+                                        .gap_4()
+                                        .pt_3()
+                                        .child(editor_switch(
+                                            "set-routes",
+                                            self.t("form.setRoutes"),
+                                            editor.set_routes,
+                                            cx.listener(|this, next, _, _| {
+                                                if let Some(editor) = this.editor.as_mut() {
+                                                    editor.set_routes = *next;
+                                                }
+                                            }),
+                                        ))
+                                        .child(editor_switch(
+                                            "set-dns",
+                                            self.t("form.setDns"),
+                                            editor.set_dns,
+                                            cx.listener(|this, next, _, _| {
+                                                if let Some(editor) = this.editor.as_mut() {
+                                                    editor.set_dns = *next;
+                                                }
+                                            }),
+                                        ))
+                                        .child(editor_switch(
+                                            "no-dtls",
+                                            self.t("form.noDtls"),
+                                            editor.no_dtls,
+                                            cx.listener(|this, next, _, _| {
+                                                if let Some(editor) = this.editor.as_mut() {
+                                                    editor.no_dtls = *next;
+                                                }
+                                            }),
+                                        ))
+                                        .child(editor_switch(
+                                            "legacy-tunnel",
+                                            self.t("form.legacyTunnel"),
+                                            editor.legacy_tunnel,
+                                            cx.listener(|this, next, _, _| {
+                                                if let Some(editor) = this.editor.as_mut() {
+                                                    editor.legacy_tunnel = *next;
+                                                }
+                                            }),
+                                        )),
+                                ),
+                            )
+                            .when_some(error, |this, error| {
+                                this.child(
+                                    div()
+                                        .p_3()
+                                        .rounded(px(10.))
+                                        .bg(cx.theme().danger.opacity(0.1))
+                                        .text_color(cx.theme().danger)
+                                        .child(error),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_end()
+                            .gap_2()
+                            .px_5()
+                            .py_4()
+                            .border_t_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                Button::new("cancel-editor")
+                                    .label(self.t("form.cancel"))
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.editor = None;
+                                        this.editor_error = None;
+                                    })),
+                            )
+                            .child(
+                                Button::new("save-editor")
+                                    .primary()
+                                    .icon(IconName::Check)
+                                    .label(self.t("form.save"))
+                                    .on_click(cx.listener(|this, _, _, cx| this.save_editor(cx))),
+                            ),
+                    ),
+            ),
+        )
+    }
+
+    fn render_delete_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
+        let id = self.confirm_delete.clone()?;
+        Some(
+            overlay().child(
+                surface(cx)
+                    .w(px(430.))
+                    .v_flex()
+                    .gap_4()
+                    .p_5()
+                    .child(
+                        div()
+                            .size(px(46.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(13.))
+                            .bg(cx.theme().danger.opacity(0.12))
+                            .text_color(cx.theme().danger)
+                            .child(Icon::new(IconName::Delete).size(px(23.))),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(19.))
+                            .font_weight(FontWeight::BOLD)
+                            .child(self.t("profiles.delete")),
+                    )
+                    .child(self.tv("profiles.deleteConfirm", &[("id", id.clone())]))
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                Button::new("cancel-delete")
+                                    .label(self.t("form.cancel"))
+                                    .on_click(
+                                        cx.listener(|this, _, _, _| this.confirm_delete = None),
+                                    ),
+                            )
+                            .child(
+                                Button::new("confirm-delete")
+                                    .danger()
+                                    .icon(IconName::Delete)
+                                    .label(self.t("profiles.delete"))
+                                    .on_click(cx.listener(move |this, _, _, _| {
+                                        this.vpn.lock().unwrap().disconnect(Some(&id));
+                                        let result = delete_profile_file(&id);
+                                        if result.ok {
+                                            this.profiles =
+                                                this.vpn.lock().unwrap().refresh_profiles();
+                                        } else {
+                                            this.editor_error = Some(result.message);
+                                        }
+                                        this.confirm_delete = None;
+                                    })),
+                            ),
+                    ),
+            ),
+        )
+    }
+
+    fn render_quit_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
+        if !self.confirm_quit {
+            return None;
+        }
+        Some(
+            overlay().child(
+                surface(cx)
+                    .w(px(430.))
+                    .v_flex()
+                    .gap_4()
+                    .p_5()
+                    .child(
+                        div()
+                            .text_size(px(20.))
+                            .font_weight(FontWeight::BOLD)
+                            .child(self.t("ops.quitConfirm")),
+                    )
+                    .child(
+                        div()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.t("ops.quitConfirmBody")),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                Button::new("cancel-quit")
+                                    .label(self.t("form.cancel"))
+                                    .on_click(
+                                        cx.listener(|this, _, _, _| this.confirm_quit = false),
+                                    ),
+                            )
+                            .child(
+                                Button::new("confirm-quit")
+                                    .danger()
+                                    .label(self.t("ops.quit"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.confirm_quit = false;
+                                        this.request_quit(window, cx);
+                                    })),
+                            ),
+                    ),
+            ),
+        )
     }
 }
 
-fn status_chip(ui: &mut Ui, p: &Palette, status: VpnStatus, locale: &str) {
-    let (key, fill, fg) = match status {
-        VpnStatus::Connected => ("status.linkUp", p.live_soft, p.live),
-        VpnStatus::Connecting => ("status.handshake", p.accent_soft, p.hold),
-        VpnStatus::Error => ("status.fault", p.fault_soft, p.fault),
-        VpnStatus::Disconnected => ("status.idle", p.surface2, p.muted),
-    };
-    theme::pill(fill).show(ui, |ui| {
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-            icons::status_dot(ui, r.center(), 3.5, fg);
-            ui.label(
-                RichText::new(translate(locale, key, &[]))
-                    .color(fg)
-                    .small()
-                    .strong(),
-            );
-        });
-    });
-}
-
-fn chip(ui: &mut Ui, p: &Palette, label: &str, selected: bool) -> egui::Response {
-    let fill = if selected { p.accent_soft } else { p.surface2 };
-    let stroke = if selected { p.accent } else { p.line };
-    ui.add(
-        egui::Button::new(RichText::new(label).size(12.5))
-            .fill(fill)
-            .stroke(Stroke::new(1.0_f32, stroke))
-            .corner_radius(8)
-            .min_size(egui::vec2(48.0, 28.0)),
-    )
-}
-
-fn toggle_row(ui: &mut Ui, p: &Palette, on: &mut bool, label: &str) -> egui::Response {
-    ui.horizontal(|ui| {
-        let desired = egui::vec2(38.0, 22.0);
-        let (rect, knob) = ui.allocate_exact_size(desired, egui::Sense::click());
-        let label_resp = ui.label(RichText::new(label).size(13.5));
-        let resp = knob.union(label_resp);
-        if resp.clicked() {
-            *on = !*on;
+impl Render for Desk {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.theme_applied {
+            let theme = self.theme.clone();
+            apply_theme(&theme, window, cx);
+            self.theme_applied = true;
         }
-        let fill = if *on { p.accent } else { p.line };
-        ui.painter().rect_filled(rect, CornerRadius::same(11), fill);
-        let knob_x = if *on {
-            rect.right() - 11.0
+        let content = if let Some(error) = self.boot_error.clone() {
+            self.render_boot_fault(error, cx)
+        } else if !self.deps_ready {
+            match self.deps.clone() {
+                Some(status) => self.render_setup(status, cx),
+                None => centered_page(cx).child(self.t("boot.sequence")),
+            }
         } else {
-            rect.left() + 11.0
+            div()
+                .flex_1()
+                .min_h_0()
+                .h_flex()
+                .child(self.render_sidebar(cx))
+                .child(self.render_workspace(cx))
         };
-        ui.painter()
-            .circle_filled(egui::pos2(knob_x, rect.center().y), 8.0, Color32::WHITE);
-        resp
-    })
-    .inner
-}
 
-fn accent_button(ui: &mut Ui, p: &Palette, glyph: Glyph, text: String) -> egui::Response {
-    icons::action_button(
-        ui,
-        glyph,
-        &text,
-        p.accent,
-        Stroke::NONE,
-        Color32::WHITE,
-        egui::vec2(208.0, 34.0),
-    )
-}
-
-fn ghost_button(ui: &mut Ui, p: &Palette, glyph: Glyph, text: String) -> egui::Response {
-    icons::action_button(
-        ui,
-        glyph,
-        &text,
-        p.surface2,
-        Stroke::new(1.0_f32, p.line),
-        p.text,
-        egui::vec2(208.0, 32.0),
-    )
-}
-
-fn png_to_color_image(bytes: &[u8]) -> egui::ColorImage {
-    let img = image::load_from_memory(bytes)
-        .expect("app icon")
-        .into_rgba8();
-    let (w, h) = img.dimensions();
-    let pixels = img
-        .pixels()
-        .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
-        .collect();
-    egui::ColorImage::new([w as usize, h as usize], pixels)
-}
-
-fn apply_theme(ctx: &egui::Context, theme: &str) {
-    crate::theme::apply_style(ctx, theme_is_dark(theme));
-}
-
-fn theme_is_dark(theme: &str) -> bool {
-    match normalize_theme(theme) {
-        "light" => false,
-        "dark" => true,
-        _ => prefers_dark(),
+        div()
+            .relative()
+            .size_full()
+            .v_flex()
+            .overflow_hidden()
+            .bg(cx.theme().background)
+            .text_color(cx.theme().foreground)
+            .child(self.render_title_bar(cx))
+            .child(content)
+            .children(self.render_editor_overlay(cx))
+            .children(self.render_delete_overlay(cx))
+            .children(self.render_quit_overlay(cx))
+            .children(Root::render_dialog_layer(window, cx))
+            .children(Root::render_sheet_layer(window, cx))
+            .children(Root::render_notification_layer(window, cx))
     }
 }
 
-fn prefers_dark() -> bool {
-    std::env::var("GTK_THEME")
-        .map(|t| t.to_lowercase().contains("dark"))
-        .unwrap_or(true)
+impl ProfileEditor {
+    fn from_draft(
+        mode: EditorMode,
+        draft: VpnProfileDraft,
+        window: &mut Window,
+        cx: &mut Context<Desk>,
+    ) -> Self {
+        let input = |value: String, window: &mut Window, cx: &mut Context<Desk>| {
+            cx.new(|cx| InputState::new(window, cx).default_value(value))
+        };
+        Self {
+            mode,
+            id: input(draft.id, window, cx),
+            host: input(draft.host, window, cx),
+            port: input(draft.port.to_string(), window, cx),
+            username: input(draft.username, window, cx),
+            password: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .masked(true)
+                    .default_value(draft.password)
+            }),
+            trusted_cert: input(draft.trusted_cert, window, cx),
+            realm: input(draft.realm, window, cx),
+            persistent: input(draft.persistent.to_string(), window, cx),
+            health_host: input(draft.health_host.unwrap_or_default(), window, cx),
+            health_port: input(
+                draft
+                    .health_port
+                    .map(|port| port.to_string())
+                    .unwrap_or_default(),
+                window,
+                cx,
+            ),
+            set_dns: draft.set_dns,
+            set_routes: draft.set_routes,
+            no_dtls: draft.no_dtls,
+            legacy_tunnel: draft.legacy_tunnel,
+            extra_options: draft.extra_options,
+        }
+    }
+
+    fn to_draft(&self, cx: &App) -> VpnProfileDraft {
+        let value = |input: &Entity<InputState>| input.read(cx).value().to_string();
+        VpnProfileDraft {
+            id: value(&self.id),
+            host: value(&self.host),
+            port: value(&self.port).parse().unwrap_or(0),
+            username: value(&self.username),
+            password: value(&self.password),
+            trusted_cert: value(&self.trusted_cert),
+            realm: value(&self.realm),
+            persistent: value(&self.persistent).parse().unwrap_or(0),
+            health_host: nonempty(value(&self.health_host)),
+            health_port: value(&self.health_port)
+                .parse::<u16>()
+                .ok()
+                .filter(|port| *port > 0),
+            set_dns: self.set_dns,
+            set_routes: self.set_routes,
+            no_dtls: self.no_dtls,
+            legacy_tunnel: self.legacy_tunnel,
+            extra_options: self.extra_options.clone(),
+        }
+    }
+}
+
+fn nonempty(value: String) -> Option<String> {
+    let value = value.trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+fn apply_theme(theme: &str, window: &mut Window, cx: &mut App) {
+    match normalize_theme(theme) {
+        "light" => Theme::change(ThemeMode::Light, Some(window), cx),
+        "dark" => Theme::change(ThemeMode::Dark, Some(window), cx),
+        _ => Theme::sync_system_appearance(Some(window), cx),
+    }
+    let brand = rgb(BRAND).into();
+    let brand_hover = rgb(BRAND_HOVER).into();
+    let brand_active = rgb(BRAND_ACTIVE).into();
+    let white: Hsla = rgb(0xffffff).into();
+    let theme = Theme::global_mut(cx);
+    theme.primary = brand;
+    theme.primary_hover = brand_hover;
+    theme.primary_active = brand_active;
+    theme.button_primary = brand;
+    theme.button_primary_hover = brand_hover;
+    theme.button_primary_active = brand_active;
+    theme.tokens.primary = brand.into();
+    theme.tokens.primary_hover = brand_hover.into();
+    theme.tokens.primary_active = brand_active.into();
+    theme.tokens.button_primary = brand.into();
+    theme.tokens.button_primary_hover = brand_hover.into();
+    theme.tokens.button_primary_active = brand_active.into();
+    theme.tokens.button_primary_foreground = white.into();
+    theme.radius = px(8.);
+    theme.radius_lg = px(14.);
+    theme.shadow = true;
+    Theme::sync_base(cx);
+    window.refresh();
+}
+
+fn brand_mark(cx: &App, size: Pixels) -> Div {
+    div()
+        .size(size)
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(size * 0.28)
+        .bg(rgb(BRAND))
+        .text_color(rgb(0xffffff))
+        .child(Icon::new(IconName::Network).size(size * 0.58))
+        .border_1()
+        .border_color(cx.theme().primary.opacity(0.55))
+}
+
+fn surface(cx: &App) -> Div {
+    div()
+        .rounded(px(16.))
+        .border_1()
+        .border_color(cx.theme().border)
+        .bg(cx.theme().background)
+        .shadow_lg()
+}
+
+fn separator(cx: &App) -> Div {
+    div().h(px(1.)).w_full().bg(cx.theme().border)
+}
+
+fn section_label(text: String, cx: &App) -> Div {
+    div()
+        .text_size(px(10.))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(cx.theme().muted_foreground)
+        .child(text.to_uppercase())
+}
+
+fn centered_page(cx: &App) -> Div {
+    div()
+        .flex_1()
+        .min_h_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .p_6()
+        .bg(cx.theme().muted.opacity(0.18))
+}
+
+fn overlay() -> Div {
+    div()
+        .absolute()
+        .top_0()
+        .right_0()
+        .bottom_0()
+        .left_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .p_5()
+        .bg(rgba(0x00000088))
+}
+
+fn theme_button(
+    id: &'static str,
+    icon: IconName,
+    selected: bool,
+    tooltip: String,
+    listener: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Button {
+    Button::new(id)
+        .small()
+        .selected(selected)
+        .icon(icon)
+        .tooltip(tooltip)
+        .on_click(listener)
+}
+
+fn form_section(title: String, fields: Vec<Div>, cx: &App) -> Div {
+    div()
+        .v_flex()
+        .gap_3()
+        .child(
+            div()
+                .h_flex()
+                .gap_2()
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(title),
+                )
+                .child(div().h(px(1.)).flex_1().bg(cx.theme().border)),
+        )
+        .child(div().flex().flex_wrap().gap_3().children(fields))
+}
+
+fn field(label: String, hint: String, input: &Entity<InputState>, disabled: bool, cx: &App) -> Div {
+    div()
+        .w(relative(0.48))
+        .min_w(px(250.))
+        .v_flex()
+        .gap_1()
+        .child(
+            div()
+                .text_size(px(11.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(cx.theme().muted_foreground)
+                .child(label),
+        )
+        .child(Input::new(input).disabled(disabled))
+        .when(!hint.is_empty(), |this| {
+            this.child(
+                div()
+                    .text_size(px(10.))
+                    .text_color(cx.theme().muted_foreground.opacity(0.72))
+                    .child(hint),
+            )
+        })
+}
+
+fn field_wide(
+    label: String,
+    hint: String,
+    input: &Entity<InputState>,
+    disabled: bool,
+    cx: &App,
+) -> Div {
+    field(label, hint, input, disabled, cx).w_full()
+}
+
+fn password_field(label: String, hint: String, input: &Entity<InputState>, cx: &App) -> Div {
+    div()
+        .w(relative(0.48))
+        .min_w(px(250.))
+        .v_flex()
+        .gap_1()
+        .child(
+            div()
+                .text_size(px(11.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(cx.theme().muted_foreground)
+                .child(label),
+        )
+        .child(Input::new(input).mask_toggle())
+        .child(
+            div()
+                .text_size(px(10.))
+                .text_color(cx.theme().muted_foreground.opacity(0.72))
+                .child(hint),
+        )
+}
+
+fn editor_switch(
+    id: &'static str,
+    label: String,
+    checked: bool,
+    listener: impl Fn(&bool, &mut Window, &mut App) + 'static,
+) -> Switch {
+    Switch::new(id)
+        .checked(checked)
+        .label(label)
+        .on_click(listener)
 }
 
 fn format_duration(connected_at: u128) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
+        .map(|duration| duration.as_millis())
         .unwrap_or(connected_at);
     let seconds = now.saturating_sub(connected_at) / 1000;
-    let h = seconds / 3600;
-    let m = (seconds % 3600) / 60;
-    let s = seconds % 60;
-    format!("{h:02}:{m:02}:{s:02}")
-}
-
-fn now_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0)
-}
-
-fn hide_window(ctx: &egui::Context, visible: &mut bool) {
-    *visible = false;
-    // Wayland (GNOME): set_visible(false) is a no-op. Minimize is the real hide.
-    // Deferring this to the frame after CancelClose is what actually dismisses the window.
-    ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
-    ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-}
-
-fn show_window(ctx: &egui::Context, visible: &mut bool) {
-    *visible = true;
-    ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-    ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
-    ctx.send_viewport_cmd(ViewportCommand::Focus);
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let seconds = seconds % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
 }
 
 fn notify(title: &str, body: &str) {
@@ -1705,43 +2299,28 @@ fn pick_conf_file() -> Option<PathBuf> {
     my_vpns::os_ui::pick_conf_file()
 }
 
-fn save_color_image(image: &egui::ColorImage, path: &Path) -> Result<(), String> {
-    let mut buf = Vec::with_capacity(image.pixels.len() * 4);
-    for px in &image.pixels {
-        buf.extend_from_slice(&px.to_array());
-    }
-    let img = image::RgbaImage::from_raw(image.size[0] as u32, image.size[1] as u32, buf)
-        .ok_or_else(|| "invalid screenshot buffer".to_string())?;
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-    }
-    img.save(path).map_err(|e| e.to_string())
-}
-
 #[cfg(target_os = "linux")]
 fn linux_tray_pixmaps() -> Vec<ksni::Icon> {
-    let mut out = Vec::new();
+    let mut icons = Vec::new();
     for bytes in [
         my_vpns::app_icon::APP_ICON_PNG_32,
         my_vpns::app_icon::APP_ICON_PNG,
     ] {
         if let Some((width, height, data)) = my_vpns::app_icon::png_argb_pixmap(bytes) {
-            out.push(ksni::Icon {
+            icons.push(ksni::Icon {
                 width,
                 height,
                 data,
             });
         }
     }
-    out
+    icons
 }
 
 fn spawn_tray(
     vpn: Arc<Mutex<VpnManager>>,
     locale: String,
-    tx: std::sync::mpsc::Sender<TrayCmd>,
+    tx: mpsc::Sender<TrayCmd>,
     _quitting: Arc<Mutex<bool>>,
 ) {
     #[cfg(target_os = "linux")]
@@ -1768,7 +2347,7 @@ fn os_tray_menu(
     use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
     let menu = Menu::new();
     for entry in build_tray_menu(locale, profiles, state) {
-        let ok = match entry {
+        let result = match entry {
             TrayEntry::Separator => menu.append(&PredefinedMenuItem::separator()).ok(),
             TrayEntry::Action { id, label } => {
                 let item = MenuItem::with_id(id, label, true, None);
@@ -1779,18 +2358,14 @@ fn os_tray_menu(
                 menu.append(&item).ok()
             }
         };
-        if ok.is_none() {
-            return None;
-        }
+        result?;
     }
     Some(menu)
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn create_os_tray(locale: &str, vpn: &VpnManager) -> Option<tray_icon::TrayIcon> {
-    let profiles = vpn.get_profiles();
-    let state = vpn.get_state();
-    let menu = os_tray_menu(locale, &profiles, &state)?;
+    let menu = os_tray_menu(locale, &vpn.get_profiles(), &vpn.get_state())?;
     let icon = os_tray_icon()?;
     tray_icon::TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -1802,19 +2377,19 @@ fn create_os_tray(locale: &str, vpn: &VpnManager) -> Option<tray_icon::TrayIcon>
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn os_tray_icon() -> Option<tray_icon::Icon> {
-    let img = image::load_from_memory(my_vpns::app_icon::APP_ICON_PNG)
+    let image = image::load_from_memory(my_vpns::app_icon::APP_ICON_PNG)
         .ok()?
         .into_rgba8();
-    let resized = image::imageops::resize(&img, 32, 32, image::imageops::FilterType::Triangle);
-    let (w, h) = resized.dimensions();
-    tray_icon::Icon::from_rgba(resized.into_raw(), w, h).ok()
+    let image = image::imageops::resize(&image, 32, 32, image::imageops::FilterType::Triangle);
+    let (width, height) = image.dimensions();
+    tray_icon::Icon::from_rgba(image.into_raw(), width, height).ok()
 }
 
 #[cfg(target_os = "linux")]
 struct AppTray {
     vpn: Arc<Mutex<VpnManager>>,
     locale: String,
-    tx: std::sync::mpsc::Sender<TrayCmd>,
+    tx: mpsc::Sender<TrayCmd>,
 }
 
 #[cfg(target_os = "linux")]
@@ -1822,25 +2397,30 @@ impl ksni::Tray for AppTray {
     fn id(&self) -> String {
         my_vpns::APP_ID.into()
     }
+
     fn title(&self) -> String {
         "My VPNs".into()
     }
+
     fn icon_name(&self) -> String {
         "my-vpns".into()
     }
+
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
         linux_tray_pixmaps()
     }
+
     fn activate(&mut self, _x: i32, _y: i32) {
         let _ = self.tx.send(TrayCmd::Show);
     }
+
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::*;
         use my_vpns::tray_menu::{build_tray_menu, TrayEntry};
         let (profiles, state) = if let Ok(vpn) = self.vpn.lock() {
             (vpn.get_profiles(), vpn.get_state())
         } else {
-            return vec![];
+            return Vec::new();
         };
         let mut items = Vec::new();
         for entry in build_tray_menu(&self.locale, &profiles, &state) {
@@ -1848,7 +2428,7 @@ impl ksni::Tray for AppTray {
                 TrayEntry::Separator => items.push(MenuItem::Separator),
                 TrayEntry::Action { id, label } => {
                     let tx = self.tx.clone();
-                    let cmd = match id {
+                    let command = match id {
                         "show" => TrayCmd::Show,
                         "quit" => TrayCmd::Quit,
                         "refresh" => TrayCmd::Refresh,
@@ -1860,7 +2440,7 @@ impl ksni::Tray for AppTray {
                         StandardItem {
                             label,
                             activate: Box::new(move |_: &mut Self| {
-                                let _ = tx.send(cmd.clone());
+                                let _ = tx.send(command.clone());
                             }),
                             ..Default::default()
                         }

@@ -24,8 +24,8 @@ pub fn cached_icon_ico() -> PathBuf {
 }
 
 /// Build the launcher metadata GNOME uses to associate a Wayland surface with
-/// its dock icon. The filename must be `${APP_ID}.desktop`, matching eframe's
-/// `with_app_id` value; `StartupWMClass` covers the X11 fallback.
+/// its dock icon. The filename must be `${APP_ID}.desktop`, matching the GPUI
+/// window app id; `StartupWMClass` covers the X11 fallback.
 pub fn build_linux_desktop_entry(executable: &Path, icon: &Path) -> String {
     let executable = desktop_exec_path(executable);
     format!(

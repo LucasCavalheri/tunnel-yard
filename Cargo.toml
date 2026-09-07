@@ -1,7 +1,8 @@
 [package]
 name = "my-vpns"
-version = "1.2.0"
+version = "2.0.0"
 edition = "2021"
+rust-version = "1.90"
 description = "Gerenciador gráfico para conexões OpenFortiVPN"
 license = "MIT"
 repository = "https://github.com/LucasCavalheri/my-vpns"
@@ -32,10 +33,7 @@ ureq = { version = "2.12", default-features = false, features = ["tls"] }
 urlencoding = "2"
 x509-parser = "0.17"
 
-eframe = { version = "0.32", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
-egui = "0.32"
-icons = { version = "0.7", default-features = false }
-resvg = { version = "0.45", default-features = false }
+gpui-kit = "0.6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

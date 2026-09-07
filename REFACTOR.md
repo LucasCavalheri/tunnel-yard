@@ -6,7 +6,7 @@ Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays
 
 ## Resume checkpoint
 
-- **Last finished:** Rust `my-vpns` binary with restyled egui UI (sidebar, cards, toggles, light/dark). Window close hides to tray (deferred minimize after CancelClose); Quit is explicit. `--screenshot`. 38 `tests/shipped.rs` cases.
+- **Last finished:** migrated the Rust desktop shell to GPUI Kit 0.6. The compact operations rail, profile cards, searchable list, live console, full editor, setup gate, confirmations and system/light/dark themes are native GPUI components. Window close hides to tray; Quit is explicit. 38 `tests/shipped.rs` cases.
 - **Next:** Native OS runtime on matching runners (Windows Wintun/NRPT/MTU, macOS scutil). Optional distro packages.
 - **Remaining:** See **Native OS runtime still remaining**.
 
@@ -24,7 +24,7 @@ Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays
 
 The GUI process never runs as root/Administrator. Password never appears on argv. `.conf` files stay openfortivpn syntax (`# my-vpns-*` comments for Windows metadata).
 
-Entry: `cargo run` / `target/release/my-vpns`. Flags: `--hidden`, `--autostart`, `--smoke`, `--screenshot PATH`, `--version`, `--help`.
+Entry: `cargo run` / `target/release/my-vpns`. Flags: `--hidden`, `--autostart`, `--smoke`, `--version`, `--help`.
 
 ---
 
@@ -33,10 +33,8 @@ Entry: `cargo run` / `target/release/my-vpns`. Flags: `--hidden`, `--autostart`,
 | File | Role |
 | --- | --- |
 | `src/main.rs` | CLI: UI or `--smoke` |
-| `src/ui.rs` | egui desk: setup gate, list, editor, console, tray, updates, locale |
-| `src/theme.rs` | Palette, fonts, cards |
+| `src/ui.rs` | GPUI Kit desk: title bar, setup gate, list, editor, console, tray, updates, locale, themes |
 | `src/app_icon.rs` | Embedded PNG/ICO, cache path, ARGB pixmap for the tray |
-| `src/icons.rs` | Rust/UI's official `icons` SVG registry, cached as egui textures |
 | `src/lib.rs` | Domain library used by the binary and `tests/shipped.rs` |
 | `src/conf.rs` | Parse/serialize `.conf`, slugify ids, save/delete/import |
 | `src/vpn.rs` | Multi-session manager, log markers, reconnect, native close decision |
@@ -58,7 +56,7 @@ Entry: `cargo run` / `target/release/my-vpns`. Flags: `--hidden`, `--autostart`,
 
 ## UI surfaces
 
-Window 1080×720 (min 900×600). Close hides to tray (second close within 80–900ms quits); Quit in the sidebar/tray disconnects then exits.
+Window 1180×760 (min 940×620). Close hides to tray; Quit in the sidebar/tray disconnects then exits.
 
 - Setup gate when the VPN client is missing
 - Profile list / empty state; create, import, edit, delete

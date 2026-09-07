@@ -1,4 +1,4 @@
-//! Contract for the unprivileged desktop UI. The egui host must actually
+//! Contract for the unprivileged desktop UI. The GPUI host must actually
 //! render these surfaces; tests assert the shipped strings/keys exist.
 
 /// Tray actions required by the product (plus per-profile connect/disconnect).

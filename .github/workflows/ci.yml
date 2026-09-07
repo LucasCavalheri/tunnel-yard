@@ -19,6 +19,11 @@ jobs:
           components: rustfmt
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+      - name: Install GPUI Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
       - name: rustfmt
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check

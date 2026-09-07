@@ -32,18 +32,6 @@ No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tun
 
 ---
 
-## 📸 Screenshots
-
-Dark theme:
-
-![My VPNs dark](docs/screenshots/desk-dark.png)
-
-Light theme:
-
-![My VPNs light](docs/screenshots/desk-light.png)
-
----
-
 ## 🚀 Installation
 
 ### From GitHub Releases (recommended)
@@ -125,6 +113,7 @@ The key fingerprint is `A9F137BEE74B623131071358FB0EC1D5A01262F0`.
 | 🔑 PolicyKit (`pkexec`) | Used for privileged VPN start/stop and profile writes |
 | 📁 `/etc/openfortivpn/` | Where profiles live (create, import, or drop files manually) |
 | 🛰️ `openfortivpn` | Optional at install time — the app can install it for you |
+| 🖥️ GPUI native libraries | Required only when compiling from source; see the [GPUI Kit notes](docs/gpui-kit.md) |
 
 > **Tip:** On first launch, if `openfortivpn` is not on `PATH`, My VPNs reads `/etc/os-release`, picks the right package manager (`apt`, `dnf`/`yum`, `zypper`, or `pacman`), and offers a one-click install via PolicyKit.
 
@@ -200,9 +189,9 @@ Keyboard: `Ctrl+N` new profile, `Ctrl+W` hide to tray, `Ctrl+Q` quit, `Esc` clos
 
 ### Prerequisites
 
-- Rust **1.80+** (`rustup`)
+- Rust **1.90+** (`rustup`)
 - A Linux desktop, Windows x64, or macOS host
-- Linux: OpenGL/X11 or Wayland (the same binary also supports `--smoke` without a GUI)
+- Linux: install the native GPUI dependencies listed in [`docs/gpui-kit.md`](docs/gpui-kit.md) (the same binary also supports `--smoke` without a GUI)
 
 ### Setup
 
@@ -219,17 +208,15 @@ cargo run
 | `cargo run` | Desktop UI |
 | `cargo run -- --hidden` | Start hidden (tray / login item) |
 | `cargo run -- --smoke` | Print engine/settings/profile probe JSON and exit |
-| `cargo run -- --screenshot PATH` | Capture the first UI frame to a PNG and exit |
 | `cargo test` | Domain tests (conf, markers, OpenConnect translation, i18n, …) |
 | `cargo build --release` | Optimized `my-vpns` binary |
 
 The product is the `my-vpns` binary (`cargo run` / `cargo build --release`).
 
-The interface follows Rust/UI's component language using native egui
-primitives and renders icons directly from Rust/UI's official `icons` crate.
-See
-[`docs/rust-ui.md`](docs/rust-ui.md) for the framework compatibility note and
-the component mapping.
+The native interface is built with [GPUI Kit](https://gpui-kit.com/): its
+window shell, buttons, inputs, switches, icons, scroll containers and theme
+system underpin the profile desk. See [`docs/gpui-kit.md`](docs/gpui-kit.md)
+for the component mapping and Linux build dependencies.
 
 ---
 
@@ -260,7 +247,7 @@ Coverage includes:
 my-vpns/
 ├── src/                # Rust library + desktop binary
 │   ├── main.rs         # Entry: UI or --smoke
-│   ├── ui.rs           # egui window, tray, notifications
+│   ├── ui.rs           # GPUI Kit window, tray, notifications
 │   ├── vpn.rs          # Multi-session VPN manager
 │   ├── conf.rs         # Create / import / save / delete .conf
 │   ├── openconnect.rs  # Windows .conf → OpenConnect plan
@@ -292,7 +279,7 @@ Installed helper paths:
 
 ## 🧱 Tech stack
 
-- 🦀 **Rust** — unprivileged desktop host (`eframe`/`egui`)
+- 🦀 **Rust + GPUI Kit** — unprivileged native desktop host
 - 🧪 **cargo test** — domain tests that call the shipped functions
 - 🔐 **Native authorization** — PolicyKit, macOS administrator prompt, or Windows UAC
 - 🛠️ **packaging/** — elevated `openfortivpn` / OpenConnect helpers (not the GUI)

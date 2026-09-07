@@ -919,17 +919,23 @@ fn helpers_exist_in_tree() {
 }
 
 #[test]
-fn official_rust_ui_icon_registry_is_shipped() {
-    use icons::common::icon_registry_getter::get_icon_elements;
-    use icons::common::IconType;
+fn gpui_kit_components_are_shipped() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
+    let ui = fs::read_to_string(root.join("src/ui.rs")).unwrap();
 
-    for icon in [
-        IconType::Plus,
-        IconType::Plug,
-        IconType::Search,
-        IconType::X,
+    assert!(manifest.contains("gpui-kit = \"0.6\""));
+    for component in [
+        "Root::new",
+        "TitleBar::new",
+        "Button::new",
+        "Input::new",
+        "Switch::new",
     ] {
-        assert!(!get_icon_elements(icon).unwrap().is_empty());
+        assert!(
+            ui.contains(component),
+            "missing GPUI Kit component: {component}"
+        );
     }
 }
 

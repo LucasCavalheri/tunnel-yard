@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.0
+
+My VPNs 2.0 introduces a new native desktop experience built on GPUI Kit while
+keeping the existing VPN engine, profiles and privilege boundaries intact.
+
+### Highlights
+
+- Rebuilt the desktop shell with GPUI Kit 0.6: native title bar, buttons,
+  inputs, switches, icons, scroll containers and theme integration
+- Refined the window around a compact operations rail, searchable profile
+  cards, fixed-height live console and a scrolling profile editor
+- Preserved multi-tunnel control, tray behavior, pt-BR/EN, setup bootstrap,
+  notifications and update checks across the UI migration
+
+### Breaking changes
+
+- Raised the minimum supported Rust version to 1.90
+- Removed the legacy `--screenshot` CLI option because the GPUI renderer does
+  not expose an equivalent live-window capture API
+
 ## 1.2.0
 
 First native Rust desktop host. Electron, Node and the Chromium shell are gone.
