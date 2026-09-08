@@ -15,4 +15,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not extract OpenConnect' }
 $client = Join-Path $destination 'openconnect.exe'
 & $client --version
 if ($LASTEXITCODE -ne 0) { throw 'OpenConnect could not run' }
-if ($env:GITHUB_ENV) { "MYVPNS_TEST_OPENCONNECT=$client" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+if ($env:GITHUB_ENV) { "TUNNELYARD_TEST_OPENCONNECT=$client" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }

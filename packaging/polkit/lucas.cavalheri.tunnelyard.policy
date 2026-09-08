@@ -3,35 +3,35 @@
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <vendor>My VPNs</vendor>
-  <vendor_url>https://github.com/cavallheri/my-vpns</vendor_url>
+  <vendor>TunnelYard</vendor>
+  <vendor_url>https://github.com/LucasCavalheri/tunnel-yard</vendor_url>
   <icon_name>network-vpn</icon_name>
 
-  <action id="dev.cavallheri.myvpns.manage">
-    <description>Gerenciar conexões OpenFortiVPN via My VPNs</description>
-    <description xml:lang="pt_BR">Gerenciar conexões OpenFortiVPN via My VPNs</description>
-    <message>Autenticação necessária para conectar ou desconectar a VPN</message>
+  <action id="lucas.cavalheri.tunnelyard.manage">
+    <description>Manage OpenFortiVPN connections via TunnelYard</description>
+    <description xml:lang="pt_BR">Gerenciar conexões OpenFortiVPN via TunnelYard</description>
+    <message>Authentication is required to connect or disconnect the VPN</message>
     <message xml:lang="pt_BR">Autenticação necessária para conectar ou desconectar a VPN</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/my-vpns/run-vpn.sh</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/tunnel-yard/run-vpn.sh</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 
-  <action id="dev.cavallheri.myvpns.stop">
-    <description>Encerrar conexões OpenFortiVPN via My VPNs</description>
-    <description xml:lang="pt_BR">Encerrar conexões OpenFortiVPN via My VPNs</description>
-    <message>Autenticação necessária para desconectar a VPN</message>
+  <action id="lucas.cavalheri.tunnelyard.stop">
+    <description>Stop OpenFortiVPN connections via TunnelYard</description>
+    <description xml:lang="pt_BR">Encerrar conexões OpenFortiVPN via TunnelYard</description>
+    <message>Authentication is required to disconnect the VPN</message>
     <message xml:lang="pt_BR">Autenticação necessária para desconectar a VPN</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/my-vpns/stop-vpn.sh</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/tunnel-yard/stop-vpn.sh</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>

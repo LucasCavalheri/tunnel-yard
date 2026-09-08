@@ -51,8 +51,9 @@ pub fn config_directory(platform: &str, home: Option<&str>) -> Result<String, St
         "linux" => Ok("/etc/openfortivpn".into()),
         "macos" => {
             let home = home.ok_or_else(|| "Unsupported platform: macos (no home)".to_string())?;
-            Ok(format!(
-                "{home}/Library/Application Support/My VPNs/profiles"
+            Ok(user_profile_dir(
+                format!("{home}/Library/Application Support/TunnelYard/profiles"),
+                format!("{home}/Library/Application Support/My VPNs/profiles"),
             ))
         }
         "windows" => {
@@ -61,7 +62,10 @@ pub fn config_directory(platform: &str, home: Option<&str>) -> Result<String, St
                 .or_else(|| home.as_ref().map(|h| format!("{h}/AppData/Roaming")));
             let appdata =
                 appdata.ok_or_else(|| "Unsupported platform: windows (no APPDATA)".to_string())?;
-            Ok(format!("{appdata}/My VPNs/profiles"))
+            Ok(user_profile_dir(
+                format!("{appdata}/TunnelYard/profiles"),
+                format!("{appdata}/My VPNs/profiles"),
+            ))
         }
         other => Err(format!("Unsupported platform: {other}")),
     }
@@ -69,6 +73,38 @@ pub fn config_directory(platform: &str, home: Option<&str>) -> Result<String, St
 
 pub fn config_directory_current() -> String {
     config_directory(current_platform(), None).expect("supported platform")
+}
+
+fn user_profile_dir(preferred: String, legacy: String) -> String {
+    let preferred_path = PathBuf::from(&preferred);
+    let legacy_path = PathBuf::from(&legacy);
+    if preferred_path.exists() {
+        return preferred;
+    }
+    if legacy_path.exists() {
+        if copy_dir_files(&legacy_path, &preferred_path) {
+            return preferred;
+        }
+        return legacy;
+    }
+    preferred
+}
+
+fn copy_dir_files(from: &Path, to: &Path) -> bool {
+    if fs::create_dir_all(to).is_err() {
+        return false;
+    }
+    let Ok(entries) = fs::read_dir(from) else {
+        return false;
+    };
+    let mut ok = true;
+    for entry in entries.flatten() {
+        let dest = to.join(entry.file_name());
+        if entry.path().is_file() && fs::copy(entry.path(), dest).is_err() {
+            ok = false;
+        }
+    }
+    ok
 }
 
 pub fn binary_candidates(engine: &str, platform: &str) -> Vec<String> {
@@ -168,12 +204,14 @@ pub fn helper_path(name: &str) -> Result<PathBuf, String> {
 }
 
 pub fn linux_helpers() -> Option<(PathBuf, PathBuf)> {
-    let installed = (
-        PathBuf::from("/usr/lib/my-vpns/run-vpn.sh"),
-        PathBuf::from("/usr/lib/my-vpns/stop-vpn.sh"),
-    );
-    if installed.0.exists() && installed.1.exists() {
-        return Some(installed);
+    for lib in ["/usr/lib/tunnel-yard", "/usr/lib/my-vpns"] {
+        let installed = (
+            PathBuf::from(lib).join("run-vpn.sh"),
+            PathBuf::from(lib).join("stop-vpn.sh"),
+        );
+        if installed.0.exists() && installed.1.exists() {
+            return Some(installed);
+        }
     }
     let mut roots = Vec::new();
     if let Ok(exe) = env::current_exe() {

@@ -64,7 +64,8 @@ fn comment_value(raw: &str, key: &str) -> Option<String> {
         let rest = t.trim_start_matches('#').trim_start();
         let Some(eq) = rest.find('=') else { continue };
         let k = rest[..eq].trim();
-        if k.eq_ignore_ascii_case(key) {
+        let current_key = key.replacen("my-vpns-", "tunnel-yard-", 1);
+        if k.eq_ignore_ascii_case(key) || k.eq_ignore_ascii_case(&current_key) {
             let v = rest[eq + 1..].trim();
             if !v.is_empty() && !v.contains(char::is_whitespace) {
                 return Some(v.to_string());
@@ -83,7 +84,10 @@ fn flag_comment(raw: &str, key: &str) -> bool {
         }
         let rest = t.trim_start_matches('#').trim_start();
         let Some(eq) = rest.find('=') else { continue };
-        if !rest[..eq].trim().eq_ignore_ascii_case(key) {
+        let current_key = key.replacen("my-vpns-", "tunnel-yard-", 1);
+        if !rest[..eq].trim().eq_ignore_ascii_case(key)
+            && !rest[..eq].trim().eq_ignore_ascii_case(&current_key)
+        {
             continue;
         }
         let v = rest[eq + 1..].trim().to_ascii_lowercase();

@@ -15,9 +15,9 @@ pub fn current_arch() -> &'static str {
 pub fn current_artifact_name() -> String {
     let arch = current_arch();
     match crate::platform::current_platform() {
-        "macos" => "my-vpns-macos".into(),
-        "windows" => format!("my-vpns-windows-{arch}.exe"),
-        _ => format!("my-vpns-linux-{arch}"),
+        "macos" => "tunnel-yard-macos".into(),
+        "windows" => format!("tunnel-yard-windows-{arch}.exe"),
+        _ => format!("tunnel-yard-linux-{arch}"),
     }
 }
 

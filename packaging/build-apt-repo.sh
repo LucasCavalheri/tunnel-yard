@@ -11,7 +11,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-KEYRING_FILE="${APT_KEYRING_FILE:-$SCRIPT_DIR/my-vpns-archive-keyring.asc}"
+KEYRING_FILE="${APT_KEYRING_FILE:-$SCRIPT_DIR/tunnel-yard-archive-keyring.asc}"
 SIGNING_KEY="${APT_SIGNING_KEY_ID:-}"
 
 if [ -z "$SIGNING_KEY" ]; then
@@ -58,7 +58,7 @@ for deb in "$@"; do
   esac
 done
 
-cp -f "$KEYRING_FILE" "$REPO_ROOT/my-vpns-archive-keyring.asc"
+cp -f "$KEYRING_FILE" "$REPO_ROOT/tunnel-yard-archive-keyring.asc"
 
 (
   cd "$REPO_ROOT"
@@ -66,10 +66,10 @@ cp -f "$KEYRING_FILE" "$REPO_ROOT/my-vpns-archive-keyring.asc"
   dpkg-scanpackages --multiversion . /dev/null > Packages
   gzip -9c Packages > Packages.gz
   apt-ftparchive \
-    -o APT::FTPArchive::Release::Origin="My VPNs" \
-    -o APT::FTPArchive::Release::Label="My VPNs" \
+    -o APT::FTPArchive::Release::Origin="TunnelYard" \
+    -o APT::FTPArchive::Release::Label="TunnelYard" \
     -o APT::FTPArchive::Release::Architectures="$APT_ARCHITECTURES_NORMALIZED" \
-    -o APT::FTPArchive::Release::Description="My VPNs Debian packages" \
+    -o APT::FTPArchive::Release::Description="TunnelYard Debian packages" \
     release . > Release
   gpg --batch --no-tty --yes \
     --local-user "$SIGNING_KEY" \
@@ -83,18 +83,18 @@ cp -f "$KEYRING_FILE" "$REPO_ROOT/my-vpns-archive-keyring.asc"
 
 # Tiny index for humans
 cat > "$REPO_ROOT/README.md" << 'EOF'
-# My VPNs APT repository
+# TunnelYard APT repository
 
-The repository metadata is signed with the My VPNs archive key.
+The repository metadata is signed with the TunnelYard archive key.
 Fingerprint: `A9F137BEE74B623131071358FB0EC1D5A01262F0`
 
 ```bash
-curl -fsSL https://lucascavalheri.github.io/my-vpns/apt/my-vpns-archive-keyring.asc \
-  | sudo tee /usr/share/keyrings/my-vpns-archive-keyring.asc >/dev/null
-echo 'deb [arch=__APT_ARCHITECTURES__ signed-by=/usr/share/keyrings/my-vpns-archive-keyring.asc] https://lucascavalheri.github.io/my-vpns/apt ./' \
-  | sudo tee /etc/apt/sources.list.d/my-vpns.list
+curl -fsSL https://lucascavalheri.github.io/tunnel-yard/apt/tunnel-yard-archive-keyring.asc \
+  | sudo tee /usr/share/keyrings/tunnel-yard-archive-keyring.asc >/dev/null
+echo 'deb [arch=__APT_ARCHITECTURES__ signed-by=/usr/share/keyrings/tunnel-yard-archive-keyring.asc] https://lucascavalheri.github.io/tunnel-yard/apt ./' \
+  | sudo tee /etc/apt/sources.list.d/tunnel-yard.list
 sudo apt update
-sudo apt install my-vpns
+sudo apt install tunnel-yard
 ```
 
 After installation, upgrades come with `sudo apt upgrade`.

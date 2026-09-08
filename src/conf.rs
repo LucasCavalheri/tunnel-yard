@@ -343,7 +343,7 @@ pub fn serialize_vpn_draft(draft: &VpnProfileDraft) -> Result<String, String> {
             return Err("Invalid VPN health-check address.".into());
         }
         let metadata = format!(
-            "# my-vpns-health-host = {}\n# my-vpns-health-port = {}",
+            "# tunnel-yard-health-host = {}\n# tunnel-yard-health-port = {}",
             host,
             draft.health_port.map(|p| p.to_string()).unwrap_or_default()
         );
@@ -353,11 +353,11 @@ pub fn serialize_vpn_draft(draft: &VpnProfileDraft) -> Result<String, String> {
     }
     if draft.no_dtls {
         lines.push(String::new());
-        lines.push("# my-vpns-no-dtls = 1".into());
+        lines.push("# tunnel-yard-no-dtls = 1".into());
     }
     if draft.legacy_tunnel {
         lines.push(String::new());
-        lines.push("# my-vpns-legacy-tunnel = 1".into());
+        lines.push("# tunnel-yard-legacy-tunnel = 1".into());
     }
     lines.push(String::new());
     Ok(lines.join("\n"))
@@ -519,7 +519,7 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
         };
     }
     let tmp = std::env::temp_dir().join(format!(
-        "my-vpns-{id}-{}.conf",
+        "tunnel-yard-{id}-{}.conf",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())

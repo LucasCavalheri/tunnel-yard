@@ -1,5 +1,23 @@
 @layer reset, base, components, sections, responsive;
 
+@layer sections {
+  .download-picker { display: grid; gap: 10px; margin: 22px 0 18px; font-size: 12px; font-weight: 600; }
+  .download-picker select { width: 100%; min-width: 0; padding: 12px 8px; border: 1px solid #c9c5bd; border-radius: 6px; background: #fffdf8; color: #181a19; font: inherit; }
+  .download-picker select:focus-visible { outline: 2px solid #f25a2a; outline-offset: 3px; }
+  [data-download-card] { min-width: 0; scroll-margin-top: 110px; }
+  .button[aria-disabled="true"] { opacity: .55; cursor: default; pointer-events: none; }
+  .platform-card .download-file { font-size: 11px; line-height: 1.6; margin-top: 12px; overflow-wrap: anywhere; }
+  .download-fallback { display: grid; gap: 10px; font-size: 13px; margin-top: 16px; }
+  .performance { background: #eeeae2; color: #181a19; }
+  .memory-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .memory-card { padding: 28px; border: 1px solid #cec9bf; border-top: 3px solid #f25a2a; background: #faf8f3; }
+  .memory-card h3 { font-size: 15px; }
+  .memory-value { display: block; font-size: clamp(32px, 4vw, 54px); font-weight: 650; letter-spacing: -.04em; margin: 18px 0 8px; }
+  .memory-card p, .measurement-note { color: #5a5c55; font-size: 13px; line-height: 1.8; }
+  .measurement-note { max-width: 850px; margin: 25px auto 0; }
+  @media (max-width: 700px) { .memory-grid { grid-template-columns: 1fr; } }
+}
+
 @layer reset {
   *,
   *::before,

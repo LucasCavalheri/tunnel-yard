@@ -1,4 +1,4 @@
-//! The My VPNs mark, embedded and cached so the tray, window and notifications
+//! The TunnelYard mark, embedded and cached so the tray, window and notifications
 //! all show the same PNG on every platform.
 
 use std::fs;
@@ -6,13 +6,20 @@ use std::path::{Path, PathBuf};
 
 pub const APP_ICON_PNG: &[u8] = include_bytes!("../public/icon.png");
 pub const APP_ICON_PNG_32: &[u8] = include_bytes!("../public/icon-32.png");
+pub const APP_ICON_PNG_64: &[u8] = include_bytes!("../public/icon-64.png");
 pub const APP_ICON_ICO: &[u8] = include_bytes!("../public/icon.ico");
+
+/// StatusNotifierItem pixmaps must stay panel-sized. Shipping the 256px mark
+/// alongside `IconName` makes GNOME AppIndicator draw it as a red overlay badge.
+pub fn tray_pixmap_pngs() -> &'static [&'static [u8]] {
+    &[APP_ICON_PNG_32, APP_ICON_PNG_64]
+}
 
 pub fn cache_dir() -> PathBuf {
     dirs::cache_dir()
         .or_else(dirs::data_local_dir)
         .unwrap_or_else(std::env::temp_dir)
-        .join("my-vpns")
+        .join("tunnel-yard")
 }
 
 pub fn cached_icon_png() -> PathBuf {
@@ -32,7 +39,7 @@ pub fn build_linux_desktop_entry(executable: &Path, icon: &Path) -> String {
         "[Desktop Entry]\n\
          Type=Application\n\
          Version=1.0\n\
-         Name=My VPNs\n\
+         Name=TunnelYard\n\
          Comment=OpenFortiVPN control desk\n\
          Comment[pt_BR]=Mesa de controle OpenFortiVPN\n\
          Exec={executable}\n\
@@ -75,6 +82,7 @@ pub fn ensure_linux_desktop_entry() -> Option<PathBuf> {
     let destination = applications.join(format!("{}.desktop", crate::APP_ID));
     let entry = build_linux_desktop_entry(&executable, &icon);
     write_if_changed(&destination, entry.as_bytes());
+    let _ = fs::remove_file(applications.join(format!("{}.desktop", crate::LEGACY_APP_ID)));
     Some(destination)
 }
 

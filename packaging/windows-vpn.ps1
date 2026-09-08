@@ -43,7 +43,7 @@ function Get-HealthDecision($health, [bool]$wasConnected, [int]$previousFailures
 }
 function Write-ClientLine([string]$line, [string]$file) {
     if ($line -match '^(Microsoft \(R\) Windows Script Host|Copyright \(C\) Microsoft Corporation)') { return }
-    if ($line -eq 'MYVPNS_NETWORK_READY') { $script:networkReady=$true; $script:readyAt=[DateTime]::UtcNow }
+    if ($line -eq 'TUNNELYARD_NETWORK_READY') { $script:networkReady=$true; $script:readyAt=[DateTime]::UtcNow }
     if ($line -match '^WARNING: Got split-DNS domains (.+) \(not yet implemented\)$') {
         $domains = @($Matches[1] -split ',' | ForEach-Object { $_.Trim().TrimEnd('.').ToLowerInvariant() })
         $script:splitGroups += @{ domains=$domains; servers=@() }
@@ -57,7 +57,7 @@ function Write-ClientLine([string]$line, [string]$file) {
         $script:terminal=$true
         $script:connected=$false
         Write-Status 'disconnected' $line
-        [IO.File]::AppendAllText($outFile, "MYVPNS_TUNNEL_DOWN: $line`n", $utf8)
+        [IO.File]::AppendAllText($outFile, "TUNNELYARD_TUNNEL_DOWN: $line`n", $utf8)
     }
     [IO.File]::AppendAllText($file, "$line`n", $utf8)
 }
@@ -84,14 +84,14 @@ try {
             if ([IO.Path]::GetFullPath($arg.Substring(9)) -ne [IO.Path]::GetFullPath($networkScript)) { throw 'Only the bundled VPN network script is allowed.' }
             continue
         }
-        if ($arg -notmatch '^(--protocol=fortinet|--passwd-on-stdin|--non-inter|--disable-ipv6|--no-dtls|--reconnect-timeout=1|--force-dpd=10|--user=.+|--usergroup=.+|--servercert=pin-sha256:[A-Za-z0-9+/]+=*|--interface=MyVPNs-[A-Za-z0-9]+|--cafile=.+|--certificate=.+|--sslkey=.+|https://[^\s]+)$') { throw 'Unsupported client argument.' }
+        if ($arg -notmatch '^(--protocol=fortinet|--passwd-on-stdin|--non-inter|--disable-ipv6|--no-dtls|--reconnect-timeout=1|--force-dpd=10|--user=.+|--usergroup=.+|--servercert=pin-sha256:[A-Za-z0-9+/]+=*|--interface=TunnelYard-[A-Za-z0-9]+|--cafile=.+|--certificate=.+|--sslkey=.+|https://[^\s]+)$') { throw 'Unsupported client argument.' }
         $validatedArgs += [string]$arg
     }
     $validatedArgs = @("--script=$networkScript") + $validatedArgs
     # Patched OpenConnect builds use this opt-in to reproduce openfortivpn's
     # legacy FortiGate TLS hand-off for profiles that need it. Official builds
     # simply ignore the variable and keep their normal request sequence.
-    $env:MYVPNS_FORTINET_LEGACY = if ($job.legacyTunnel) { '1' } else { '0' }
+    $env:TUNNELYARD_FORTINET_LEGACY = if ($job.legacyTunnel) { '1' } else { '0' }
     if (Test-Path -LiteralPath (Join-Path $SessionDir 'stop')) { $result = 0; return }
     # This supervisor has its own hidden elevated console. Ctrl+C is delivered
     # to OpenConnect, whose handler logs out and calls the disconnect script.
@@ -160,14 +160,14 @@ public static class VpnConsole {
     $info.WorkingDirectory = Split-Path -Parent $job.bin
     $info.EnvironmentVariables['LANG'] = 'C'
     $info.EnvironmentVariables['LC_ALL'] = 'C'
-    $info.EnvironmentVariables['MYVPNS_SESSION_DIR'] = $SessionDir
-    $info.EnvironmentVariables['MYVPNS_SET_DNS'] = [int][bool]$job.setDns
-    $info.EnvironmentVariables['MYVPNS_SET_ROUTES'] = [int][bool]$job.setRoutes
+    $info.EnvironmentVariables['TUNNELYARD_SESSION_DIR'] = $SessionDir
+    $info.EnvironmentVariables['TUNNELYARD_SET_DNS'] = [int][bool]$job.setDns
+    $info.EnvironmentVariables['TUNNELYARD_SET_ROUTES'] = [int][bool]$job.setRoutes
     if ($job.healthHost) {
         $healthIp = [Net.IPAddress]::Parse($job.healthHost)
         if ($healthIp.AddressFamily -ne 'InterNetwork' -or [int]$job.healthPort -lt 1 -or [int]$job.healthPort -gt 65535) { throw 'Invalid VPN health-check target.' }
-        $info.EnvironmentVariables['MYVPNS_HEALTH_HOST'] = $healthIp.ToString()
-        $info.EnvironmentVariables['MYVPNS_HEALTH_PORT'] = [string][int]$job.healthPort
+        $info.EnvironmentVariables['TUNNELYARD_HEALTH_HOST'] = $healthIp.ToString()
+        $info.EnvironmentVariables['TUNNELYARD_HEALTH_PORT'] = [string][int]$job.healthPort
     }
     $vpnProcess = New-Object System.Diagnostics.Process
     $vpnProcess.StartInfo = $info
@@ -220,13 +220,13 @@ public static class VpnConsole {
                         if ($decision.failures -gt 0) {
                             [IO.File]::AppendAllText($errFile, "WARNING: VPN service check $($decision.failures)/3 failed; keeping the healthy tunnel connected and retrying.`n", $utf8)
                         }
-                        if (!$connected) { [IO.File]::AppendAllText($outFile, "MYVPNS_TUNNEL_UP`n", $utf8); $connected=$true }
+                        if (!$connected) { [IO.File]::AppendAllText($outFile, "TUNNELYARD_TUNNEL_UP`n", $utf8); $connected=$true }
                     } elseif ($decision.phase -eq 'disconnected') {
                         Log-Error $health.message
                         $terminal=$true
                         $connected=$false
                         Write-Status 'disconnected' $health.message
-                        [IO.File]::AppendAllText($outFile, "MYVPNS_TUNNEL_DOWN: $($health.message)`n", $utf8)
+                        [IO.File]::AppendAllText($outFile, "TUNNELYARD_TUNNEL_DOWN: $($health.message)`n", $utf8)
                     }
                 }
             }
@@ -254,7 +254,7 @@ finally {
         if (!$vpnProcess.WaitForExit(12000)) { $vpnProcess.Kill(); $vpnProcess.WaitForExit() }
     }
     # Idempotent fallback also covers a crashed or forcibly stopped client.
-    $env:MYVPNS_SESSION_DIR = $SessionDir
+    $env:TUNNELYARD_SESSION_DIR = $SessionDir
     $env:reason = 'disconnect'
     try { & (Join-Path $PSScriptRoot 'windows-network.ps1') } catch { Log-Error $_.Exception.Message; $result = 1 }
     [IO.File]::WriteAllText($exitFile, [string]$result, $utf8)

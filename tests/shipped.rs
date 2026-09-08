@@ -1,44 +1,46 @@
 //! Behavioral spec ported from tests/*.test.ts — calls shipped library functions.
 
-use my_vpns::app_icon::build_linux_desktop_entry;
-use my_vpns::autostart::{
-    build_autostart_desktop_entry, macos_launch_agent_plist, windows_autostart_command,
-    windows_reg_add_args, WINDOWS_RUN_KEY, WINDOWS_RUN_VALUE,
-};
-use my_vpns::conf::{
-    conf_path_for_id, empty_draft, is_valid_profile_id, parse_vpn_conf_content, parse_vpn_draft,
-    serialize_vpn_draft, slugify_profile_id, VpnProfileDraft,
-};
-use my_vpns::deps::{build_install_plan, detect_package_family, parse_os_release_text};
-use my_vpns::desktop::{
-    should_quit_on_repeated_close, EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES,
-};
-use my_vpns::i18n::{catalog_keys, translate};
-use my_vpns::install_native::{
-    install_windows_openconnect_with_download, sha256_hex, stage_openconnect_installer,
-    verify_openconnect_installer, windows_client, windows_silent_install_script,
-};
-use my_vpns::native::{prevents_reconnect, validated_native_status};
-use my_vpns::openconnect::{
-    assert_macos_profile_safe, build_open_connect_plan, certificate_public_key_pin, conf_entries,
-    resolve_server_pin,
-};
-use my_vpns::os_ui::{
-    macos_choose_file_script, windows_balloon_script, windows_open_file_dialog_script,
-};
-use my_vpns::platform::{binary_candidates, config_directory, engine_for_platform};
-use my_vpns::tray_menu::{build_tray_menu, tray_action_ids, TrayEntry};
-use my_vpns::vpn::{
-    interpret_vpn_log_line, list_vpn_profiles, native_close_decision, reconnect_delay_ms,
-    should_native_reconnect, summarize_vpn_state, NativeCloseDecision, VpnProfile, VpnSession,
-    VpnState, VpnStatus,
-};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use tunnel_yard::app_icon::build_linux_desktop_entry;
+use tunnel_yard::autostart::{
+    build_autostart_desktop_entry, macos_launch_agent_plist, windows_autostart_command,
+    windows_reg_add_args, WINDOWS_RUN_KEY, WINDOWS_RUN_VALUE,
+};
+use tunnel_yard::conf::{
+    conf_path_for_id, empty_draft, is_valid_profile_id, parse_vpn_conf_content, parse_vpn_draft,
+    serialize_vpn_draft, slugify_profile_id, VpnProfileDraft,
+};
+use tunnel_yard::deps::{build_install_plan, detect_package_family, parse_os_release_text};
+use tunnel_yard::desktop::{
+    should_quit_on_repeated_close, EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES,
+};
+use tunnel_yard::i18n::{catalog_keys, translate};
+use tunnel_yard::install_native::{
+    install_windows_openconnect_with_download, sha256_hex, stage_openconnect_installer,
+    verify_openconnect_installer, windows_client, windows_silent_install_script,
+};
+use tunnel_yard::native::{prevents_reconnect, validated_native_status};
+use tunnel_yard::openconnect::{
+    assert_macos_profile_safe, build_open_connect_plan, certificate_public_key_pin, conf_entries,
+    resolve_server_pin,
+};
+use tunnel_yard::os_ui::{
+    macos_choose_file_script, windows_balloon_script, windows_open_file_dialog_script,
+};
+use tunnel_yard::platform::{binary_candidates, config_directory, engine_for_platform};
+use tunnel_yard::tray_menu::{
+    build_tray_menu, tray_action_ids, tray_profile_checked, tray_profile_label, TrayEntry,
+};
+use tunnel_yard::vpn::{
+    interpret_vpn_log_line, list_vpn_profiles, native_close_decision, reconnect_delay_ms,
+    should_native_reconnect, summarize_vpn_state, NativeCloseDecision, VpnProfile, VpnSession,
+    VpnState, VpnStatus,
+};
 
 #[test]
 fn parse_typical_openfortivpn_profile() {
@@ -113,7 +115,9 @@ fn lists_and_sorts_profiles() {
 
 #[test]
 fn missing_profile_dir_is_empty() {
-    assert!(list_vpn_profiles(std::path::Path::new("/tmp/my-vpns-does-not-exist-xyz")).is_empty());
+    assert!(
+        list_vpn_profiles(std::path::Path::new("/tmp/tunnel-yard-does-not-exist-xyz")).is_empty()
+    );
 }
 
 #[test]
@@ -203,7 +207,7 @@ fn platform_paths_and_engines() {
         .contains("Application Support"));
     assert!(config_directory("win32", Some("/home/test"))
         .unwrap()
-        .contains("My VPNs"));
+        .contains("TunnelYard"));
     assert_eq!(engine_for_platform("win32"), "openconnect");
     assert_eq!(engine_for_platform("darwin"), "openfortivpn");
     assert!(binary_candidates("openfortivpn", "darwin")
@@ -278,7 +282,8 @@ fn no_dtls_marker() {
     let mut edited = parsed;
     edited.host = "vpn.example".into();
     let preserved = serialize_vpn_draft(&edited).unwrap();
-    assert!(preserved.contains("# my-vpns-no-dtls = 1"));
+    assert!(preserved.contains("# tunnel-yard-no-dtls = 1"));
+    assert!(build_open_connect_plan(&preserved).unwrap().no_dtls);
     assert!(!build_open_connect_plan("host=vpn.example")
         .unwrap()
         .args
@@ -295,7 +300,12 @@ fn legacy_tunnel_marker() {
     edited.host = "vpn.example".into();
     assert!(serialize_vpn_draft(&edited)
         .unwrap()
-        .contains("# my-vpns-legacy-tunnel = 1"));
+        .contains("# tunnel-yard-legacy-tunnel = 1"));
+    assert!(
+        build_open_connect_plan(&serialize_vpn_draft(&edited).unwrap())
+            .unwrap()
+            .legacy_tunnel
+    );
     assert!(
         !build_open_connect_plan("host=vpn.example")
             .unwrap()
@@ -367,10 +377,10 @@ fn native_status_stale_and_malformed() {
     assert!(validated_native_status("{", 0).is_err());
     assert!(validated_native_status(r#"{"phase":"connected"}"#, 0).is_err());
     assert_eq!(
-        interpret_vpn_log_line("MYVPNS_TUNNEL_DOWN: adapter absent"),
+        interpret_vpn_log_line("TUNNELYARD_TUNNEL_DOWN: adapter absent"),
         Some("disconnected")
     );
-    assert_eq!(interpret_vpn_log_line("MYVPNS_NETWORK_READY"), None);
+    assert_eq!(interpret_vpn_log_line("TUNNELYARD_NETWORK_READY"), None);
 }
 
 #[test]
@@ -522,27 +532,27 @@ fn i18n_key_parity_and_interpolation() {
 
 #[test]
 fn autostart_desktop_entry() {
-    let entry = build_autostart_desktop_entry("\"/opt/My VPNs/my-vpns\" --hidden");
+    let entry = build_autostart_desktop_entry("\"/opt/TunnelYard/tunnel-yard\" --hidden");
     assert!(entry.contains("[Desktop Entry]"));
     assert!(entry.contains("Type=Application"));
-    assert!(entry.contains("Name=My VPNs"));
-    assert!(entry.contains("Exec=\"/opt/My VPNs/my-vpns\" --hidden"));
+    assert!(entry.contains("Name=TunnelYard"));
+    assert!(entry.contains("Exec=\"/opt/TunnelYard/tunnel-yard\" --hidden"));
     assert!(entry.contains("X-GNOME-Autostart-enabled=true"));
-    assert!(entry.contains("Icon=my-vpns"));
-    assert!(entry.contains("StartupWMClass=dev.cavallheri.myvpns"));
+    assert!(entry.contains("Icon=tunnel-yard"));
+    assert!(entry.contains("StartupWMClass=lucas.cavalheri.tunnelyard"));
 }
 
 #[test]
 fn linux_launcher_matches_wayland_app_id_and_quotes_paths() {
     let entry = build_linux_desktop_entry(
-        std::path::Path::new("/opt/My VPNs/my-vpns%dev"),
-        std::path::Path::new("/home/test/.cache/my-vpns/icon.png"),
+        std::path::Path::new("/opt/TunnelYard/tunnel-yard%dev"),
+        std::path::Path::new("/home/test/.cache/tunnel-yard/icon.png"),
     );
-    assert!(entry.contains("Exec=\"/opt/My VPNs/my-vpns%%dev\""));
-    assert!(entry.contains("Icon=/home/test/.cache/my-vpns/icon.png"));
+    assert!(entry.contains("Exec=\"/opt/TunnelYard/tunnel-yard%%dev\""));
+    assert!(entry.contains("Icon=/home/test/.cache/tunnel-yard/icon.png"));
     assert!(entry.contains("StartupNotify=true"));
-    assert!(entry.contains(&format!("StartupWMClass={}", my_vpns::APP_ID)));
-    assert_eq!(my_vpns::APP_ID, "dev.cavallheri.myvpns");
+    assert!(entry.contains(&format!("StartupWMClass={}", tunnel_yard::APP_ID)));
+    assert_eq!(tunnel_yard::APP_ID, "lucas.cavalheri.tunnelyard");
 }
 
 #[test]
@@ -622,7 +632,7 @@ fn window_close_hides_until_a_second_distinct_click() {
 
 #[test]
 fn smoke_report_has_engine_and_platform() {
-    let report = my_vpns::smoke::smoke_report();
+    let report = tunnel_yard::smoke::smoke_report();
     assert!(!report.engine.is_empty());
     assert!(!report.platform.is_empty());
     assert!(!report.architecture.is_empty());
@@ -688,11 +698,13 @@ fn windows_openconnect_bootstrap_verifies_sha256_and_uac_silent_install() {
     assert_eq!(client.version, "9.21");
     assert!(client.url.contains("openconnect"));
     assert_eq!(client.sha256.len(), 64);
-    assert!(my_vpns::arch::native_windows_client_supported("x64"));
-    assert!(!my_vpns::arch::native_windows_client_supported("arm64"));
-    assert!(my_vpns::install_native::windows_client_for_arch("arm64")
-        .unwrap_err()
-        .contains("x64-only"));
+    assert!(tunnel_yard::arch::native_windows_client_supported("x64"));
+    assert!(!tunnel_yard::arch::native_windows_client_supported("arm64"));
+    assert!(
+        tunnel_yard::install_native::windows_client_for_arch("arm64")
+            .unwrap_err()
+            .contains("x64-only")
+    );
 
     let bytes = b"openconnect-installer-body";
     let sha = sha256_hex(bytes);
@@ -715,7 +727,7 @@ fn windows_openconnect_bootstrap_verifies_sha256_and_uac_silent_install() {
 
     let mut logs = Vec::new();
     let mut ran_path = None;
-    let custom = my_vpns::install_native::WindowsClient {
+    let custom = tunnel_yard::install_native::WindowsClient {
         version: "9.21".into(),
         url: "https://example.test/openconnect-installer.exe".into(),
         sha256: sha.clone(),
@@ -742,7 +754,7 @@ fn windows_openconnect_bootstrap_verifies_sha256_and_uac_silent_install() {
 
     let mut logs2 = Vec::new();
     let mut ran = false;
-    let bad = my_vpns::install_native::WindowsClient {
+    let bad = tunnel_yard::install_native::WindowsClient {
         version: "9.21".into(),
         url: "https://example.test/oc.exe".into(),
         sha256: "0".repeat(64),
@@ -787,16 +799,63 @@ fn tray_menu_has_required_actions_on_every_platform_model() {
     let labels: Vec<_> = entries
         .iter()
         .filter_map(|e| match e {
-            TrayEntry::Profile { label, profile_id } => Some((profile_id.as_str(), label.as_str())),
+            TrayEntry::Profile {
+                label,
+                profile_id,
+                checked,
+            } => Some((profile_id.as_str(), label.as_str(), *checked)),
             _ => None,
         })
         .collect();
     assert!(labels
         .iter()
-        .any(|(id, l)| *id == "work" && l.starts_with("on ")));
+        .any(|(id, l, checked)| { *id == "work" && *checked && *l == "work  ·  Connected" }));
     assert!(labels
         .iter()
-        .any(|(id, l)| *id == "home" && l.starts_with("off ")));
+        .any(|(id, l, checked)| { *id == "home" && !*checked && *l == "home  ·  Idle" }));
+    let both_up = {
+        let mut sessions = std::collections::HashMap::new();
+        for id in ["work", "home"] {
+            sessions.insert(
+                id.into(),
+                VpnSession {
+                    profile_id: id.into(),
+                    status: VpnStatus::Connected,
+                    message: "up".into(),
+                    connected_at: Some(1),
+                },
+            );
+        }
+        VpnState {
+            sessions,
+            auto_reconnect: false,
+        }
+    };
+    let pt = build_tray_menu("pt-BR", &profiles, &both_up);
+    let pt_labels: Vec<_> = pt
+        .iter()
+        .filter_map(|e| match e {
+            TrayEntry::Profile {
+                label,
+                profile_id,
+                checked,
+            } => Some((profile_id.clone(), label.clone(), *checked)),
+            _ => None,
+        })
+        .collect();
+    assert!(pt_labels
+        .iter()
+        .any(|(id, l, checked)| id == "work" && *checked && l == "work  ·  Conectado"));
+    assert!(pt_labels
+        .iter()
+        .any(|(id, l, checked)| id == "home" && *checked && l == "home  ·  Conectado"));
+    assert!(tray_profile_checked(Some(VpnStatus::Connected)));
+    assert!(!tray_profile_checked(Some(VpnStatus::Disconnected)));
+    assert_eq!(
+        tray_profile_label("pt-BR", "Mkraft", Some(VpnStatus::Connected)),
+        "Mkraft  ·  Conectado"
+    );
+    assert_eq!(tray_profile_label("en", "Mkraft", None), "Mkraft  ·  Idle");
     let empty = tray_action_ids(&build_tray_menu(
         "pt-BR",
         &[],
@@ -813,16 +872,16 @@ fn tray_menu_has_required_actions_on_every_platform_model() {
 
 #[test]
 fn autostart_macos_plist_and_windows_run_key() {
-    let plist = macos_launch_agent_plist("/Applications/My VPNs.app/Contents/MacOS/my-vpns");
-    assert!(plist.contains("dev.cavallheri.myvpns"));
+    let plist = macos_launch_agent_plist("/Applications/TunnelYard.app/Contents/MacOS/tunnel-yard");
+    assert!(plist.contains("lucas.cavalheri.tunnelyard"));
     assert!(plist.contains("--hidden"));
-    assert!(plist.contains("/Applications/My VPNs.app/Contents/MacOS/my-vpns"));
+    assert!(plist.contains("/Applications/TunnelYard.app/Contents/MacOS/tunnel-yard"));
     assert!(plist.contains("RunAtLoad"));
     let cmd = windows_autostart_command(std::path::Path::new(
-        r"C:\Program Files\My VPNs\my-vpns.exe",
+        r"C:\Program Files\TunnelYard\tunnel-yard.exe",
     ));
     assert!(cmd.contains("--hidden"));
-    assert!(cmd.contains(r"C:\Program Files\My VPNs\my-vpns.exe"));
+    assert!(cmd.contains(r"C:\Program Files\TunnelYard\tunnel-yard.exe"));
     let add = windows_reg_add_args(&cmd);
     assert!(add.contains(&WINDOWS_RUN_KEY.to_string()));
     assert!(add.contains(&WINDOWS_RUN_VALUE.to_string()));
@@ -831,22 +890,22 @@ fn autostart_macos_plist_and_windows_run_key() {
 
 #[test]
 fn notifications_and_import_picker_are_platform_specific() {
-    use my_vpns::os_ui::notification_argv_with_icon;
-    let png = std::path::Path::new("/tmp/my-vpns-icon.png");
-    let ico = std::path::Path::new("/tmp/my-vpns-icon.ico");
+    use tunnel_yard::os_ui::notification_argv_with_icon;
+    let png = std::path::Path::new("/tmp/tunnel-yard-icon.png");
+    let ico = std::path::Path::new("/tmp/tunnel-yard-icon.ico");
     let (cmd, args) =
         notification_argv_with_icon("linux", "VPN connected", "Tunnel work is up.", png, ico);
     assert_eq!(cmd, "notify-send");
     assert!(args.iter().any(|a| a == "VPN connected"));
     assert!(args.iter().any(|a| a == "-i"));
-    assert!(args.iter().any(|a| a.ends_with("my-vpns-icon.png")));
+    assert!(args.iter().any(|a| a.ends_with("tunnel-yard-icon.png")));
     let (cmd, args) =
         notification_argv_with_icon("macos", "VPN connected", "Tunnel work is up.", png, ico);
     assert_eq!(cmd, "osascript");
     let script = args.last().cloned().unwrap_or_default();
     assert!(script.contains("display notification"));
     assert!(script.contains("VPN connected"));
-    assert!(script.contains("my-vpns-icon.png"));
+    assert!(script.contains("tunnel-yard-icon.png"));
     let (cmd, args) =
         notification_argv_with_icon("windows", "VPN connected", "Tunnel work is up.", png, ico);
     assert!(cmd.to_lowercase().contains("powershell"));
@@ -854,11 +913,11 @@ fn notifications_and_import_picker_are_platform_specific() {
     let balloon = windows_balloon_script(
         "VPN connected",
         "Tunnel work is up.",
-        "/tmp/my-vpns-icon.ico",
+        "/tmp/tunnel-yard-icon.ico",
     );
     assert!(balloon.contains("NotifyIcon"));
     assert!(balloon.contains("ShowBalloonTip"));
-    assert!(balloon.contains("my-vpns-icon.ico"));
+    assert!(balloon.contains("tunnel-yard-icon.ico"));
     assert!(balloon.contains("System.Drawing.Icon"));
     assert!(macos_choose_file_script().contains("choose file"));
     assert!(macos_choose_file_script().contains(".conf"));
@@ -868,7 +927,7 @@ fn notifications_and_import_picker_are_platform_specific() {
 
 #[test]
 fn github_update_check_compares_tags_and_parses_release_json() {
-    use my_vpns::updates::{
+    use tunnel_yard::updates::{
         artifact_architecture, artifact_kind, artifact_platform, check_for_app_update,
         compare_versions, normalize_tag,
     };
@@ -880,10 +939,10 @@ fn github_update_check_compares_tags_and_parses_release_json() {
 
     let body = r#"{
         "tag_name": "v1.1.8",
-        "html_url": "https://github.com/LucasCavalheri/my-vpns/releases/tag/v1.1.8",
+        "html_url": "https://github.com/LucasCavalheri/tunnel-yard/releases/tag/v1.1.8",
         "draft": false,
         "assets": [
-            {"name": "my-vpns-linux-x64", "browser_download_url": "https://github.com/LucasCavalheri/my-vpns/releases/download/v1.1.8/my-vpns-linux-x64"}
+            {"name": "tunnel-yard-linux-x64", "browser_download_url": "https://github.com/LucasCavalheri/tunnel-yard/releases/download/v1.1.8/tunnel-yard-linux-x64"}
         ]
     }"#;
     let info = check_for_app_update("1.1.7", |_| Ok(body.to_string()))
@@ -898,31 +957,100 @@ fn github_update_check_compares_tags_and_parses_release_json() {
     assert_eq!(info.artifacts[0].architecture.as_deref(), Some("x64"));
     assert_eq!(
         info.artifacts[0].compatible,
-        my_vpns::platform::current_platform() == "linux" && my_vpns::arch::current_arch() == "x64"
+        tunnel_yard::platform::current_platform() == "linux"
+            && tunnel_yard::arch::current_arch() == "x64"
     );
-    assert_eq!(artifact_kind("my-vpns-macos-x64"), Some("macos"));
-    assert_eq!(artifact_architecture("my-vpns-macos-x64"), Some("x64"));
-    assert_eq!(artifact_kind("my-vpns-macos.dmg"), Some("macos"));
-    assert_eq!(artifact_kind("my-vpns-linux-x64.tar.gz"), Some("linux"));
-    assert_eq!(artifact_kind("my-vpns_2.5.0_amd64.deb"), Some("deb"));
+    assert_eq!(artifact_kind("tunnel-yard-macos-x64"), Some("macos"));
+    assert_eq!(artifact_architecture("tunnel-yard-macos-x64"), Some("x64"));
+    assert_eq!(artifact_kind("tunnel-yard-macos.dmg"), Some("macos"));
+    assert_eq!(artifact_kind("tunnel-yard-linux-x64.tar.gz"), Some("linux"));
+    assert_eq!(artifact_kind("my-vpns-linux-x64"), Some("linux"));
+    assert_eq!(artifact_kind("tunnel-yard_2.7.0_amd64.deb"), Some("deb"));
     assert_eq!(
-        artifact_architecture("my-vpns_2.5.0_amd64.deb"),
+        artifact_architecture("tunnel-yard_2.7.0_amd64.deb"),
         Some("x64")
     );
-    assert_eq!(artifact_kind("my-vpns-2.5.0-1.aarch64.rpm"), Some("rpm"));
     assert_eq!(
-        artifact_architecture("my-vpns-2.5.0-1.aarch64.rpm"),
+        artifact_kind("tunnel-yard-2.7.0-1.aarch64.rpm"),
+        Some("rpm")
+    );
+    assert_eq!(
+        artifact_architecture("tunnel-yard-2.7.0-1.aarch64.rpm"),
         Some("arm64")
     );
-    assert_eq!(artifact_kind("my-vpns-windows-arm64.exe"), Some("windows"));
     assert_eq!(
-        artifact_platform("my-vpns-windows-arm64.exe"),
+        artifact_kind("tunnel-yard-windows-arm64.exe"),
+        Some("windows")
+    );
+    assert_eq!(
+        artifact_platform("tunnel-yard-windows-arm64.exe"),
         Some("windows")
     );
 
     assert!(check_for_app_update("1.1.8", |_| Ok(body.to_string()))
         .unwrap()
         .is_none());
+
+    use tunnel_yard::updates::{
+        install_kind_for, linux_package_kind, select_install_artifact, InstallKind, UpdateArtifact,
+        UpdateInfo,
+    };
+    assert_eq!(
+        install_kind_for(
+            "windows",
+            std::path::Path::new(r"C:\Program Files\TunnelYard\tunnel-yard.exe")
+        ),
+        InstallKind::WindowsManaged
+    );
+    assert_eq!(
+        install_kind_for(
+            "windows",
+            std::path::Path::new(r"C:\Users\me\tunnel-yard.exe")
+        ),
+        InstallKind::WindowsPortable
+    );
+    assert_eq!(
+        install_kind_for(
+            "macos",
+            std::path::Path::new("/Applications/TunnelYard.app/Contents/MacOS/tunnel-yard")
+        ),
+        InstallKind::MacApp
+    );
+    assert_eq!(linux_package_kind(true, false), InstallKind::Deb);
+    assert_eq!(linux_package_kind(false, true), InstallKind::Rpm);
+    let info = UpdateInfo {
+        current: "2.6.0".into(),
+        latest: "2.7.0".into(),
+        url: "https://github.com/LucasCavalheri/tunnel-yard/releases/tag/v2.7.0".into(),
+        artifacts: vec![
+            UpdateArtifact {
+                name: "tunnel-yard_2.7.0_amd64.deb".into(),
+                url: "https://github.com/LucasCavalheri/tunnel-yard/releases/download/v2.7.0/tunnel-yard_2.7.0_amd64.deb".into(),
+                kind: "deb".into(),
+                digest: None,
+                platform: Some("linux".into()),
+                architecture: Some("x64".into()),
+                compatible: true,
+            },
+            UpdateArtifact {
+                name: "tunnel-yard-linux-x64".into(),
+                url: "https://github.com/LucasCavalheri/tunnel-yard/releases/download/v2.7.0/tunnel-yard-linux-x64".into(),
+                kind: "linux".into(),
+                digest: None,
+                platform: Some("linux".into()),
+                architecture: Some("x64".into()),
+                compatible: true,
+            },
+        ],
+    };
+    assert_eq!(
+        select_install_artifact(&info, InstallKind::Deb).map(|a| a.kind.as_str()),
+        Some("deb")
+    );
+    assert_eq!(
+        select_install_artifact(&info, InstallKind::LinuxPortable).map(|a| a.name.as_str()),
+        Some("tunnel-yard-linux-x64")
+    );
 }
 
 #[test]
@@ -937,8 +1065,8 @@ fn helpers_exist_in_tree() {
         "packaging/windows-network.ps1",
         "packaging/vpnc-script-win.js",
         "packaging/windows-client.json",
-        "packaging/polkit/dev.cavallheri.myvpns.policy",
-        "packaging/my-vpns.desktop",
+        "packaging/polkit/lucas.cavalheri.tunnelyard.policy",
+        "packaging/tunnel-yard.desktop",
         "public/icon.png",
         "public/icon-32.png",
         "public/icon.ico",
@@ -947,12 +1075,12 @@ fn helpers_exist_in_tree() {
     ] {
         assert!(root.join(name).exists(), "{name}");
     }
-    let desktop = fs::read_to_string(root.join("packaging/my-vpns.desktop")).unwrap();
-    assert!(desktop.contains("StartupWMClass=dev.cavallheri.myvpns"));
-    assert!(desktop.contains("Exec=my-vpns"));
+    let desktop = fs::read_to_string(root.join("packaging/tunnel-yard.desktop")).unwrap();
+    assert!(desktop.contains("StartupWMClass=lucas.cavalheri.tunnelyard"));
+    assert!(desktop.contains("Exec=tunnel-yard"));
     let postinst = fs::read_to_string(root.join("packaging/after-install.sh")).unwrap();
     assert!(!postinst.contains("resources/"));
-    assert!(postinst.contains("StartupWMClass=dev.cavallheri.myvpns"));
+    assert!(postinst.contains("StartupWMClass=lucas.cavalheri.tunnelyard"));
 }
 
 #[test]
@@ -978,7 +1106,10 @@ fn gpui_kit_components_are_shipped() {
 
 #[test]
 fn app_icon_is_a_real_png_and_argb_pixmap() {
-    use my_vpns::app_icon::{png_argb_pixmap, rgba_to_argb, APP_ICON_ICO, APP_ICON_PNG};
+    use tunnel_yard::app_icon::{
+        png_argb_pixmap, rgba_to_argb, tray_pixmap_pngs, APP_ICON_ICO, APP_ICON_PNG,
+        APP_ICON_PNG_32, APP_ICON_PNG_64,
+    };
     assert!(APP_ICON_PNG.starts_with(b"\x89PNG"));
     assert!(APP_ICON_ICO.len() > 16);
     let (w, h, data) = png_argb_pixmap(APP_ICON_PNG).expect("decode mark");
@@ -988,6 +1119,17 @@ fn app_icon_is_a_real_png_and_argb_pixmap() {
         rgba_to_argb(&[0x11, 0x22, 0x33, 0x44]),
         vec![0x44, 0x11, 0x22, 0x33]
     );
+    let tray = tray_pixmap_pngs();
+    assert!(tray.contains(&APP_ICON_PNG_32));
+    assert!(tray.contains(&APP_ICON_PNG_64));
+    assert!(
+        !tray.contains(&APP_ICON_PNG),
+        "256px mark must not be sent as a StatusNotifier pixmap"
+    );
+    for bytes in tray {
+        let (tw, th, _) = png_argb_pixmap(bytes).expect("tray pixmap");
+        assert!(tw <= 64 && th <= 64, "tray pixmap {tw}x{th} is too large");
+    }
 }
 
 fn fixture(name: &str) -> std::path::PathBuf {
@@ -1018,7 +1160,7 @@ fn dummy_profile(id: &str) -> VpnProfile {
 }
 
 fn tempfile_dir(tag: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("my-vpns-test-{tag}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("tunnel-yard-test-{tag}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     dir

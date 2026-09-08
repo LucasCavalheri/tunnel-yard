@@ -1,17 +1,17 @@
-param([string]$Action = $env:reason, [string]$SessionDir = $env:MYVPNS_SESSION_DIR, [bool]$ProbeService = $true)
+param([string]$Action = $env:reason, [string]$SessionDir = $env:TUNNELYARD_SESSION_DIR, [bool]$ProbeService = $true)
 # OpenConnect vpnc-script environment. Only manage settings owned by this tunnel.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$env:MYVPNS_SESSION_DIR = $SessionDir
-$stateFile = Join-Path $env:MYVPNS_SESSION_DIR 'network-state.json'
+$env:TUNNELYARD_SESSION_DIR = $SessionDir
+$stateFile = Join-Path $env:TUNNELYARD_SESSION_DIR 'network-state.json'
 $utf8 = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8
 function Get-OtherRoutes {
-    $root = Split-Path -Parent $env:MYVPNS_SESSION_DIR
+    $root = Split-Path -Parent $env:TUNNELYARD_SESSION_DIR
     # TEMP may use an 8.3 path (RUNNER~1, for example), while enumeration
     # returns long paths. Compare canonical directory names within this root
     # so our own state cannot be mistaken for another active session.
-    $currentName = (Get-Item -LiteralPath $env:MYVPNS_SESSION_DIR).Name
+    $currentName = (Get-Item -LiteralPath $env:TUNNELYARD_SESSION_DIR).Name
     foreach ($dir in Get-ChildItem -LiteralPath $root -Directory -Filter 'session-*') {
         $file = Join-Path $dir.FullName 'network-state.json'
         if ($dir.Name -ne $currentName -and (Test-Path -LiteralPath $file)) {
@@ -77,10 +77,10 @@ function Configure-Dns {
                     Save-State
                 }
                 if (!$missing.Count) { continue }
-                $display = 'MyVPNs-' + (Get-Item -LiteralPath $SessionDir).Name + '-' + $domain
+                $display = 'TunnelYard-' + (Get-Item -LiteralPath $SessionDir).Name + '-' + $domain
                 $script:state.nrpt += @{ name=''; owner=$display }
                 Save-State
-                $rule = Add-DnsClientNrptRule -Namespace $missing -NameServers $servers -DisplayName $display -Comment 'Managed by My VPNs; removed when the tunnel disconnects.' -PassThru
+                $rule = Add-DnsClientNrptRule -Namespace $missing -NameServers $servers -DisplayName $display -Comment 'Managed by TunnelYard; removed when the tunnel disconnects.' -PassThru
                 $script:state.nrpt[-1].name = $rule.Name
                 Save-State
                 if (!(Get-DnsClientNrptRule -Name $rule.Name)) { throw 'Could not verify the split-DNS policy.' }
@@ -117,7 +117,7 @@ function Restore-Network {
     if (!(Test-Path -LiteralPath $stateFile)) { return }
     $saved = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in $saved.nrpt) {
-        if ($entry.owner -notlike 'MyVPNs-session-*') { continue }
+        if ($entry.owner -notlike 'TunnelYard-session-*') { continue }
         $shared = $false
         foreach ($dir in Get-ChildItem -LiteralPath (Split-Path -Parent $SessionDir) -Directory -Filter 'session-*') {
             if ($dir.Name -eq (Get-Item -LiteralPath $SessionDir).Name) { continue }
@@ -155,7 +155,7 @@ function Restore-Network {
     }
     Remove-Item -LiteralPath $stateFile
 }
-$mutex = New-Object Threading.Mutex($false, 'Global\MyVPNsNetwork-v1')
+$mutex = New-Object Threading.Mutex($false, 'Global\TunnelYardNetwork-v1')
 $locked = $false
 try {
     # The vpnc callback can have printed NETWORK_READY while its process is
@@ -180,9 +180,9 @@ try {
     $mtu = 0
     if (![int]::TryParse($env:INTERNAL_IP4_MTU, [ref]$mtu) -or $mtu -lt 576 -or $mtu -gt 65535) { throw 'OpenConnect did not provide a valid negotiated IPv4 MTU.' }
     $script:state = @{ index=$index; guid=$adapter.InterfaceGuid.ToString(); routes=@(); expectedRoutes=@(); ip=$ip.ToString(); ipAdded=$false;
-        mtu=$mtu; originalMtu=0; mtuChanged=$false; nrpt=@(); dnsConfigured=$false; setDns=($env:MYVPNS_SET_DNS -eq '1');
+        mtu=$mtu; originalMtu=0; mtuChanged=$false; nrpt=@(); dnsConfigured=$false; setDns=($env:TUNNELYARD_SET_DNS -eq '1');
         vpnDns=@($env:INTERNAL_IP4_DNS -split '\s+' | Where-Object { $_ } | ForEach-Object { [Net.IPAddress]::Parse($_).ToString() });
-        vpnSuffix=$env:CISCO_DEF_DOMAIN; splitDomains=$env:CISCO_SPLIT_DNS; healthHost=$env:MYVPNS_HEALTH_HOST; healthPort=$env:MYVPNS_HEALTH_PORT;
+        vpnSuffix=$env:CISCO_DEF_DOMAIN; splitDomains=$env:CISCO_SPLIT_DNS; healthHost=$env:TUNNELYARD_HEALTH_HOST; healthPort=$env:TUNNELYARD_HEALTH_PORT;
         dns=@((Get-DnsClientServerAddress -InterfaceIndex $index -AddressFamily IPv4).ServerAddresses);
         suffix=(Get-DnsClient -InterfaceIndex $index).ConnectionSpecificSuffix; dnsChanged=$false }
     $ipInterface = Get-NetIPInterface -InterfaceIndex $index -AddressFamily IPv4
@@ -190,7 +190,7 @@ try {
     $script:state.automaticMetric = [string]$ipInterface.AutomaticMetric
     $script:state.originalMtu = [int]$ipInterface.NlMtu
     Save-State
-    $setRoutes = $env:MYVPNS_SET_ROUTES -eq '1'
+    $setRoutes = $env:TUNNELYARD_SET_ROUTES -eq '1'
     # Apply negotiated MTU before assigning a tunnel IP or installing routes.
     # This is the IP MTU (already excludes TLS/DTLS/PPP overhead), not a fixed
     # Ethernet default and not a value inferred from a prior session's logs.
@@ -233,11 +233,11 @@ try {
     }
     # OpenConnect waits at most 10s for this script. DNS and service probes run
     # in the supervisor afterwards, once the client's packet loop is running.
-    Write-Output 'MYVPNS_NETWORK_READY'
+    Write-Output 'TUNNELYARD_NETWORK_READY'
 } catch {
     if ($Action -in @('check', 'ready')) { return [pscustomobject]@{ ok=$false; message=$_.Exception.Message; category= $(if ($_.Exception.Data['healthCategory']) { 'service' } else { 'network' }) } }
     [Console]::Error.WriteLine("ERROR: VPN network configuration: " + $_.Exception.Message)
-    [IO.File]::WriteAllText((Join-Path $env:MYVPNS_SESSION_DIR 'stop'), '', $utf8)
+    [IO.File]::WriteAllText((Join-Path $env:TUNNELYARD_SESSION_DIR 'stop'), '', $utf8)
     if ($locked) { try { Restore-Network } catch { [Console]::Error.WriteLine("ERROR: VPN cleanup: " + $_.Exception.Message) } }
     exit 1
 } finally {

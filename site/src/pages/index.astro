@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BellRing,
   Check,
-  ChevronRight,
   CircleCheck,
   Download,
   ExternalLink,
@@ -29,11 +28,13 @@ import {
 } from "@lucide/astro";
 import { Icon as BrandIcon } from "astro-icon/components";
 import "../styles/global.css";
+import Downloads from "../components/Downloads.astro";
+import { release, repoUrl } from "../data/release";
+import memory from "../data/memory.json";
 
-const releaseUrl = "https://github.com/LucasCavalheri/my-vpns/releases/tag/v2.6.0";
-const latestBase = "https://github.com/LucasCavalheri/my-vpns/releases/download/v2.6.0";
-const repoUrl = "https://github.com/LucasCavalheri/my-vpns";
-const version = "2.6.0";
+const releaseUrl = release.html_url;
+const version = release.tag_name.replace(/^v/, "");
+const mib = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 ---
 
 <!doctype html>
@@ -43,26 +44,26 @@ const version = "2.6.0";
     <meta name="viewport" content="width=device-width" />
     <meta
       name="description"
-      content="My VPNs reúne suas conexões FortiGate SSL VPN em um app desktop simples, nativo e open source para Linux, macOS e Windows."
+      content="TunnelYard reúne suas conexões FortiGate SSL VPN em um app desktop simples, nativo e open source para Linux, macOS e Windows."
     />
     <meta name="theme-color" content="#090a0c" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="My VPNs — todas as suas VPNs em um só lugar" />
+    <meta property="og:title" content="TunnelYard — todas as suas VPNs em um só lugar" />
     <meta
       property="og:description"
       content="Conecte múltiplos túneis, organize perfis e acompanhe tudo sem depender do terminal."
     />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <title>My VPNs — VPN corporativa sem complicação</title>
+    <title>TunnelYard — VPN corporativa sem complicação</title>
     <script is:inline>document.documentElement.classList.add("js");</script>
   </head>
   <body>
     <div class="page-noise" aria-hidden="true"></div>
     <header class="site-header" data-header>
       <div class="container header-inner">
-        <a class="brand" href="#inicio" aria-label="My VPNs — início">
+        <a class="brand" href="#inicio" aria-label="TunnelYard — início">
           <img src="/icon.svg" alt="" width="36" height="36" />
-          <span>My VPNs</span>
+          <span>TunnelYard</span>
         </a>
 
         <nav class="desktop-nav" aria-label="Navegação principal">
@@ -77,7 +78,7 @@ const version = "2.6.0";
             <BrandIcon name="simple-icons:github" size={18} aria-hidden="true" />
             <span>GitHub</span>
           </a>
-          <a class="button button-small button-primary" href={releaseUrl}>
+          <a class="button button-small button-primary" href="#downloads">
             Baixar
             <Download size={16} aria-hidden="true" />
           </a>
@@ -122,11 +123,8 @@ const version = "2.6.0";
             <div class="hero-actions reveal reveal-delay-3">
               <a
                 class="button button-primary button-large"
-                href={releaseUrl}
+                href="#downloads"
                 data-primary-download
-                data-release={releaseUrl}
-                data-macos={latestBase + "/my-vpns-macos.dmg"}
-                data-windows={latestBase + "/my-vpns-windows-x64.exe"}
               >
                 <Download size={19} aria-hidden="true" />
                 <span data-download-label>Baixar v{version}</span>
@@ -142,7 +140,7 @@ const version = "2.6.0";
             </div>
           </div>
 
-          <div class="hero-product reveal reveal-delay-2" aria-label="Prévia da interface do My VPNs">
+          <div class="hero-product reveal reveal-delay-2" aria-label="Prévia da interface do TunnelYard">
             <div class="orbit orbit-one" aria-hidden="true"><span></span></div>
             <div class="orbit orbit-two" aria-hidden="true"><span></span></div>
             <div class="app-window">
@@ -152,7 +150,7 @@ const version = "2.6.0";
                 </div>
                 <div class="app-title">
                   <img src="/icon.svg" alt="" width="20" height="20" />
-                  <span>My VPNs</span>
+                  <span>TunnelYard</span>
                 </div>
                 <div class="titlebar-actions">
                   <Moon size={13} aria-hidden="true" />
@@ -165,7 +163,7 @@ const version = "2.6.0";
                 <aside class="app-sidebar">
                   <div class="side-brand">
                     <div>
-                      <strong>My VPNs</strong>
+                      <strong>TunnelYard</strong>
                       <small>Control desk</small>
                     </div>
                     <span class="version-pill">v{version}</span>
@@ -283,7 +281,7 @@ const version = "2.6.0";
           <div class="section-heading centered reveal">
             <div class="eyebrow"><Sparkles size={14} aria-hidden="true" /> Menos atrito, mais trabalho feito</div>
             <h2>Você só queria acessar o ambiente.<br /><span>Não virar especialista em terminal.</span></h2>
-            <p>My VPNs transforma uma rotina frágil e repetitiva em um fluxo visual, previsível e fácil de acompanhar.</p>
+            <p>TunnelYard transforma uma rotina frágil e repetitiva em um fluxo visual, previsível e fácil de acompanhar.</p>
           </div>
 
           <div class="before-after">
@@ -313,7 +311,7 @@ const version = "2.6.0";
             <div class="comparison-arrow reveal reveal-delay-1" aria-hidden="true"><ArrowRight size={20} /></div>
 
             <article class="solution-card reveal reveal-delay-2">
-              <div class="comparison-label solution-label"><span></span> Com My VPNs</div>
+              <div class="comparison-label solution-label"><span></span> Com TunnelYard</div>
               <div class="mini-dashboard">
                 <div class="mini-top">
                   <div><span class="mini-avatar">AC</span><div><strong>Acme HQ</strong><small>vpn.acme.com</small></div></div>
@@ -357,7 +355,7 @@ const version = "2.6.0";
               <div class="eyebrow"><Zap size={14} aria-hidden="true" /> Tudo sob controle</div>
               <h2>Feito para quem vive<br />entre ambientes.</h2>
             </div>
-            <p>De um único cliente a uma coleção inteira de acessos: o My VPNs deixa o trabalho operacional pequeno, claro e confiável.</p>
+            <p>De um único cliente a uma coleção inteira de acessos: o TunnelYard deixa o trabalho operacional pequeno, claro e confiável.</p>
           </div>
 
           <div class="bento-grid">
@@ -371,7 +369,7 @@ const version = "2.6.0";
               <div class="tunnel-visual" aria-hidden="true">
                 <div class="tunnel-control">
                   <img src="/icon.svg" alt="" width="42" height="42" />
-                  <div><strong>My VPNs</strong><small>3 túneis simultâneos</small></div>
+                  <div><strong>TunnelYard</strong><small>3 túneis simultâneos</small></div>
                   <span class="control-count"><i></i><i></i><i></i> 3/3</span>
                   <i class="hub-port port-one"></i>
                   <i class="hub-port port-two"></i>
@@ -425,7 +423,7 @@ const version = "2.6.0";
               <div class="tray-preview" aria-hidden="true">
                 <div class="tray-bar"><span></span><span></span><span></span><div class="tray-icon"><img src="/icon.svg" alt="" /></div></div>
                 <div class="tray-menu">
-                  <strong>My VPNs</strong>
+                  <strong>TunnelYard</strong>
                   <span><i></i> Acme HQ <small>Conectada</small></span>
                   <span><i></i> Cliente North <small>Conectada</small></span>
                 </div>
@@ -449,7 +447,7 @@ const version = "2.6.0";
           <div class="security-copy reveal">
             <div class="eyebrow eyebrow-dark"><LockKeyhole size={14} aria-hidden="true" /> Privilégio mínimo</div>
             <h2>A interface nunca precisa rodar como administrador.</h2>
-            <p>O My VPNs mantém a experiência visual separada das operações privilegiadas. Quando necessário, o próprio sistema operacional solicita sua autorização.</p>
+            <p>O TunnelYard mantém a experiência visual separada das operações privilegiadas. Quando necessário, o próprio sistema operacional solicita sua autorização.</p>
             <a href={repoUrl + "#privacy-notes"} target="_blank" rel="noreferrer">
               Veja como funciona no código
               <ExternalLink size={15} />
@@ -478,6 +476,26 @@ const version = "2.6.0";
         </div>
       </section>
 
+      <section class="performance section" id="performance" aria-labelledby="performance-title">
+        <div class="container">
+          <div class="section-heading centered reveal">
+            <div class="eyebrow"><BrandIcon name="simple-icons:rust" size={16} /> Rust por dentro. Números à vista.</div>
+            <h2 id="performance-title">Quanto de RAM, na prática?</h2>
+            <p>Primeira coleta local: consumo observado em Linux, com o app aberto e com dois túneis conectados.</p>
+          </div>
+          <div class="memory-grid">
+            <article class="memory-card reveal"><h3>Sem conexões</h3><strong class="memory-value">{mib(memory.groups.idle.mean)} MiB</strong><p>Processo gráfico recém-aberto, ocioso. Instância separada, sem túneis.</p></article>
+            <article class="memory-card reveal"><h3>Com 2 túneis conectados</h3><strong class="memory-value">{mib(memory.groups.active.mean)} MiB</strong><p>Somente o processo gráfico já em uso. Tráfego de rede não controlado.</p></article>
+            <article class="memory-card reveal"><h3>Motores dos 2 túneis</h3><strong class="memory-value">+{mib(memory.groups.engines.mean)} MiB</strong><p>Dois processos OpenFortiVPN e dois pppd, além da interface.</p></article>
+          </div>
+          <div class="measurement-note">
+            <p><strong>Coleta exploratória · 08/09/2026.</strong> Ubuntu 26.04.1 LTS, x86_64, versão 2.6.0 (anterior ao rebranding), build de desenvolvimento. Média de 60 amostras de RSS, a cada segundo.</p>
+            <p>As instâncias têm tempos de vida e estados gráficos diferentes: estes valores não são uma comparação controlada entre ocioso e conectado, nem um benchmark da 2.7.0. Excluem memória da GPU, kernel e serviços do desktop. A soma de RSS pode contar memória compartilhada mais de uma vez. O consumo varia por máquina e uso.</p>
+            <details><summary>Ver método e intervalos medidos</summary><p>Leitura de VmRSS em /proc/PID/status, sem acessar credenciais. Ocioso: {mib(memory.groups.idle.min)}–{mib(memory.groups.idle.max)} MiB. Conectado: {mib(memory.groups.active.min)}–{mib(memory.groups.active.max)} MiB. Motores: {mib(memory.groups.engines.min)}–{mib(memory.groups.engines.max)} MiB. As conexões existentes foram preservadas.</p></details>
+          </div>
+        </div>
+      </section>
+
       <section class="downloads section" id="downloads">
         <div class="container">
           <div class="section-heading centered reveal">
@@ -486,38 +504,7 @@ const version = "2.6.0";
             <p>Escolha a plataforma e comece. Sem conta, assinatura ou licença proprietária.</p>
           </div>
 
-          <div class="platform-grid">
-            <article class="platform-card reveal">
-              <div class="platform-top"><span class="platform-icon"><BrandIcon name="simple-icons:linux" size={27} /></span><span class="arch-pill">x64 · ARM64</span></div>
-              <h3>Linux</h3>
-              <p>Pacotes nativos para Debian, Ubuntu, Fedora, RHEL e arquivo portátil.</p>
-              <div class="format-list"><span>.deb</span><span>.rpm</span><span>.tar.gz</span></div>
-              <div class="distro-list" aria-label="Ubuntu, Debian, Fedora e Red Hat">
-                <BrandIcon name="simple-icons:ubuntu" size={15} />
-                <BrandIcon name="simple-icons:debian" size={15} />
-                <BrandIcon name="simple-icons:fedora" size={15} />
-                <BrandIcon name="simple-icons:redhat" size={17} />
-              </div>
-              <a class="button button-platform" href={releaseUrl}>Ver downloads Linux <ChevronRight size={17} /></a>
-            </article>
-
-            <article class="platform-card platform-featured reveal reveal-delay-1">
-              <span class="recommended-label">Binário universal</span>
-              <div class="platform-top"><span class="platform-icon"><BrandIcon name="simple-icons:apple" size={28} /></span><span class="arch-pill">Intel · Apple Silicon</span></div>
-              <h3>macOS</h3>
-              <p>Um único aplicativo para Macs Intel e Apple Silicon.</p>
-              <div class="format-list"><span>.dmg</span><span>Universal</span></div>
-              <a class="button button-primary button-platform" href={latestBase + "/my-vpns-macos.dmg"}>Baixar para macOS <Download size={17} /></a>
-            </article>
-
-            <article class="platform-card reveal reveal-delay-2">
-              <div class="platform-top"><span class="platform-icon"><BrandIcon name="simple-icons:windows" size={27} /></span><span class="arch-pill">x64 · ARM64</span></div>
-              <h3>Windows</h3>
-              <p>Aplicativo nativo com OpenConnect e integração ao sistema.</p>
-              <div class="format-list"><span>.exe</span><span>Wintun</span></div>
-              <a class="button button-platform" href={latestBase + "/my-vpns-windows-x64.exe"}>Baixar para Windows <Download size={17} /></a>
-            </article>
-          </div>
+          <Downloads />
 
           <p class="download-note reveal">
             O macOS pode pedir uma confirmação na primeira abertura. No Windows ARM64,
@@ -536,9 +523,9 @@ const version = "2.6.0";
             <img src="/icon.svg" alt="" width="72" height="72" class="cta-icon" />
             <div class="eyebrow eyebrow-light"><Sparkles size={14} /> Menos terminal. Mais fluxo.</div>
             <h2>Sua próxima conexão<br />pode levar um clique.</h2>
-            <p>Baixe o My VPNs, importe seus perfis e siga o trabalho.</p>
+            <p>Baixe o TunnelYard, importe seus perfis e siga o trabalho.</p>
             <div class="cta-actions">
-              <a class="button button-white button-large" href={releaseUrl}><Download size={19} /> Baixar v{version}</a>
+              <a class="button button-white button-large" href="#downloads"><Download size={19} /> Baixar v{version}</a>
               <a class="button button-ghost-light button-large" href={repoUrl} target="_blank" rel="noreferrer"><BrandIcon name="simple-icons:github" size={19} /> Ver no GitHub</a>
             </div>
           </div>
@@ -549,7 +536,7 @@ const version = "2.6.0";
     <footer>
       <div class="container footer-inner">
         <div class="footer-brand">
-          <a class="brand" href="#inicio"><img src="/icon.svg" alt="" width="34" height="34" /><span>My VPNs</span></a>
+          <a class="brand" href="#inicio"><img src="/icon.svg" alt="" width="34" height="34" /><span>TunnelYard</span></a>
           <p>FortiGate SSL VPN, sem a parte complicada.</p>
         </div>
         <div class="footer-links">
@@ -590,13 +577,13 @@ const version = "2.6.0";
 
       if (download && downloadLabel) {
         if (userAgent.includes("mac")) {
-          download.href = download.dataset.macos || download.href;
+          download.href = "#download-macos";
           downloadLabel.textContent = "Baixar para macOS";
         } else if (userAgent.includes("win")) {
-          download.href = download.dataset.windows || download.href;
+          download.href = "#download-windows";
           downloadLabel.textContent = "Baixar para Windows";
         } else if (userAgent.includes("linux")) {
-          download.href = download.dataset.release || download.href;
+          download.href = "#download-linux";
           downloadLabel.textContent = "Baixar para Linux";
         }
       }

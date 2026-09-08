@@ -12,20 +12,27 @@ use gpui_kit::component::{
     ThemeMode, TitleBar,
 };
 use gpui_kit::{prelude::*, *};
-use my_vpns::autostart::{get_autostart_path, is_autostart_enabled, set_autostart_enabled};
-use my_vpns::conf::{
-    delete_profile_file, draft_from_imported_file, empty_draft, save_profile_draft, VpnProfileDraft,
-};
-use my_vpns::deps::{get_dependency_status, install_vpn_client, DependencyStatus, InstallResult};
-use my_vpns::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
-use my_vpns::i18n::translate;
-use my_vpns::settings::{load_settings, save_settings, AppSettingsPatch};
-use my_vpns::updates::{perform_update_check, UpdateCheckResult, UpdateInfo, FIRST_CHECK_DELAY_MS};
-use my_vpns::vpn::{summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tunnel_yard::autostart::{get_autostart_path, is_autostart_enabled, set_autostart_enabled};
+use tunnel_yard::conf::{
+    delete_profile_file, draft_from_imported_file, empty_draft, save_profile_draft, VpnProfileDraft,
+};
+use tunnel_yard::deps::{
+    get_dependency_status, install_vpn_client, DependencyStatus, InstallResult,
+};
+use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
+use tunnel_yard::i18n::translate;
+use tunnel_yard::settings::{load_settings, save_settings, AppSettingsPatch};
+use tunnel_yard::updates::{
+    perform_update_check, perform_update_install, UpdateApplyResult, UpdateCheckResult, UpdateInfo,
+    FIRST_CHECK_DELAY_MS,
+};
+use tunnel_yard::vpn::{
+    summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus,
+};
 
 const BRAND: u32 = 0xff5f2d;
 const BRAND_HOVER: u32 = 0xf04f20;
@@ -112,6 +119,9 @@ struct Desk {
     editor_error: Option<String>,
     confirm_delete: Option<String>,
     confirm_quit: bool,
+    confirm_update: bool,
+    update_busy: bool,
+    update_error: Option<String>,
     vpn: Arc<Mutex<VpnManager>>,
     events: Receiver<VpnEvent>,
     last_connected: std::collections::HashSet<String>,
@@ -120,10 +130,14 @@ struct Desk {
     tray_rx: Option<Receiver<TrayCmd>>,
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     os_tray: Option<tray_icon::TrayIcon>,
+    #[cfg(target_os = "linux")]
+    linux_tray: Option<ksni::blocking::Handle<AppTray>>,
     update: Option<UpdateInfo>,
     check_feedback: CheckFeedback,
     update_rx: Receiver<UpdateCheckResult>,
     update_tx: mpsc::Sender<UpdateCheckResult>,
+    update_install_rx: Receiver<Result<UpdateApplyResult, String>>,
+    update_install_tx: mpsc::Sender<Result<UpdateApplyResult, String>>,
     started_at: Instant,
     auto_check_sent: bool,
     dismissed_update: Option<String>,
@@ -135,9 +149,9 @@ struct Desk {
 }
 
 pub fn run(hidden: bool) -> Result<(), String> {
-    let _ = my_vpns::app_icon::ensure_app_icon_files();
+    let _ = tunnel_yard::app_icon::ensure_app_icon_files();
     #[cfg(target_os = "linux")]
-    let _ = my_vpns::app_icon::ensure_linux_desktop_entry();
+    let _ = tunnel_yard::app_icon::ensure_linux_desktop_entry();
 
     gpui_kit::application()
         .with_assets(gpui_kit::assets::Assets)
@@ -147,13 +161,13 @@ pub fn run(hidden: bool) -> Result<(), String> {
             // The product UI is intentionally dark: the desktop application and
             // the interface shown on the website share the same visual spec.
             let initial_theme = "dark".to_string();
-            let icon = image::load_from_memory(my_vpns::app_icon::APP_ICON_PNG)
+            let icon = image::load_from_memory(tunnel_yard::app_icon::APP_ICON_PNG)
                 .ok()
                 .map(|image| Arc::new(image.into_rgba8()));
             let mut options = TitleBar::window_options();
             options.window_bounds = Some(WindowBounds::centered(size(px(1040.), px(690.)), cx));
             options.window_min_size = Some(size(px(860.), px(580.)));
-            options.app_id = Some(my_vpns::APP_ID.into());
+            options.app_id = Some(tunnel_yard::APP_ID.into());
             options.show = !hidden;
             options.icon = icon;
 
@@ -175,7 +189,7 @@ pub fn run(hidden: bool) -> Result<(), String> {
                     });
                     cx.new(|cx| Root::new(desk, window, cx))
                 })
-                .map_err(|error| eprintln!("[my-vpns] failed to open window: {error}"))
+                .map_err(|error| eprintln!("[tunnel-yard] failed to open window: {error}"))
                 .ok();
             })
             .detach();
@@ -187,6 +201,10 @@ impl Drop for Desk {
     fn drop(&mut self) {
         *self.quitting.lock().unwrap() = true;
         self.vpn.lock().unwrap().disconnect(None);
+        #[cfg(target_os = "linux")]
+        if let Some(handle) = self.linux_tray.take() {
+            handle.shutdown();
+        }
     }
 }
 
@@ -203,7 +221,11 @@ impl Desk {
         let quitting = Arc::new(Mutex::new(false));
         let (tray_tx, tray_rx) = mpsc::channel();
         let (update_tx, update_rx) = mpsc::channel();
+        let (update_install_tx, update_install_rx) = mpsc::channel();
         let (setup_tx, setup_rx) = mpsc::channel();
+        #[cfg(target_os = "linux")]
+        let linux_tray = spawn_tray(vpn.clone(), locale.clone(), tray_tx, quitting.clone());
+        #[cfg(not(target_os = "linux"))]
         spawn_tray(vpn.clone(), locale.clone(), tray_tx, quitting.clone());
 
         let search = cx.new(|cx| {
@@ -213,7 +235,7 @@ impl Desk {
         let mut desk = Self {
             locale,
             theme,
-            version: my_vpns::APP_VERSION.into(),
+            version: tunnel_yard::APP_VERSION.into(),
             deps: None,
             deps_ready: false,
             boot_error: None,
@@ -229,6 +251,9 @@ impl Desk {
             editor_error: None,
             confirm_delete: None,
             confirm_quit: false,
+            confirm_update: false,
+            update_busy: false,
+            update_error: None,
             vpn,
             events,
             last_connected: Default::default(),
@@ -237,10 +262,14 @@ impl Desk {
             tray_rx: Some(tray_rx),
             #[cfg(any(target_os = "windows", target_os = "macos"))]
             os_tray: None,
+            #[cfg(target_os = "linux")]
+            linux_tray,
             update: None,
             check_feedback: CheckFeedback::Idle,
             update_rx,
             update_tx,
+            update_install_rx,
+            update_install_tx,
             started_at: Instant::now(),
             auto_check_sent: false,
             dismissed_update,
@@ -268,7 +297,7 @@ impl Desk {
             desk.state = desk.vpn.lock().unwrap().get_state();
         }
 
-        if std::env::var("MY_VPNS_SHOT").as_deref() == Ok("editor") {
+        if std::env::var("TUNNELYARD_SHOT").as_deref() == Ok("editor") {
             desk.editor = Some(ProfileEditor::from_draft(
                 EditorMode::Create,
                 empty_draft(),
@@ -309,6 +338,21 @@ impl Desk {
         let version = self.version.clone();
         std::thread::spawn(move || {
             let _ = tx.send(perform_update_check(&version));
+        });
+    }
+
+    fn start_update_install(&mut self) {
+        let Some(info) = self.update.clone() else {
+            return;
+        };
+        self.confirm_update = false;
+        self.update_busy = true;
+        self.update_error = None;
+        self.vpn.lock().unwrap().disconnect(None);
+        let tx = self.update_install_tx.clone();
+        std::thread::spawn(move || {
+            let result = perform_update_install(&info);
+            let _ = tx.send(result);
         });
     }
 
@@ -355,12 +399,43 @@ impl Desk {
             match result {
                 UpdateCheckResult::Available(info) => {
                     if self.dismissed_update.as_deref() != Some(info.latest.as_str()) {
+                        notify(
+                            &self.t("notify.updateTitle"),
+                            &self.tv(
+                                "notify.updateBody",
+                                &[
+                                    ("latest", info.latest.clone()),
+                                    ("current", info.current.clone()),
+                                ],
+                            ),
+                        );
                         self.update = Some(info);
                     }
                     self.check_feedback = CheckFeedback::Idle;
                 }
                 UpdateCheckResult::UpToDate { .. } => self.check_feedback = CheckFeedback::UpToDate,
                 UpdateCheckResult::Error { .. } => self.check_feedback = CheckFeedback::Error,
+            }
+        }
+        while let Ok(result) = self.update_install_rx.try_recv() {
+            self.update_busy = false;
+            match result {
+                Ok(plan) => {
+                    if let Some(path) = plan.relaunch {
+                        let _ = std::process::Command::new(&path).spawn();
+                    }
+                    self.request_quit(window, cx);
+                    return;
+                }
+                Err(message) => {
+                    self.update_error = Some(if message == "elevation-declined" {
+                        self.t("update.elevationDeclined")
+                    } else if message.is_empty() {
+                        self.t("update.installFailed")
+                    } else {
+                        message
+                    });
+                }
             }
         }
         while let Ok(event) = self.events.try_recv() {
@@ -515,6 +590,10 @@ impl Desk {
                 let _ = tray.set_menu(Some(Box::new(menu)));
             }
         }
+        #[cfg(target_os = "linux")]
+        if let Some(handle) = &self.linux_tray {
+            handle.update(|_| ());
+        }
     }
 
     fn open_editor(
@@ -590,7 +669,7 @@ impl Desk {
                             .text_size(px(12.))
                             .font_weight(FontWeight::BOLD)
                             .text_color(rgb(0xc7cbc7))
-                            .child("My VPNs"),
+                            .child(tunnel_yard::APP_NAME),
                     ),
             )
     }
@@ -639,7 +718,7 @@ impl Desk {
                                     .text_size(px(14.))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(rgb(SIDEBAR_TEXT))
-                                    .child("My VPNs"),
+                                    .child(tunnel_yard::APP_NAME),
                             )
                             .child(
                                 div()
@@ -1132,59 +1211,89 @@ impl Desk {
 
     fn render_update_banner(&self, cx: &mut Context<Self>) -> Option<Div> {
         let info = self.update.clone()?;
+        let error = self.update_error.clone();
         Some(
             div()
-                .h_flex()
-                .justify_between()
-                .px_6()
-                .py_3()
+                .v_flex()
                 .border_b_1()
                 .border_color(cx.theme().primary.opacity(0.24))
                 .bg(cx.theme().primary.opacity(0.08))
                 .child(
                     div()
                         .h_flex()
-                        .gap_2()
-                        .text_color(cx.theme().primary)
-                        .child(Icon::new(IconName::Info))
-                        .child(self.tv(
-                            "update.available",
-                            &[
-                                ("latest", info.latest.clone()),
-                                ("current", info.current.clone()),
-                            ],
-                        )),
-                )
-                .child(
-                    div()
-                        .h_flex()
-                        .gap_2()
+                        .justify_between()
+                        .px_6()
+                        .py_3()
                         .child(
-                            Button::new("open-release")
-                                .small()
-                                .primary()
-                                .outline()
-                                .icon(IconName::ExternalLink)
-                                .label(self.t("update.open"))
-                                .on_click(move |_, _, _| {
-                                    let _ = open::that(&info.url);
-                                }),
+                            div()
+                                .h_flex()
+                                .gap_2()
+                                .text_color(cx.theme().primary)
+                                .child(Icon::new(IconName::Info))
+                                .child(self.tv(
+                                    "update.available",
+                                    &[
+                                        ("latest", info.latest.clone()),
+                                        ("current", info.current.clone()),
+                                    ],
+                                )),
                         )
                         .child(
-                            Button::new("dismiss-update")
-                                .small()
-                                .ghost()
-                                .label(self.t("update.dismiss"))
-                                .on_click(cx.listener(move |this, _, _, _| {
-                                    save_settings(AppSettingsPatch {
-                                        dismissed_update_version: Some(info.latest.clone()),
-                                        ..Default::default()
-                                    });
-                                    this.dismissed_update = Some(info.latest.clone());
-                                    this.update = None;
-                                })),
+                            div()
+                                .h_flex()
+                                .gap_2()
+                                .child(
+                                    Button::new("install-update")
+                                        .small()
+                                        .primary()
+                                        .icon(IconName::ArrowDown)
+                                        .loading(self.update_busy)
+                                        .disabled(self.update_busy)
+                                        .label(if self.update_busy {
+                                            self.t("update.installing")
+                                        } else {
+                                            self.t("update.install")
+                                        })
+                                        .on_click(cx.listener(|this, _, _, _| {
+                                            this.confirm_update = true;
+                                        })),
+                                )
+                                .child(
+                                    Button::new("open-release")
+                                        .small()
+                                        .primary()
+                                        .outline()
+                                        .icon(IconName::ExternalLink)
+                                        .label(self.t("update.open"))
+                                        .on_click(move |_, _, _| {
+                                            let _ = open::that(&info.url);
+                                        }),
+                                )
+                                .child(
+                                    Button::new("dismiss-update")
+                                        .small()
+                                        .ghost()
+                                        .label(self.t("update.dismiss"))
+                                        .on_click(cx.listener(move |this, _, _, _| {
+                                            save_settings(AppSettingsPatch {
+                                                dismissed_update_version: Some(info.latest.clone()),
+                                                ..Default::default()
+                                            });
+                                            this.dismissed_update = Some(info.latest.clone());
+                                            this.update = None;
+                                            this.update_error = None;
+                                        })),
+                                ),
                         ),
-                ),
+                )
+                .children(error.map(|message| {
+                    div()
+                        .px_6()
+                        .pb_3()
+                        .text_size(px(12.))
+                        .text_color(cx.theme().danger)
+                        .child(message)
+                })),
         )
     }
 
@@ -1371,7 +1480,7 @@ impl Desk {
                                             .child(profile.name)
                                             .on_click(cx.listener(move |this, _, window, cx| {
                                                 if let Some(draft) =
-                                                    my_vpns::read_profile_draft(&edit_id)
+                                                    tunnel_yard::read_profile_draft(&edit_id)
                                                 {
                                                     this.open_editor(
                                                         EditorMode::Edit,
@@ -2051,6 +2160,55 @@ impl Desk {
         )
     }
 
+    fn render_update_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
+        if !self.confirm_update {
+            return None;
+        }
+        let latest = self.update.as_ref()?.latest.clone();
+        Some(
+            overlay().child(
+                surface(cx)
+                    .w(px(460.))
+                    .v_flex()
+                    .gap_4()
+                    .p_5()
+                    .child(
+                        div()
+                            .text_size(px(20.))
+                            .font_weight(FontWeight::BOLD)
+                            .child(self.t("update.installTitle")),
+                    )
+                    .child(
+                        div()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.tv("update.installMessage", &[("latest", latest)])),
+                    )
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                Button::new("cancel-update")
+                                    .label(self.t("update.cancel"))
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.confirm_update = false;
+                                    })),
+                            )
+                            .child(
+                                Button::new("confirm-update")
+                                    .primary()
+                                    .icon(IconName::ArrowDown)
+                                    .label(self.t("update.install"))
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.start_update_install();
+                                    })),
+                            ),
+                    ),
+            ),
+        )
+    }
+
     fn render_quit_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
         if !self.confirm_quit {
             return None;
@@ -2135,6 +2293,7 @@ impl Render for Desk {
             .children(self.render_editor_overlay(cx))
             .children(self.render_preferences_overlay(cx))
             .children(self.render_delete_overlay(cx))
+            .children(self.render_update_overlay(cx))
             .children(self.render_quit_overlay(cx))
             .children(Root::render_dialog_layer(window, cx))
             .children(Root::render_sheet_layer(window, cx))
@@ -2304,7 +2463,7 @@ fn brand_mark(cx: &App, size: Pixels) -> Div {
         .rounded(size * 0.28)
         .overflow_hidden()
         .child(
-            img(my_vpns::app_icon::cached_icon_png())
+            img(tunnel_yard::app_icon::cached_icon_png())
                 .size_full()
                 .object_fit(ObjectFit::Contain),
         )
@@ -2454,49 +2613,45 @@ fn format_duration(connected_at: u128) -> String {
 }
 
 fn notify(title: &str, body: &str) {
-    my_vpns::os_ui::send_notification(title, body);
+    tunnel_yard::os_ui::send_notification(title, body);
 }
 
 fn pick_conf_file() -> Option<PathBuf> {
-    my_vpns::os_ui::pick_conf_file()
+    tunnel_yard::os_ui::pick_conf_file()
 }
 
 #[cfg(target_os = "linux")]
 fn linux_tray_pixmaps() -> Vec<ksni::Icon> {
-    let mut icons = Vec::new();
-    for bytes in [
-        my_vpns::app_icon::APP_ICON_PNG_32,
-        my_vpns::app_icon::APP_ICON_PNG,
-    ] {
-        if let Some((width, height, data)) = my_vpns::app_icon::png_argb_pixmap(bytes) {
-            icons.push(ksni::Icon {
-                width,
-                height,
-                data,
-            });
-        }
-    }
-    icons
+    tunnel_yard::app_icon::tray_pixmap_pngs()
+        .iter()
+        .filter_map(|bytes| tunnel_yard::app_icon::png_argb_pixmap(bytes))
+        .map(|(width, height, data)| ksni::Icon {
+            width,
+            height,
+            data,
+        })
+        .collect()
 }
 
+#[cfg(target_os = "linux")]
+fn spawn_tray(
+    vpn: Arc<Mutex<VpnManager>>,
+    locale: String,
+    tx: mpsc::Sender<TrayCmd>,
+    _quitting: Arc<Mutex<bool>>,
+) -> Option<ksni::blocking::Handle<AppTray>> {
+    use ksni::blocking::TrayMethods;
+    AppTray { vpn, locale, tx }.spawn().ok()
+}
+
+#[cfg(not(target_os = "linux"))]
 fn spawn_tray(
     vpn: Arc<Mutex<VpnManager>>,
     locale: String,
     tx: mpsc::Sender<TrayCmd>,
     _quitting: Arc<Mutex<bool>>,
 ) {
-    #[cfg(target_os = "linux")]
-    {
-        let tray = AppTray { vpn, locale, tx };
-        std::thread::spawn(move || {
-            use ksni::blocking::TrayMethods;
-            let _ = tray.spawn();
-        });
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = (vpn, locale, tx);
-    }
+    let _ = (vpn, locale, tx);
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -2505,8 +2660,8 @@ fn os_tray_menu(
     profiles: &[VpnProfile],
     state: &VpnState,
 ) -> Option<tray_icon::menu::Menu> {
-    use my_vpns::tray_menu::{build_tray_menu, TrayEntry};
     use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tunnel_yard::tray_menu::{build_tray_menu, TrayEntry};
     let menu = Menu::new();
     for entry in build_tray_menu(locale, profiles, state) {
         let result = match entry {
@@ -2515,7 +2670,11 @@ fn os_tray_menu(
                 let item = MenuItem::with_id(id, label, true, None);
                 menu.append(&item).ok()
             }
-            TrayEntry::Profile { profile_id, label } => {
+            TrayEntry::Profile {
+                profile_id,
+                label,
+                checked: _,
+            } => {
                 let item = MenuItem::with_id(format!("profile:{profile_id}"), label, true, None);
                 menu.append(&item).ok()
             }
@@ -2531,7 +2690,7 @@ fn create_os_tray(locale: &str, vpn: &VpnManager) -> Option<tray_icon::TrayIcon>
     let icon = os_tray_icon()?;
     tray_icon::TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip("My VPNs")
+        .with_tooltip(tunnel_yard::APP_NAME)
         .with_icon(icon)
         .build()
         .ok()
@@ -2539,7 +2698,7 @@ fn create_os_tray(locale: &str, vpn: &VpnManager) -> Option<tray_icon::TrayIcon>
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn os_tray_icon() -> Option<tray_icon::Icon> {
-    let image = image::load_from_memory(my_vpns::app_icon::APP_ICON_PNG)
+    let image = image::load_from_memory(tunnel_yard::app_icon::APP_ICON_PNG)
         .ok()?
         .into_rgba8();
     let image = image::imageops::resize(&image, 32, 32, image::imageops::FilterType::Triangle);
@@ -2557,20 +2716,47 @@ struct AppTray {
 #[cfg(target_os = "linux")]
 impl ksni::Tray for AppTray {
     fn id(&self) -> String {
-        my_vpns::APP_ID.into()
+        tunnel_yard::APP_ID.into()
     }
 
     fn title(&self) -> String {
-        "My VPNs".into()
+        tunnel_yard::APP_NAME.into()
     }
 
     fn icon_name(&self) -> String {
-        "my-vpns".into()
+        // Empty on purpose: GNOME AppIndicator prefers IconName over pixmaps, and
+        // when both are set it draws the coral mark as a red overlay badge.
+        String::new()
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
         linux_tray_pixmaps()
     }
+
+    fn overlay_icon_name(&self) -> String {
+        String::new()
+    }
+
+    fn overlay_icon_pixmap(&self) -> Vec<ksni::Icon> {
+        Vec::new()
+    }
+
+    fn tool_tip(&self) -> ksni::ToolTip {
+        let description = self
+            .vpn
+            .lock()
+            .ok()
+            .map(|vpn| summarize_vpn_state(&vpn.get_state()).message)
+            .unwrap_or_default();
+        ksni::ToolTip {
+            icon_name: String::new(),
+            icon_pixmap: Vec::new(),
+            title: tunnel_yard::APP_NAME.into(),
+            description,
+        }
+    }
+
+    fn menu_about_to_show(&mut self) {}
 
     fn activate(&mut self, _x: i32, _y: i32) {
         let _ = self.tx.send(TrayCmd::Show);
@@ -2578,7 +2764,7 @@ impl ksni::Tray for AppTray {
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::*;
-        use my_vpns::tray_menu::{build_tray_menu, TrayEntry};
+        use tunnel_yard::tray_menu::{build_tray_menu, TrayEntry};
         let (profiles, state) = if let Ok(vpn) = self.vpn.lock() {
             (vpn.get_profiles(), vpn.get_state())
         } else {
@@ -2609,11 +2795,16 @@ impl ksni::Tray for AppTray {
                         .into(),
                     );
                 }
-                TrayEntry::Profile { profile_id, label } => {
+                TrayEntry::Profile {
+                    profile_id,
+                    label,
+                    checked,
+                } => {
                     let tx = self.tx.clone();
                     items.push(
-                        StandardItem {
+                        CheckmarkItem {
                             label,
+                            checked,
                             activate: Box::new(move |_: &mut Self| {
                                 let _ = tx.send(TrayCmd::Toggle(profile_id.clone()));
                             }),

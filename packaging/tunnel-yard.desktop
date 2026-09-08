@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=My VPNs
+Name=TunnelYard
 Comment=OpenFortiVPN control desk
 Comment[pt_BR]=Mesa de controle OpenFortiVPN
-Exec=my-vpns
-Icon=my-vpns
+Exec=tunnel-yard
+Icon=tunnel-yard
 Terminal=false
 Categories=Network;Security;
 StartupNotify=true
-StartupWMClass=dev.cavallheri.myvpns
+StartupWMClass=lucas.cavalheri.tunnelyard

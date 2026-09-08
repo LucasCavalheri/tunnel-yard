@@ -45,7 +45,7 @@ jobs:
       - name: Smoke the shipped binary
         shell: bash
         run: |
-          binary="target/${{ matrix.target }}/debug/my-vpns"
+          binary="target/${{ matrix.target }}/debug/tunnel-yard"
           if [ -f "${binary}.exe" ]; then
             "${binary}.exe" --smoke
           else

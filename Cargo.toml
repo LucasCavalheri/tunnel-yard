@@ -1,20 +1,20 @@
 [package]
-name = "my-vpns"
-version = "2.6.0"
+name = "tunnel-yard"
+version = "2.7.0"
 edition = "2021"
 rust-version = "1.90"
 description = "Gerenciador gráfico para conexões OpenFortiVPN"
 license = "MIT"
-repository = "https://github.com/LucasCavalheri/my-vpns"
+repository = "https://github.com/LucasCavalheri/tunnel-yard"
 authors = ["LucasCavalheri"]
-default-run = "my-vpns"
+default-run = "tunnel-yard"
 
 [lib]
-name = "my_vpns"
+name = "tunnel_yard"
 path = "src/lib.rs"
 
 [[bin]]
-name = "my-vpns"
+name = "tunnel-yard"
 path = "src/main.rs"
 
 [dependencies]

@@ -4,11 +4,11 @@ The UI, profile editor and `.conf` files are shared. Execution, privilege elevat
 
 | Platform / architecture | VPN engine | Current release artifact | Profile directory |
 | --- | --- | --- | --- |
-| Linux x86_64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`my-vpns-linux-x64`) | `/etc/openfortivpn` (existing location) |
-| Linux ARM64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`my-vpns-linux-arm64`) | `/etc/openfortivpn` (existing location) |
-| macOS Intel + Apple Silicon | openfortivpn from Homebrew | `my-vpns-macos` or `.dmg` (universal) | `~/Library/Application Support/My VPNs/profiles` |
-| Windows x64 | official OpenConnect 9.21 with Wintun | `my-vpns-windows-x64.exe` | `%APPDATA%\My VPNs\profiles` |
-| Windows ARM64 | native GUI; native OpenConnect + Wintun required | `my-vpns-windows-arm64.exe` | `%APPDATA%\My VPNs\profiles` |
+| Linux x86_64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`tunnel-yard-linux-x64`) | `/etc/openfortivpn` (existing location) |
+| Linux ARM64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`tunnel-yard-linux-arm64`) | `/etc/openfortivpn` (existing location) |
+| macOS Intel + Apple Silicon | openfortivpn from Homebrew | `tunnel-yard-macos` or `.dmg` (universal) | `~/Library/Application Support/TunnelYard/profiles` |
+| Windows x64 | official OpenConnect 9.21 with Wintun | `tunnel-yard-windows-x64.exe` | `%APPDATA%\TunnelYard\profiles` |
+| Windows ARM64 | native GUI; native OpenConnect + Wintun required | `tunnel-yard-windows-arm64.exe` | `%APPDATA%\TunnelYard\profiles` |
 
 The new platforms must pass the native acceptance checklist below before they are considered validated for production. The code and packaging being present do not establish compatibility with every FortiGate or authentication policy.
 
@@ -16,7 +16,7 @@ The Windows ARM64 executable is a native ARM64 GUI build. The pinned OpenConnect
 
 ## Configuration compatibility
 
-Files remain **openfortivpn `.conf` files**, including on Windows. Do not feed these files directly to OpenConnect's `--config`: that is a different format. My VPNs translates them at connection time.
+Files remain **openfortivpn `.conf` files**, including on Windows. Do not feed these files directly to OpenConnect's `--config`: that is a different format. TunnelYard translates them at connection time.
 
 | Existing field | Windows behavior |
 | --- | --- |
@@ -26,23 +26,23 @@ Files remain **openfortivpn `.conf` files**, including on Windows. Do not feed t
 | `set-dns` | Apply domain-specific NRPT rules for Fortinet split-DNS, or interface DNS/suffix/metric when no split domains are supplied; preserve unrelated policies and remove owned settings on disconnect |
 | `set-routes` | Apply split routes, or a full IPv4 tunnel when the gateway sends no split routes; preserve the transport route to the public gateway |
 | `realm` | URL-encoded Fortinet login realm |
-| `persistent` | My VPNs retries after the configured interval; authentication/cookie failures, certificate errors and a server forbidding reconnect-after-drop disable automatic retry |
+| `persistent` | TunnelYard retries after the configured interval; authentication/cookie failures, certificate errors and a server forbidding reconnect-after-drop disable automatic retry |
 | `ca-file`, `user-cert`, `user-key` | OpenConnect CA / client certificate / private-key options; referenced files must exist on the destination computer |
 | `otp` | Supply an additional one-time code as console input; interactive challenge variants still require gateway validation |
 
 When `trusted-cert` is absent, OpenConnect uses normal CA and hostname verification. No option disables certificate verification. Multiple trusted fingerprints are retained during import and editing.
 
-OpenConnect can log `Server certificate verify failed: signer not found` even when it subsequently accepts an explicitly configured public-key pin. My VPNs logs the successful full-fingerprint preflight separately. An unknown CA never becomes a blanket trust exception: with no pin, install the administrator-provided CA and reference it with `ca-file`; with a pin, verify the complete SHA256 fingerprint through a trusted channel. Do not copy a fingerprint from an unverified connection as a permanent workaround.
+OpenConnect can log `Server certificate verify failed: signer not found` even when it subsequently accepts an explicitly configured public-key pin. TunnelYard logs the successful full-fingerprint preflight separately. An unknown CA never becomes a blanket trust exception: with no pin, install the administrator-provided CA and reference it with `ca-file`; with a pin, verify the complete SHA256 fingerprint through a trusted channel. Do not copy a fingerprint from an unverified connection as a permanent workaround.
 
-Some FortiGate appliances advertise DTLS but reject the Fortinet DTLS hello. For those profiles, enable **Disable DTLS** in the editor. My VPNs stores this as `# my-vpns-no-dtls = 1`, then passes OpenConnect's `--no-dtls` so the session stays on HTTPS, matching openfortivpn. This remains opt-in because other gateways use DTLS successfully.
+Some FortiGate appliances advertise DTLS but reject the Fortinet DTLS hello. For those profiles, enable **Disable DTLS** in the editor. TunnelYard stores this as `# tunnel-yard-no-dtls = 1`, then passes OpenConnect's `--no-dtls` so the session stays on HTTPS, matching openfortivpn. This remains opt-in because other gateways use DTLS successfully.
 
-Some hosted FortiGate gateways close the tunnel unless it follows openfortivpn's legacy hand-off: a fresh TLS connection after the XML request and `Host: sslvpn` on the tunnel request. Enable **Legacy FortiGate tunnel** for those profiles when using a My VPNs patched OpenConnect build. It stores `# my-vpns-legacy-tunnel = 1`; the patched client reads this only for that session, while the normal request sequence remains unchanged for other profiles. The standard Windows installer ships the official OpenConnect build, which ignores this optional marker; use **Disable DTLS** for a gateway that works with openfortivpn but rejects the standard DTLS negotiation.
+Some hosted FortiGate gateways close the tunnel unless it follows openfortivpn's legacy hand-off: a fresh TLS connection after the XML request and `Host: sslvpn` on the tunnel request. Enable **Legacy FortiGate tunnel** for those profiles when using a TunnelYard patched OpenConnect build. It stores `# tunnel-yard-legacy-tunnel = 1`; the patched client reads this only for that session, while the normal request sequence remains unchanged for other profiles. The standard Windows installer ships the official OpenConnect build, which ignores this optional marker; use **Disable DTLS** for a gateway that works with openfortivpn but rejects the standard DTLS negotiation.
 
 Windows profiles can optionally specify an internal IPv4 service and TCP port in the editor. The metadata stays in comments so the file remains compatible with openfortivpn:
 
 ```ini
-# my-vpns-health-host = 198.18.0.2
-# my-vpns-health-port = 30015
+# tunnel-yard-health-host = 198.18.0.2
+# tunnel-yard-health-port = 30015
 ```
 
 With a target configured, the supervisor verifies that the selected route uses this VPN, binds the probe to its assigned IP and requires a successful TCP handshake before showing connected. It repeats this service check about every 15 seconds. Isolated service failures are retried in the background while the adapter and routes remain healthy, so they do not produce a false disconnect notification or reauthentication. The probe never tears down a healthy tunnel; adapter, route, MTU and OpenConnect terminal events remain the authoritative disconnect signals. A success resets the failure counter. A TCP handshake establishes reachability, not database authentication or query correctness. Without a target, connected means the adapter, address, routes and MTU have passed validation. These service probes currently apply only to Windows.
@@ -55,7 +55,7 @@ The initial Windows backend configures IPv4 tunnels (`--disable-ipv6`). Fortinet
 
 The GUI process never runs as administrator/root. Each native connection starts a supervisor after an OS authorization prompt. Windows uses PowerShell and macOS uses `osascript` plus a Bash supervisor. Profiles and temporary credentials are restricted to the current user and privileged accounts. The Linux PolicyKit flow remains in place.
 
-Each Windows connection uses a distinct Wintun interface. The network script records only changes it owns, restores previous DNS, suffix and interface metric, and removes its own IP/routes. A global mutex serializes changes; shared transport routes are retained while another My VPNs session needs them. Network setup failure triggers rollback instead of reporting a successful tunnel.
+Each Windows connection uses a distinct Wintun interface. The network script records only changes it owns, restores previous DNS, suffix and interface metric, and removes its own IP/routes. A global mutex serializes changes; shared transport routes are retained while another TunnelYard session needs them. Network setup failure triggers rollback instead of reporting a successful tunnel.
 
 Starting with 1.1.1, the helper applies OpenConnect's **per-session `INTERNAL_IP4_MTU`** to the IPv4 interface in ActiveStore before assigning its IP or installing routes. It reads the effective MTU back and refuses setup if it exceeds the negotiated value. This prevents Wintun's large default MTU from causing OpenConnect to discard packets. The value is not hardcoded and already excludes tunnel overhead. Wintun accepted and enforced the negotiated MTU on the tested Windows host, so no TAP driver installation or automatic driver switch was necessary. An adapter that rejects the MTU fails closed; unverified TAP fallback is not advertised. Version 1.1.3 also gives the callback-to-supervisor mutex hand-off enough time to finish flushing `NETWORK_READY` before the first health check.
 
@@ -76,7 +76,7 @@ concept was explored with OpenAI ImageGen and rebuilt as precise geometry in
 `build/icon.png`. The binary embeds the PNG/ICO (`include_bytes`) and copies
 them into the user cache so the window, tray and notifications all show the
 same icon. On Linux it also writes a per-user launcher named after
-`dev.cavallheri.myvpns`, matching the Wayland app id used by the window and
+`lucas.cavalheri.tunnelyard`, matching the Wayland app id used by the window and
 preventing GNOME from falling back to its generic gear icon. Re-run the script
 after changing the mark.
 
@@ -100,7 +100,7 @@ A controlled Windows firewall test blocked only the supervisor's service probe o
 
 On Windows, `scripts/prepare-windows-test.ps1` extracts the pinned official OpenConnect binary without installing it. The runtime tests execute the real client and supervisor against a localhost HTTPS server to verify username/password/realm handling (including non-ASCII passwords), authentication failure and graceful cancellation. They **do not** prove PPP negotiation or real network connectivity.
 
-`my-vpns --smoke` prints engine, platform, profile directory, client status and locale from the same binary. It does not install dependencies or touch system networking.
+`tunnel-yard --smoke` prints engine, platform, profile directory, client status and locale from the same binary. It does not install dependencies or touch system networking.
 
 Native acceptance checklist (requires a test FortiGate and a Mac/Windows host):
 

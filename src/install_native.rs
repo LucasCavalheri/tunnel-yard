@@ -28,7 +28,7 @@ pub fn windows_client_for_arch(arch: &str) -> Result<WindowsClient, String> {
         Ok(windows_client())
     } else {
         Err(format!(
-            "Windows {arch} includes the My VPNs UI, but the pinned OpenConnect 9.21 installer is x64-only. Install a native ARM64 OpenConnect + Wintun package manually before connecting."
+            "Windows {arch} includes the TunnelYard UI, but the pinned OpenConnect 9.21 installer is x64-only. Install a native ARM64 OpenConnect + Wintun package manually before connecting."
         ))
     }
 }
@@ -189,7 +189,7 @@ fn tempfile_dir() -> Result<PathBuf, String> {
     let root = std::env::temp_dir();
     for i in 0..100 {
         let dir = root.join(format!(
-            "my-vpns-install-{}-{}-{i}",
+            "tunnel-yard-install-{}-{}-{i}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

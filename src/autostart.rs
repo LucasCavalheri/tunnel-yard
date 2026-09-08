@@ -8,26 +8,42 @@ use std::process::Command;
 pub fn autostart_desktop_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
+        .join(".config/autostart/tunnel-yard.desktop")
+}
+
+fn linux_legacy_autostart_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
         .join(".config/autostart/my-vpns.desktop")
 }
 
 pub fn macos_launch_agent_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
+        .join("Library/LaunchAgents/lucas.cavalheri.tunnelyard.plist")
+}
+
+fn macos_legacy_launch_agent_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
         .join("Library/LaunchAgents/dev.cavallheri.myvpns.plist")
 }
 
 pub const WINDOWS_RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
-pub const WINDOWS_RUN_VALUE: &str = "My VPNs";
+pub const WINDOWS_RUN_VALUE: &str = "TunnelYard";
+const WINDOWS_LEGACY_RUN_VALUE: &str = "My VPNs";
 
 pub fn resolve_autostart_exec() -> String {
+    if PathBuf::from("/usr/bin/tunnel-yard").exists() {
+        return "/usr/bin/tunnel-yard --hidden".into();
+    }
     if PathBuf::from("/usr/bin/my-vpns").exists() {
         return "/usr/bin/my-vpns --hidden".into();
     }
     if let Ok(exe) = std::env::current_exe() {
         return format!("\"{}\" --hidden", exe.display());
     }
-    "my-vpns --hidden".into()
+    "tunnel-yard --hidden".into()
 }
 
 pub fn build_autostart_desktop_entry(exec: &str) -> String {
@@ -35,15 +51,15 @@ pub fn build_autostart_desktop_entry(exec: &str) -> String {
         "[Desktop Entry]",
         "Type=Application",
         "Version=1.0",
-        "Name=My VPNs",
+        "Name=TunnelYard",
         "Comment=OpenFortiVPN control desk",
         "Comment[pt_BR]=Mesa de controle OpenFortiVPN",
         &format!("Exec={exec}"),
-        "Icon=my-vpns",
+        "Icon=tunnel-yard",
         "Terminal=false",
         "Categories=Network;Security;",
         "StartupNotify=true",
-        "StartupWMClass=dev.cavallheri.myvpns",
+        "StartupWMClass=lucas.cavalheri.tunnelyard",
         "X-GNOME-Autostart-enabled=true",
         "X-GNOME-Autostart-Delay=3",
         "",
@@ -59,7 +75,7 @@ pub fn macos_launch_agent_plist(program: &str) -> String {
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.cavallheri.myvpns</string>
+  <string>lucas.cavalheri.tunnelyard</string>
   <key>ProgramArguments</key>
   <array>
     <string>{}</string>
@@ -135,11 +151,7 @@ pub fn set_autostart_enabled(enabled: bool) -> bool {
     }
 }
 
-fn linux_autostart_enabled() -> bool {
-    let path = autostart_desktop_path();
-    let Ok(raw) = fs::read_to_string(&path) else {
-        return false;
-    };
+fn linux_entry_is_enabled(raw: &str) -> bool {
     if raw
         .to_ascii_lowercase()
         .contains("x-gnome-autostart-enabled=false")
@@ -150,8 +162,20 @@ fn linux_autostart_enabled() -> bool {
     raw.contains("Exec=")
 }
 
+fn linux_autostart_enabled() -> bool {
+    for path in [autostart_desktop_path(), linux_legacy_autostart_path()] {
+        if let Ok(raw) = fs::read_to_string(path) {
+            if linux_entry_is_enabled(&raw) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn set_linux_autostart(enabled: bool) -> bool {
     let path = autostart_desktop_path();
+    let _ = fs::remove_file(linux_legacy_autostart_path());
     if !enabled {
         let _ = fs::remove_file(&path);
         return true;
@@ -168,24 +192,36 @@ fn set_linux_autostart(enabled: bool) -> bool {
     .is_ok()
 }
 
-fn macos_autostart_enabled() -> bool {
-    let path = macos_launch_agent_path();
-    let Ok(raw) = fs::read_to_string(&path) else {
-        return false;
-    };
-    raw.contains("dev.cavallheri.myvpns")
+fn macos_agent_is_enabled(raw: &str) -> bool {
+    (raw.contains("lucas.cavalheri.tunnelyard") || raw.contains("dev.cavallheri.myvpns"))
         && raw.contains("--hidden")
         && raw.contains("RunAtLoad")
         && !raw.contains("<key>Disabled</key>\n  <true/>")
 }
 
+fn macos_autostart_enabled() -> bool {
+    for path in [macos_launch_agent_path(), macos_legacy_launch_agent_path()] {
+        if let Ok(raw) = fs::read_to_string(path) {
+            if macos_agent_is_enabled(&raw) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn unload_and_remove_agent(path: &Path) {
+    let _ = Command::new("launchctl")
+        .args(["unload", &path.to_string_lossy()])
+        .status();
+    let _ = fs::remove_file(path);
+}
+
 fn set_macos_autostart(enabled: bool) -> bool {
     let path = macos_launch_agent_path();
+    unload_and_remove_agent(&macos_legacy_launch_agent_path());
     if !enabled {
-        let _ = Command::new("launchctl")
-            .args(["unload", &path.to_string_lossy()])
-            .status();
-        let _ = fs::remove_file(&path);
+        unload_and_remove_agent(&path);
         return true;
     }
     let exe = match std::env::current_exe() {
@@ -220,7 +256,20 @@ fn windows_autostart_enabled() -> bool {
         .unwrap_or(false)
 }
 
+fn windows_legacy_reg_delete_args() -> Vec<String> {
+    vec![
+        "delete".into(),
+        WINDOWS_RUN_KEY.into(),
+        "/v".into(),
+        WINDOWS_LEGACY_RUN_VALUE.into(),
+        "/f".into(),
+    ]
+}
+
 fn set_windows_autostart(enabled: bool) -> bool {
+    let _ = Command::new("reg")
+        .args(windows_legacy_reg_delete_args())
+        .status();
     if !enabled {
         return Command::new("reg")
             .args(windows_reg_delete_args())

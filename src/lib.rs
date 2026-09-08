@@ -1,5 +1,6 @@
-//! My VPNs domain library. The desktop binary (`my-vpns`) is an unprivileged
-//! GUI around these units; privileged VPN work stays in `packaging/` helpers.
+//! TunnelYard domain library. The desktop binary (`tunnel-yard`) is an
+//! unprivileged GUI around these units; privileged VPN work stays in
+//! `packaging/` helpers.
 
 pub mod app_icon;
 pub mod arch;
@@ -35,6 +36,13 @@ pub use vpn::{
     VpnState, VpnStatus,
 };
 
-pub const APP_NAME: &str = "My VPNs";
-pub const APP_ID: &str = "dev.cavallheri.myvpns";
+pub const APP_NAME: &str = "TunnelYard";
+pub const APP_ID: &str = "lucas.cavalheri.tunnelyard";
+pub const APP_BIN: &str = "tunnel-yard";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const GITHUB_OWNER: &str = "LucasCavalheri";
+pub const GITHUB_REPO: &str = "tunnel-yard";
+pub const ICON_NAME: &str = "tunnel-yard";
+pub const LEGACY_APP_ID: &str = "dev.cavallheri.myvpns";
+pub const LEGACY_APP_BIN: &str = "my-vpns";
+pub const LEGACY_APP_NAME: &str = "My VPNs";

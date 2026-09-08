@@ -43,10 +43,10 @@ pub fn notification_argv_with_icon(
             "notify-send".into(),
             vec![
                 "-a".into(),
-                "My VPNs".into(),
+                crate::APP_NAME.into(),
                 "-i".into(),
                 png.to_string_lossy().into_owned(),
-                "--hint=string:desktop-entry:my-vpns".into(),
+                format!("--hint=string:desktop-entry:{}", crate::APP_ID),
                 title.into(),
                 body.into(),
             ],

@@ -6,8 +6,8 @@ BIN="${2:?openfortivpn path required}"
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 export LANG=C LC_ALL=C
 umask 077
-PRIVATE=$(mktemp -d /private/tmp/my-vpns-root.XXXXXX) || exit 1
-DNS_KEY="State:/Network/Service/MyVPNs-$(basename "$SESSION")/DNS"
+PRIVATE=$(mktemp -d /private/tmp/tunnel-yard-root.XXXXXX) || exit 1
+DNS_KEY="State:/Network/Service/TunnelYard-$(basename "$SESSION")/DNS"
 CHILD=''
 RESULT=1
 cleanup() {
@@ -35,7 +35,7 @@ if ! awk '
   exit 1
 fi
 WANT_DNS=$(awk -F= '/^[ \t]*set-dns[ \t]*=/ {v=$2; gsub(/[ \t\r]/,"",v)} END {print tolower(v)}' "$PRIVATE/profile.conf")
-# macOS resolves via SystemConfiguration, not /etc/resolv.conf. My VPNs owns
+# macOS resolves via SystemConfiguration, not /etc/resolv.conf. TunnelYard owns
 # only its supplemental DNS entry; never overwrite another network service.
 "$BIN" -c "$PRIVATE/profile.conf" --set-dns=0 --pppd-use-peerdns=0 --persistent=0 > "$SESSION/stdout.log" 2> "$SESSION/stderr.log" &
 CHILD=$!
@@ -69,7 +69,7 @@ while kill -0 "$CHILD" 2>/dev/null; do
         exit 1
       fi
     fi
-    echo 'MYVPNS_TUNNEL_UP' >> "$SESSION/stdout.log"
+    echo 'TUNNELYARD_TUNNEL_UP' >> "$SESSION/stdout.log"
     READY=1
   fi
   sleep 1

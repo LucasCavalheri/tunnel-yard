@@ -79,7 +79,7 @@ pub enum VpnEvent {
 const CONNECTED_MARKERS: &[&str] = &[
     "tunnel is up and running",
     "tunnel interface is up",
-    "myvpns_tunnel_up",
+    "tunnelyard_tunnel_up",
 ];
 
 const ERROR_MARKERS: &[&str] = &[
@@ -96,7 +96,7 @@ const ERROR_MARKERS: &[&str] = &[
 
 pub fn interpret_vpn_log_line(line: &str) -> Option<&'static str> {
     let lower = line.to_lowercase();
-    if lower.starts_with("myvpns_tunnel_down") {
+    if lower.starts_with("tunnelyard_tunnel_down") {
         return Some("disconnected");
     }
     if CONNECTED_MARKERS.iter().any(|m| lower.contains(m)) {
@@ -539,7 +539,7 @@ impl VpnManager {
                         let _ = events
                             .send(VpnEvent::Log(format!("[{}] [{id}] {line}", chrono_stamp())));
                         let platform = current_platform();
-                        if (platform != "windows" && line.contains("MYVPNS_TUNNEL_UP"))
+                        if (platform != "windows" && line.contains("TUNNELYARD_TUNNEL_UP"))
                             || interpret_vpn_log_line(&line) == Some("error")
                         {
                             interpret_into(&inner, &id, &line);

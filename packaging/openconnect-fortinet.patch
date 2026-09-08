@@ -30,7 +30,7 @@ index 94abf29..d438281 100644
  	char *res_buf = NULL;
  	struct oc_text_buf *reqbuf = NULL;
  	struct oc_vpn_option *svpncookie = NULL;
-+	const char *legacy = getenv("MYVPNS_FORTINET_LEGACY");
++	const char *legacy = getenv("TUNNELYARD_FORTINET_LEGACY");
  	int ret;
  
  	/* XXX: We should use check_address_sanity to verify that addresses haven't

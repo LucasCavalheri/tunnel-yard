@@ -1,6 +1,6 @@
 # GPUI Kit desktop interface
 
-My VPNs uses [GPUI Kit](https://gpui-kit.com/) for its native desktop shell.
+TunnelYard uses [GPUI Kit](https://gpui-kit.com/) for its native desktop shell.
 The VPN engine, profile storage, privilege boundaries and tray integration stay
 in the existing Rust domain modules; `src/ui.rs` owns presentation and user
 interaction.

@@ -1,25 +1,27 @@
 mod ui;
 
-use my_vpns::smoke;
+use tunnel_yard::smoke;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "My VPNs {version}\n\
+            "{name} {version}\n\
              Unprivileged FortiGate SSL VPN manager.\n\n\
              Usage:\n\
-               my-vpns                     Start the desktop UI\n\
-               my-vpns --hidden            Start hidden (tray / login item)\n\
-               my-vpns --autostart         Same as --hidden\n\
-               my-vpns --smoke             Print engine/settings/profiles JSON and exit\n\
-               my-vpns --version           Print version and exit\n",
-            version = my_vpns::APP_VERSION
+               {bin}                     Start the desktop UI\n\
+               {bin} --hidden            Start hidden (tray / login item)\n\
+               {bin} --autostart         Same as --hidden\n\
+               {bin} --smoke             Print engine/settings/profiles JSON and exit\n\
+               {bin} --version           Print version and exit\n",
+            name = tunnel_yard::APP_NAME,
+            bin = tunnel_yard::APP_BIN,
+            version = tunnel_yard::APP_VERSION
         );
         return;
     }
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("my-vpns {}", my_vpns::APP_VERSION);
+        println!("{} {}", tunnel_yard::APP_BIN, tunnel_yard::APP_VERSION);
         return;
     }
     if args.iter().any(|a| a == "--smoke") {
@@ -28,7 +30,7 @@ fn main() {
     }
     let hidden = args.iter().any(|a| a == "--hidden" || a == "--autostart");
     if let Err(err) = ui::run(hidden) {
-        eprintln!("[my-vpns] failed to start UI: {err}");
+        eprintln!("[{}] failed to start UI: {err}", tunnel_yard::APP_BIN);
         std::process::exit(1);
     }
 }

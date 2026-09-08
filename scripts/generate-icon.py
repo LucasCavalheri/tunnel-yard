@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paint the My VPNs mark: two tunnel arches meeting at a small hub.
+"""Paint the TunnelYard mark: two tunnel arches meeting at a small hub.
 
 The concept was explored with OpenAI ImageGen, then rebuilt geometrically here
 so every shipped size has true alpha, pixel-clean curves and no raster artifacts.

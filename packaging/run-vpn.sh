@@ -9,7 +9,7 @@ if [[ ! -f "$CONF" ]]; then
 fi
 
 NAME="$(basename "$CONF" .conf)"
-PIDFILE="/run/my-vpns-${NAME}.pid"
+PIDFILE="/run/tunnel-yard-${NAME}.pid"
 mkdir -p /run
 
 cleanup() {

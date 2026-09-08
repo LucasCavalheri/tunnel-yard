@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.7.0
+
+### Rebrand to TunnelYard
+
+- Renamed the product to **TunnelYard**. The GitHub repository is
+  `LucasCavalheri/tunnel-yard`, the desktop id is `lucas.cavalheri.tunnelyard`,
+  and packages/binaries use the `tunnel-yard` slug.
+- New profile metadata uses `# tunnel-yard-*` markers. Existing profiles and
+  installations migrate compatibly, including macOS and Windows directories.
+- Rebranded the Astro website and added architecture/package selection with
+  direct downloads resolved from the published release assets.
+- Documented exploratory Linux RAM measurements and their methodology.
+
+### In-app updates
+
+- **Download and install** applies the matching GitHub release artifact on
+  Linux (deb/rpm or portable binary), macOS (`.app` from the disk image or
+  portable binary) and Windows (portable or Program Files, with UAC when needed).
+- The Linux tray now refreshes per-profile status when tunnels change, and no
+  longer draws the coral mark as a red overlay badge on GNOME.
+
 ## 2.6.0
 
 ### Product interface refresh
@@ -38,7 +59,7 @@
 
 ## 2.0.0
 
-My VPNs 2.0 introduces a new native desktop experience built on GPUI Kit while
+TunnelYard 2.0 introduces a new native desktop experience built on GPUI Kit while
 keeping the existing VPN engine, profiles and privilege boundaries intact.
 
 ### Highlights
@@ -79,13 +100,13 @@ root or Administrator.
 
 | File | Platform |
 |------|----------|
-| `my-vpns-linux-x64` | Linux |
-| `my-vpns-macos` | macOS |
-| `my-vpns-windows-x64.exe` | Windows x64 |
+| `tunnel-yard-linux-x64` | Linux |
+| `tunnel-yard-macos` | macOS |
+| `tunnel-yard-windows-x64.exe` | Windows x64 |
 
 ```bash
-chmod +x my-vpns-linux-x64
-./my-vpns-linux-x64
+chmod +x tunnel-yard-linux-x64
+./tunnel-yard-linux-x64
 ```
 
 On first launch the app can install the platform VPN client. Unsigned binaries
@@ -102,8 +123,8 @@ updater in 1.1.x** to apply this release — those builds look for `.deb` /
 3. Run the new binary
 4. Existing `.conf` profiles continue to work:
    - Linux: `/etc/openfortivpn`
-   - macOS: `~/Library/Application Support/My VPNs/profiles`
-   - Windows: `%APPDATA%\My VPNs\profiles`
+   - macOS: `~/Library/Application Support/TunnelYard/profiles`
+   - Windows: `%APPDATA%\TunnelYard\profiles`
 
 Distro packages (`.deb` / `.rpm` / `.dmg`) for the Rust host are not produced
 yet. Older **1.1.x** tags still have the Electron-era installers.

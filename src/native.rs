@@ -221,7 +221,7 @@ impl NativeVpnSession {
             "VPN client not installed. Open setup and install the required client.".to_string()
         })?;
         let raw = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
-        let root = std::env::temp_dir().join("my-vpns-sessions");
+        let root = std::env::temp_dir().join("tunnel-yard-sessions");
         secure_directory(&root)?;
         let dir = unique_session_dir(&root)?;
         secure_directory(&dir)?;
@@ -270,7 +270,7 @@ impl NativeVpnSession {
                 });
             }
             let iface = format!(
-                "--interface=MyVPNs-{}",
+                "--interface=TunnelYard-{}",
                 dir.file_name()
                     .and_then(|s| s.to_str())
                     .unwrap_or("sess")

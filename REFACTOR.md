@@ -1,4 +1,4 @@
-# My VPNs — current map and resume log
+# TunnelYard — current map and resume log
 
 Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays in `packaging/` helpers.
 
@@ -14,19 +14,19 @@ Rust desktop host for FortiGate SSL VPN. Unprivileged GUI; privileged work stays
 
 ## Product
 
-**My VPNs** (`dev.cavallheri.myvpns`, version from `Cargo.toml`): several FortiGate SSL tunnels at once.
+**TunnelYard** (`lucas.cavalheri.tunnelyard`, version from `Cargo.toml`): several FortiGate SSL tunnels at once.
 
 | OS | Engine | Profiles | Elevation |
 | --- | --- | --- | --- |
 | Linux | openfortivpn | `/etc/openfortivpn` | `pkexec` + `packaging/run-vpn.sh` / `stop-vpn.sh` |
-| macOS | openfortivpn (Homebrew) | `~/Library/Application Support/My VPNs/profiles` | `osascript` + `macos-vpn.sh` |
-| Windows | OpenConnect 9.21 + Wintun | `%APPDATA%\My VPNs\profiles` | UAC + `windows-vpn.ps1` |
+| macOS | openfortivpn (Homebrew) | `~/Library/Application Support/TunnelYard/profiles` | `osascript` + `macos-vpn.sh` |
+| Windows | OpenConnect 9.21 + Wintun | `%APPDATA%\TunnelYard\profiles` | UAC + `windows-vpn.ps1` |
 
 Release architecture matrix: Linux `x86_64`/`aarch64`, macOS universal (`x86_64` + `aarch64`), and Windows `x86_64`/`aarch64` GUI. The Windows ARM64 VPN engine remains dependent on a native OpenConnect + Wintun package.
 
-The GUI process never runs as root/Administrator. Password never appears on argv. `.conf` files stay openfortivpn syntax (`# my-vpns-*` comments for Windows metadata).
+The GUI process never runs as root/Administrator. Password never appears on argv. `.conf` files stay openfortivpn syntax (`# tunnel-yard-*` comments for Windows metadata).
 
-Entry: `cargo run` / `target/release/my-vpns`. Flags: `--hidden`, `--autostart`, `--smoke`, `--version`, `--help`.
+Entry: `cargo run` / `target/release/tunnel-yard`. Flags: `--hidden`, `--autostart`, `--smoke`, `--version`, `--help`.
 
 ---
 
@@ -78,7 +78,7 @@ Window 1180×760 (min 940×620). Close hides to tray; Quit in the sidebar/tray d
 
 ```bash
 cargo test
-./target/debug/my-vpns --smoke
+./target/debug/tunnel-yard --smoke
 ```
 
 ---
@@ -98,5 +98,5 @@ Logic tests + Linux launch cover the rest.
 ## How to resume
 
 1. Read this checkpoint.
-2. Product entry is `my-vpns` (`cargo run`).
+2. Product entry is `tunnel-yard` (`cargo run`).
 3. Run `cargo test` after domain changes.

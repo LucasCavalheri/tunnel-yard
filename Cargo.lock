@@ -4636,33 +4636,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
-name = "my-vpns"
-version = "2.6.0"
-dependencies = [
- "base64",
- "dirs 6.0.0",
- "gpui-kit",
- "hex",
- "image",
- "ksni",
- "libc",
- "open",
- "rfd",
- "rustls",
- "rustls-pemfile",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tray-icon",
- "unicode-normalization",
- "ureq",
- "urlencoding",
- "x509-parser",
- "zed-font-kit",
-]
-
-[[package]]
 name = "naga"
 version = "29.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7934,6 +7907,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 dependencies = [
  "core_maths",
+]
+
+[[package]]
+name = "tunnel-yard"
+version = "2.7.0"
+dependencies = [
+ "base64",
+ "dirs 6.0.0",
+ "gpui-kit",
+ "hex",
+ "image",
+ "ksni",
+ "libc",
+ "open",
+ "rfd",
+ "rustls",
+ "rustls-pemfile",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tray-icon",
+ "unicode-normalization",
+ "ureq",
+ "urlencoding",
+ "x509-parser",
+ "zed-font-kit",
 ]
 
 [[package]]

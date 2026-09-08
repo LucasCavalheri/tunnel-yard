@@ -76,20 +76,20 @@ function Set-DnsClientServerAddress {
     $global:testOperations.Add(@{ action='dns'; index=$InterfaceIndex; servers=@($ServerAddresses) })
 }
 function Set-DnsClient { param($InterfaceIndex,$ConnectionSpecificSuffix) $global:testOperations.Add(@{ action='suffix'; value=$ConnectionSpecificSuffix }) }
-$env:MYVPNS_SESSION_DIR=$SessionDir
-$env:MYVPNS_SET_DNS=[string]$Dns
-$env:MYVPNS_SET_ROUTES=[string]$Routes
+$env:TUNNELYARD_SESSION_DIR=$SessionDir
+$env:TUNNELYARD_SET_DNS=[string]$Dns
+$env:TUNNELYARD_SET_ROUTES=[string]$Routes
 $env:TUNIDX='42'
 $env:VPNGATEWAY='203.0.113.5'
 $env:INTERNAL_IP4_ADDRESS='198.18.0.2'
 $env:INTERNAL_IP4_MTU=[string]$Mtu
-$env:MYVPNS_HEALTH_HOST=''
-$env:MYVPNS_HEALTH_PORT=''
+$env:TUNNELYARD_HEALTH_HOST=''
+$env:TUNNELYARD_HEALTH_PORT=''
 if ($ServiceFailure) {
     # No OS address was created by these mocks. Binding a probe to that fake
     # VPN IP fails locally, before any SYN can leave the host.
-    $env:MYVPNS_HEALTH_HOST='198.18.0.2'
-    $env:MYVPNS_HEALTH_PORT='30015'
+    $env:TUNNELYARD_HEALTH_HOST='198.18.0.2'
+    $env:TUNNELYARD_HEALTH_PORT='30015'
 }
 $env:CISCO_SPLIT_DNS=''
 $env:INTERNAL_IP4_DNS='198.18.0.53 198.18.0.54'

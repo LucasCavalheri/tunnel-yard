@@ -41,6 +41,25 @@ pub fn settings_path() -> PathBuf {
     match current_platform() {
         "macos" => dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
+            .join("Library/Application Support/TunnelYard/settings.json"),
+        "windows" => dirs::data_dir()
+            .or_else(dirs::config_dir)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("TunnelYard/settings.json"),
+        _ => dirs::config_dir()
+            .unwrap_or_else(|| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".config")
+            })
+            .join("tunnel-yard/settings.json"),
+    }
+}
+
+fn legacy_settings_path() -> PathBuf {
+    match current_platform() {
+        "macos" => dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
             .join("Library/Application Support/My VPNs/settings.json"),
         "windows" => dirs::data_dir()
             .or_else(dirs::config_dir)
@@ -57,7 +76,9 @@ pub fn settings_path() -> PathBuf {
 }
 
 pub fn load_settings() -> AppSettings {
-    match fs::read_to_string(settings_path()) {
+    let raw =
+        fs::read_to_string(settings_path()).or_else(|_| fs::read_to_string(legacy_settings_path()));
+    match raw {
         Ok(raw) => {
             let parsed: serde_json::Value =
                 serde_json::from_str(&raw).unwrap_or(serde_json::json!({}));
