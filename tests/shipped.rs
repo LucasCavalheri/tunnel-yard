@@ -496,7 +496,7 @@ fn i18n_key_parity_and_interpolation() {
             "ops.deskSummary",
             &[("up", "2".into()), ("handshake", "1".into())]
         ),
-        "2 up · 1 handshake"
+        "2 connected · 1 starting"
     );
     assert_eq!(
         translate(
@@ -504,7 +504,7 @@ fn i18n_key_parity_and_interpolation() {
             "ops.deskSummary",
             &[("up", "2".into()), ("handshake", "1".into())]
         ),
-        "2 ativas · 1 handshake"
+        "2 conectadas · 1 iniciando"
     );
     for key in TRAY_MENU_KEYS
         .iter()

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.6.0
+
+### Product interface refresh
+
+- Reworked the native desktop surface to match the website hero: compact
+  operations rail, centered brand bar, dark workspace, profile cards and live
+  console.
+- Moved secondary controls into Preferences so the main tunnel view stays
+  focused on connecting and monitoring environments.
+- Added a visual connection journey and a multi-tunnel network animation to
+  the landing page, with meaningful motion and reduced-motion support.
+- Fixed the Linux development build so `cargo run` no longer requires a
+  distro-specific Fontconfig development package.
+
 ## 2.5.0
 
 ### Multi-architecture release

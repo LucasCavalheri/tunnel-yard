@@ -1,6 +1,6 @@
 [package]
 name = "my-vpns"
-version = "2.5.0"
+version = "2.6.0"
 edition = "2021"
 rust-version = "1.90"
 description = "Gerenciador gráfico para conexões OpenFortiVPN"
@@ -40,6 +40,9 @@ libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+# GPUI uses Fontconfig to discover system fonts. Loading the runtime library keeps
+# local builds independent from distro-specific Fontconfig development packages.
+zed-font-kit = { version = "0.14.1-zed", features = ["source-fontconfig-dlopen"] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 rfd = "0.15"

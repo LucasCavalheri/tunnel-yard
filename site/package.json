@@ -1,0 +1,25 @@
+{
+  "name": "my-vpns-site",
+  "private": true,
+  "version": "2.6.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@iconify-json/simple-icons": "^1.2.95",
+    "@lucide/astro": "^1.42.0",
+    "astro": "^7.3.1",
+    "astro-icon": "^1.2.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^6.0.3"
+  }
+}

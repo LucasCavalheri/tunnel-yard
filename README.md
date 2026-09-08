@@ -44,10 +44,10 @@ Tagged releases attach native binaries and installable packages built by CI:
 | `my-vpns-linux-arm64` | Linux ARM64 |
 | `my-vpns-linux-x64.tar.gz` | Linux x86_64 archive (executable) |
 | `my-vpns-linux-arm64.tar.gz` | Linux ARM64 archive (executable) |
-| `my-vpns_2.5.0_amd64.deb` | Debian/Ubuntu x86_64 |
-| `my-vpns_2.5.0_arm64.deb` | Debian/Ubuntu ARM64 |
-| `my-vpns-2.5.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
-| `my-vpns-2.5.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
+| `my-vpns_2.6.0_amd64.deb` | Debian/Ubuntu x86_64 |
+| `my-vpns_2.6.0_arm64.deb` | Debian/Ubuntu ARM64 |
+| `my-vpns-2.6.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
+| `my-vpns-2.6.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
 | `my-vpns-macos` | macOS universal (Intel + Apple Silicon) |
 | `my-vpns-macos.dmg` | macOS installer (Intel + Apple Silicon) |
 | `my-vpns-windows-x64.exe` | Windows x64 |
@@ -89,7 +89,7 @@ On x64, **Install now** downloads the pinned official OpenConnect 9.21 installer
 
 #### Architecture compatibility
 
-The 2.5.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
+The 2.6.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
 
 #### Linux
 

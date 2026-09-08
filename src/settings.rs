@@ -16,7 +16,7 @@ pub struct AppSettings {
 }
 
 fn default_theme() -> String {
-    "system".into()
+    "dark".into()
 }
 
 impl Default for AppSettings {
