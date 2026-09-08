@@ -1,0 +1,183 @@
+---
+import { ArrowUpRight, ChevronDown, MoveHorizontal } from "@lucide/astro";
+import memory from "../data/memory.json";
+const active = memory.groups.active;
+const engines = memory.groups.engines;
+const total = active.values.map((v, i) => v + engines.values[i]);
+const x = (i: number) => 20 + i / 59 * 560;
+const y = (v: number) => 220 - v / 320 * 200;
+const line = (values: number[]) => values.map((v, i) => `${i ? "L" : "M"}${x(i)},${y(v)}`).join(" ");
+const area = (values: number[]) => `${line(values)} L580,220 L20,220 Z`;
+const band = (upper: number[], lower: number[]) => `${line(upper)} ${lower.map((_,i)=>{const j=59-i; return `L${x(j)},${y(lower[j])}`;}).join(' ')} Z`;
+const mean = active.mean + engines.mean;
+const format = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+---
+
+<section class="memory-lab" id="performance" aria-labelledby="memory-title">
+  <div class="container">
+    <div class="lab-heading">
+      <div>
+        <div class="lab-kicker"><span class="lab-index">01 /</span> Caderno de desempenho</div>
+        <h2 id="memory-title">Cada MiB,<br /><span>à vista.</span></h2>
+      </div>
+      <div class="lab-intro"><ArrowUpRight size={26} stroke-width={1} aria-hidden="true" /><p>Uma coleta real, aberta para explorar.<br />Troque o cenário. Percorra cada segundo.<br />Veja onde a memória está.</p><span>Linux x64 · v2.6.0 debug · 08 set 2026</span></div>
+    </div>
+
+    <div class="lab-instrument" data-memory-lab>
+      <div class="lab-toolbar">
+        <span class="lab-record"><i></i> Coleta gravada <span>/ 60 amostras</span></span>
+        <div class="lab-switch" role="group" aria-label="Cenário de memória">
+          <button type="button" data-scenario="active" aria-pressed="true">2 túneis conectados</button>
+          <button type="button" data-scenario="idle" aria-pressed="false">Sem conexões</button>
+        </div>
+      </div>
+
+      <div class="lab-body">
+        <div class="lab-reading">
+          <span class="lab-label" data-reading-label>App + motores VPN</span>
+          <div class="lab-number"><strong data-memory-number aria-hidden="true">{format(mean)}</strong><span>MiB</span></div>
+          <span class="lab-sr" data-reading-accessible>Média de {format(mean)} MiB: app e motores VPN.</span>
+          <p class="lab-reading-note">Média de memória residente <span>RSS · 1 amostra / segundo</span></p>
+          <div class="lab-composition" aria-hidden="true"><span data-app-bar style={`width:${active.mean / mean * 100}%`}></span><span data-engine-bar style={`width:${engines.mean / mean * 100}%`}></span></div>
+          <dl class="lab-breakdown">
+            <div><dt><i class="lab-key app-key"></i>Interface</dt><dd data-app-value>{format(active.mean)} <small>MiB</small></dd></div>
+            <div><dt><i class="lab-key engine-key"></i>Motores VPN</dt><dd data-engine-value>{format(engines.mean)} <small>MiB</small></dd></div>
+          </dl>
+          <p class="lab-scenario-note" data-scenario-note>Instância já em uso, com dois túneis. Sem carga de tráfego controlada.</p>
+        </div>
+
+        <div class="lab-chart">
+          <div class="lab-chart-top"><span>Memória ao longo da coleta</span><span class="lab-unit">MiB / RSS</span></div>
+          <svg class="lab-plot" viewBox="0 0 640 255" role="img" aria-label={`60 amostras de memória: app e motores VPN, média ${format(mean)} MiB; escala de zero a 320 MiB.`}>
+            <defs><pattern id="memory-hatch" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M-1,1 L1,-1 M0,5 L5,0 M4,6 L6,4" stroke="#b3c8af" stroke-opacity=".25" stroke-width="1" /></pattern></defs>
+            {[0,80,160,240,320].map(v => <g class="lab-gridline"><line x1="20" x2="580" y1={y(v)} y2={y(v)} /><text x="598" y={y(v)+4}>{v}</text></g>)}
+            <path data-total-fill d={band(total, active.values)} fill="url(#memory-hatch)" />
+            <path data-app-fill d={area(active.values)} fill="#f25a2a" fill-opacity=".1" />
+            <path class="lab-app-line" data-app-line d={line(active.values)} fill="none" />
+            <path class="lab-total-line" data-total-line d={line(total)} fill="none" pathLength="1" />
+            <line data-crosshair x1="580" x2="580" y1="20" y2="220" class="lab-crosshair" />
+            <circle data-chart-dot cx="580" cy={y(total[59])} r="4" fill="#bdcfb4" stroke="#181c19" stroke-width="2" />
+            {[0,15,30,45,59].map(i => <text class="lab-time" x={x(i)} y="246" text-anchor={i===0?'start':i===59?'end':'middle'}>{String(i).padStart(2,'0')}s</text>)}
+          </svg>
+          <div class="lab-sample"><span><MoveHorizontal size={14} aria-hidden="true" /> Explore a coleta</span><output data-sample-output>59s · {format(total[59])} MiB</output></div>
+          <input class="lab-scrubber" type="range" min="0" max="59" value="59" aria-label="Segundo da coleta" aria-valuetext={`59 segundos: ${format(total[59])} MiB`} />
+          <div class="lab-chart-caption"><span><i class="lab-key app-key"></i>Interface</span><span><i class="lab-key engine-key"></i>Interface + motores</span><span>Escala fixa · 0–320 MiB</span></div>
+        </div>
+      </div>
+      <div class="lab-instrument-footer"><span>OBSERVAÇÃO LOCAL</span><p>Instâncias em condições diferentes. Os cenários não formam uma comparação controlada.</p><span>RSS / LINUX</span></div>
+      <noscript><p class="lab-noscript">Sem conexões: {format(memory.groups.idle.mean)} MiB. A exploração interativa requer JavaScript.</p></noscript>
+    </div>
+
+    <div class="lab-method">
+      <p>Os números têm contexto.<br /><strong>O método também está aberto.</strong></p>
+      <details><summary>Como medimos <ChevronDown size={16} /></summary><div>
+        <p>Ubuntu 26.04.1 LTS, x86_64, build de desenvolvimento 2.6.0. Coleta de 08/09/2026: 60 leituras de VmRSS em /proc/PID/status, com intervalo de um segundo.</p>
+        <p>Sem conexões: instância recém-aberta em sessão D-Bus isolada. Conectado: processo existente com dois túneis, mais dois OpenFortiVPN e dois pppd. Tempos de vida e estados gráficos diferentes; não é benchmark da 2.7.0 nem evidência de que conectar reduz o consumo.</p>
+        <p>RSS somado pode contar páginas compartilhadas mais de uma vez. Exclui GPU, kernel, shells e serviços do desktop. O consumo varia conforme máquina e uso. Nenhuma credencial foi lida e as conexões existentes foram preservadas.</p>
+      </div></details>
+    </div>
+  </div>
+</section>
+
+<script>
+  import memory from "../data/memory.json";
+  const lab = document.querySelector<HTMLElement>("[data-memory-lab]")!;
+  const query = <T extends Element = HTMLElement>(selector: string) => lab.querySelector<T>(selector)!;
+  const format = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const motion = matchMedia("(prefers-reduced-motion: reduce)");
+  const x = (i: number) => 20 + i / 59 * 560;
+  const y = (v: number) => 220 - v / 320 * 200;
+  const line = (values: number[]) => values.map((v,i) => `${i ? 'L':'M'}${x(i)},${y(v)}`).join(' ');
+  const area = (values: number[]) => `${line(values)} L580,220 L20,220 Z`;
+  const band = (upper: number[], lower: number[]) => `${line(upper)} ${lower.map((_,i)=>{const j=59-i;return `L${x(j)},${y(lower[j])}`;}).join(' ')} Z`;
+  let mode: 'idle' | 'active' = 'active';
+  let values = memory.groups.active.values.map((v,i) => v + memory.groups.engines.values[i]);
+  let displayed = memory.groups.active.mean + memory.groups.engines.mean;
+  let frame = 0;
+  let visible = false;
+  const animateNumber = (target: number, from = displayed) => {
+    cancelAnimationFrame(frame);
+    const start = performance.now();
+    const tick = (now: number) => {
+      const progress = motion.matches ? 1 : Math.min((now-start)/850,1);
+      displayed = from + (target-from) * (1-Math.pow(1-progress,4));
+      query('[data-memory-number]').textContent = format(displayed);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+  };
+  const scrubber = query<HTMLInputElement>('.lab-scrubber');
+  const showSample = (i: number) => {
+    query('[data-crosshair]').setAttribute('x1',String(x(i)));
+    query('[data-crosshair]').setAttribute('x2',String(x(i)));
+    query('[data-chart-dot]').setAttribute('cx',String(x(i)));
+    query('[data-chart-dot]').setAttribute('cy',String(y(values[i])));
+    query('[data-sample-output]').textContent = `${String(i).padStart(2,'0')}s · ${format(values[i])} MiB`;
+    scrubber.value = String(i);
+    scrubber.setAttribute('aria-valuetext',`${i} segundos: ${format(values[i])} MiB`);
+  };
+  scrubber.addEventListener('input',()=>showSample(Number(scrubber.value)));
+  const plot = query<SVGSVGElement>('.lab-plot');
+  plot.addEventListener('pointermove',e=>{
+    if (e.pointerType !== 'mouse') return;
+    const point = new DOMPoint(e.clientX,e.clientY).matrixTransform(plot.getScreenCTM()!.inverse());
+    showSample(Math.round(Math.max(0,Math.min(59,(point.x-20)/560*59))));
+  });
+  lab.querySelectorAll<HTMLButtonElement>('[data-scenario]').forEach(button=>button.addEventListener('click',()=>{
+    mode = button.dataset.scenario as typeof mode;
+    lab.querySelectorAll('[data-scenario]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+    const app = memory.groups[mode];
+    const engine = mode === 'active' ? memory.groups.engines.mean : 0;
+    const mean = app.mean + engine;
+    values = app.values.map((v,i)=>v+(mode==='active'?memory.groups.engines.values[i]:0));
+    query('[data-app-fill]').setAttribute('d',area(app.values));
+    query('[data-total-fill]').setAttribute('d',band(values,app.values));
+    query('[data-app-line]').setAttribute('d',line(app.values));
+    query('[data-total-line]').setAttribute('d',line(values));
+    query('[data-reading-label]').textContent = mode==='active'?'App + motores VPN':'App sem conexões';
+    query('[data-reading-accessible]').textContent = `Média de ${format(mean)} MiB: ${mode==='active'?'app e motores VPN':'app sem conexões'}.`;
+    const withUnit = (value: number) => `${format(value)} <small>MiB</small>`;
+    query('[data-app-value]').innerHTML = withUnit(app.mean);
+    query('[data-engine-value]').innerHTML = mode==='active'?withUnit(engine):'Não iniciados';
+    query<HTMLElement>('[data-app-bar]').style.width = `${app.mean/mean*100}%`;
+    query<HTMLElement>('[data-engine-bar]').style.width = `${engine/mean*100}%`;
+    query('[data-scenario-note]').textContent = mode==='active'?'Instância já em uso, com dois túneis. Sem carga de tráfego controlada.':'Instância recém-aberta e ociosa, em sessão isolada. Nenhum túnel iniciado.';
+    plot.setAttribute('aria-label',`60 amostras de memória: ${mode==='active'?'app e motores VPN':'app sem conexões'}, média ${format(mean)} MiB; escala de zero a 320 MiB.`);
+    animateNumber(mean);
+    showSample(Number(scrubber.value));
+  }));
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting) && !visible){
+        visible=true; lab.classList.add('lab-in-view'); animateNumber(displayed,0); observer.disconnect();
+      }
+    },{threshold:.2});
+    observer.observe(lab);
+  } else lab.classList.add('lab-in-view');
+</script>
+
+<style>
+  .memory-lab{padding:clamp(88px,10vw,156px) 0;background:#efede6;color:#1a201c;border-bottom:1px solid #dedbd2;scroll-margin-top:70px}
+  .lab-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:48px;margin-bottom:52px}
+  .lab-kicker{display:flex;gap:16px;font:600 11px/1.5 monospace;text-transform:uppercase;letter-spacing:.12em;margin-bottom:26px}
+  .lab-index{color:#eb5126}
+  h2{font-size:clamp(44px,5.5vw,76px);line-height:1.04;letter-spacing:-.055em;font-weight:650}
+  h2 span{color:#777c6e}
+  .lab-intro{padding-bottom:4px;max-width:350px}.lab-intro svg{color:#f25a2a;margin-bottom:18px}.lab-intro p{font-size:16px;line-height:1.8}.lab-intro>span{display:block;margin-top:22px;font:10px/1.8 monospace;color:#757a70}
+  .lab-instrument{background:#171b18;color:#ecefe5;border:1px solid #303830;border-radius:12px;box-shadow:0 20px 45px -25px #28322366,0 2px 3px #28322320;overflow:hidden}
+  .lab-toolbar{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:20px 26px;border-bottom:1px solid #30372f}
+  .lab-record{display:flex;align-items:center;gap:8px;font:10px/1.6 monospace;color:#b4b9ac}.lab-record i{width:6px;height:6px;border-radius:50%;background:#c6d8b8}.lab-record>span{color:#788572}
+  .lab-switch{display:flex;border:1px solid #3a4438;border-radius:6px;padding:3px;gap:3px}.lab-switch button{padding:9px 12px;border:0;border-radius:3px;background:transparent;color:#a7b09f;font-family:inherit;font-size:11px;font-weight:500;line-height:1.4;cursor:pointer;transition:background .25s,color .25s}.lab-switch button[aria-pressed=true]{background:#d8e1ca;color:#1d271c}.lab-switch button:focus-visible{outline:2px solid #f25a2a;outline-offset:3px}
+  .lab-body{display:grid;grid-template-columns:300px minmax(0,1fr)}
+  .lab-reading{padding:36px 30px 30px;border-right:1px solid #30372f}.lab-label{color:#b0b9a7;font-size:12px}.lab-number{display:flex;align-items:baseline;gap:10px;margin:22px 0 9px}.lab-number strong{font-size:64px;font-weight:500;line-height:1;letter-spacing:-.06em;font-variant-numeric:tabular-nums}.lab-number>span{font:12px monospace;color:#a0ab95}.lab-reading-note{font-size:11px;line-height:1.8;color:#a5af9b}.lab-reading-note>span{display:block;color:#788572;font:10px/2 monospace}
+  .lab-composition{display:flex;gap:3px;height:5px;margin:30px 0 16px}.lab-composition span{transition:width .8s cubic-bezier(.2,.7,.2,1)}.lab-composition span:first-child{background:#f27649;border-radius:2px 0 0 2px}.lab-composition span:last-child{background:#bdd0b0;border-radius:0 2px 2px 0}
+  .lab-breakdown{margin:0;display:grid;gap:13px;font-size:11px}.lab-breakdown>div{display:flex;align-items:center;justify-content:space-between;gap:12px}.lab-breakdown dt{display:flex;align-items:center;gap:7px;color:#aab4a1}.lab-breakdown dd{margin:0;font:11px monospace}.lab-breakdown small{font:inherit;color:#9da993}.lab-key{display:inline-block;width:6px;height:6px;border-radius:1px;flex-shrink:0}.app-key{background:#f27649}.engine-key{background:#bdd0b0}.lab-scenario-note{border-top:1px solid #30372f;padding-top:20px;margin-top:24px;font-size:11px;line-height:1.8;color:#88957d}
+  .lab-chart{padding:34px 30px 26px;min-width:0}.lab-chart-top{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#b9c2af}.lab-unit{font:10px monospace;color:#829078}.lab-plot{width:100%;height:auto;display:block;margin:24px 0 10px;overflow:visible}.lab-gridline line{stroke:#333d30;stroke-width:1;stroke-dasharray:2 5}.lab-gridline text,.lab-time{fill:#9ba88f;font:10px monospace}.lab-app-line{stroke:#f27649;stroke-width:1.5}.lab-total-line{stroke:#bdd0b0;stroke-width:2}:global(.js) .lab-total-line{stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 1.6s cubic-bezier(.2,.7,.2,1)}:global(.js) .lab-in-view .lab-total-line{stroke-dashoffset:0}.lab-crosshair{stroke:#879779;stroke-width:1;stroke-dasharray:3 5;opacity:.7}
+  .lab-sample{display:flex;align-items:center;justify-content:space-between;gap:12px;font:10px/1.5 monospace;color:#b2bfa5}.lab-sample>span{display:flex;align-items:center;gap:8px;color:#89977b}.lab-scrubber{display:block;width:100%;margin:16px 0 22px;accent-color:#bfd0b2;cursor:ew-resize;height:4px}.lab-scrubber:focus-visible{outline:2px solid #f25a2a;outline-offset:7px}.lab-chart-caption{display:flex;flex-wrap:wrap;gap:10px 18px;font-size:10px;color:#9dab90}.lab-chart-caption>span{display:flex;align-items:center;gap:6px}.lab-chart-caption>span:last-child{margin-left:auto;color:#7e8b73}
+  .lab-instrument-footer{border-top:1px solid #30372f;display:flex;align-items:center;gap:22px;padding:16px 26px;color:#8f9c83}.lab-instrument-footer>span{font:8px/1.5 monospace;letter-spacing:.12em;white-space:nowrap}.lab-instrument-footer p{font-size:10px;line-height:1.6}.lab-instrument-footer>span:last-child{margin-left:auto}.lab-noscript{padding:20px;font-size:12px}
+  .lab-method{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:38px}.lab-method>p{color:#85897c;font-size:13px;line-height:1.9}.lab-method strong{color:#555e4e;font-weight:500}.lab-method details{border-top:1px solid #c9ccbf;font-size:12px}.lab-method summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:17px 0;color:#4a5543;list-style:none}.lab-method summary::-webkit-details-marker{display:none}.lab-method details[open] summary svg{transform:rotate(180deg)}.lab-method details p{color:#6a7461;font-size:12px;line-height:1.9;margin-bottom:12px}.lab-sr{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}
+  @media(max-width:1000px){.lab-body{grid-template-columns:245px minmax(0,1fr)}.lab-reading{padding:28px 22px}.lab-number strong{font-size:54px}.lab-chart{padding:28px 20px}.lab-record>span{display:none}.lab-instrument-footer>span:last-child{display:none}}
+  @media(max-width:700px){.lab-heading{display:block;margin-bottom:32px}.lab-intro{margin-top:28px}.lab-intro svg{display:none}.lab-intro p{font-size:14px}.lab-intro>span{margin-top:14px}.lab-toolbar{padding:16px;flex-wrap:wrap;gap:15px}.lab-switch{width:100%}.lab-switch button{flex:1;padding:11px 6px;font-size:11px}.lab-body{grid-template-columns:1fr}.lab-reading{border-right:0;border-bottom:1px solid #30372f;padding:27px 22px}.lab-number{margin-top:15px}.lab-number strong{font-size:64px}.lab-composition{margin-top:22px}.lab-scenario-note{margin-top:18px;padding-top:15px}.lab-chart{padding:25px 16px}.lab-chart-caption>span:last-child{margin-left:0;width:100%}.lab-instrument-footer{padding:16px;display:block}.lab-instrument-footer p{margin-top:7px}.lab-method{grid-template-columns:1fr;gap:22px;margin-top:28px}.lab-kicker{font-size:10px}.lab-gridline text,.lab-time{font-size:13px}}
+  .lab-plot [data-app-fill],.lab-plot [data-total-fill],.lab-app-line{transition:d .8s cubic-bezier(.2,.7,.2,1)}
+  @media(prefers-reduced-motion:reduce){.lab-composition span,:global(.js) .lab-total-line,.lab-plot path{transition:none;stroke-dashoffset:0}}
+</style>

@@ -30,11 +30,10 @@ import { Icon as BrandIcon } from "astro-icon/components";
 import "../styles/global.css";
 import Downloads from "../components/Downloads.astro";
 import { release, repoUrl } from "../data/release";
-import memory from "../data/memory.json";
+import MemoryLab from "../components/MemoryLab.astro";
 
 const releaseUrl = release.html_url;
 const version = release.tag_name.replace(/^v/, "");
-const mib = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 ---
 
 <!doctype html>
@@ -70,6 +69,7 @@ const mib = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDi
           <a href="#produto">Produto</a>
           <a href="#recursos">Recursos</a>
           <a href="#seguranca">Segurança</a>
+          <a href="#performance">Desempenho</a>
           <a href="#downloads">Downloads</a>
         </nav>
 
@@ -94,6 +94,7 @@ const mib = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDi
         <a href="#produto">Produto</a>
         <a href="#recursos">Recursos</a>
         <a href="#seguranca">Segurança</a>
+        <a href="#performance">Desempenho</a>
         <a href="#downloads">Downloads</a>
         <a href={repoUrl} target="_blank" rel="noreferrer">Ver no GitHub</a>
       </nav>
@@ -476,25 +477,7 @@ const mib = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDi
         </div>
       </section>
 
-      <section class="performance section" id="performance" aria-labelledby="performance-title">
-        <div class="container">
-          <div class="section-heading centered reveal">
-            <div class="eyebrow"><BrandIcon name="simple-icons:rust" size={16} /> Rust por dentro. Números à vista.</div>
-            <h2 id="performance-title">Quanto de RAM, na prática?</h2>
-            <p>Primeira coleta local: consumo observado em Linux, com o app aberto e com dois túneis conectados.</p>
-          </div>
-          <div class="memory-grid">
-            <article class="memory-card reveal"><h3>Sem conexões</h3><strong class="memory-value">{mib(memory.groups.idle.mean)} MiB</strong><p>Processo gráfico recém-aberto, ocioso. Instância separada, sem túneis.</p></article>
-            <article class="memory-card reveal"><h3>Com 2 túneis conectados</h3><strong class="memory-value">{mib(memory.groups.active.mean)} MiB</strong><p>Somente o processo gráfico já em uso. Tráfego de rede não controlado.</p></article>
-            <article class="memory-card reveal"><h3>Motores dos 2 túneis</h3><strong class="memory-value">+{mib(memory.groups.engines.mean)} MiB</strong><p>Dois processos OpenFortiVPN e dois pppd, além da interface.</p></article>
-          </div>
-          <div class="measurement-note">
-            <p><strong>Coleta exploratória · 08/09/2026.</strong> Ubuntu 26.04.1 LTS, x86_64, versão 2.6.0 (anterior ao rebranding), build de desenvolvimento. Média de 60 amostras de RSS, a cada segundo.</p>
-            <p>As instâncias têm tempos de vida e estados gráficos diferentes: estes valores não são uma comparação controlada entre ocioso e conectado, nem um benchmark da 2.7.0. Excluem memória da GPU, kernel e serviços do desktop. A soma de RSS pode contar memória compartilhada mais de uma vez. O consumo varia por máquina e uso.</p>
-            <details><summary>Ver método e intervalos medidos</summary><p>Leitura de VmRSS em /proc/PID/status, sem acessar credenciais. Ocioso: {mib(memory.groups.idle.min)}–{mib(memory.groups.idle.max)} MiB. Conectado: {mib(memory.groups.active.min)}–{mib(memory.groups.active.max)} MiB. Motores: {mib(memory.groups.engines.min)}–{mib(memory.groups.engines.max)} MiB. As conexões existentes foram preservadas.</p></details>
-          </div>
-        </div>
-      </section>
+      <MemoryLab />
 
       <section class="downloads section" id="downloads">
         <div class="container">
