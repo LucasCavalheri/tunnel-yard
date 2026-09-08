@@ -107,7 +107,7 @@ const conditions = fill(t.performance.conditions, { measuredVersion, date: measu
 </section>
 
 <style>
-  .memory-lab { background: #efede6; color: #1a201c; border-bottom: 1px solid #dedbd2; scroll-margin-top: 70px; }
+  .memory-lab { padding: 130px 0 118px; background: #efede6; color: #1a201c; border-bottom: 1px solid #dedbd2; scroll-margin-top: 70px; }
 
   .lab-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 48px; margin-bottom: 44px; }
   .lab-kicker { font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .12em; color: #6d7266; margin-bottom: 22px; }
@@ -186,6 +186,10 @@ const conditions = fill(t.performance.conditions, { measuredVersion, date: measu
     .lab-footer { padding: 16px 22px; display: block; }
     .lab-footer p { margin-top: 7px; }
     .lab-method { grid-template-columns: 1fr; gap: 20px; margin-top: 26px; }
+  }
+
+  @media (max-width: 640px) {
+    .memory-lab { padding-block: 92px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
