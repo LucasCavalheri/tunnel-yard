@@ -1,0 +1,95 @@
+---
+import { Icon } from "astro-icon/components";
+import { localePath, type Dictionary, type Locale } from "../i18n";
+
+interface Props {
+  locale: Locale;
+  t: Dictionary;
+}
+
+const { locale, t } = Astro.props;
+
+// Both flags are always shown so the switch is recognizable at a glance; the
+// active one is marked with aria-current rather than being turned into a link
+// to the page you are already on.
+const options = [
+  { locale: "en" as Locale, icon: "circle-flags:us", short: "EN", title: t.switcher.toEnglish },
+  { locale: "pt-BR" as Locale, icon: "circle-flags:br", short: "PT", title: t.switcher.toPortuguese },
+];
+---
+
+<div class="lang-switch" role="group" aria-label={t.switcher.label}>
+  {options.map(option => option.locale === locale ? (
+    <span class="lang-option is-active" aria-current="true" title={option.title}>
+      <Icon name={option.icon} size={18} aria-hidden="true" />
+      <span>{option.short}</span>
+    </span>
+  ) : (
+    <a class="lang-option" href={localePath(option.locale)} hreflang={option.locale} title={option.title}>
+      <Icon name={option.icon} size={18} aria-hidden="true" />
+      <span>{option.short}</span>
+      <span class="lang-sr">{option.title}</span>
+    </a>
+  ))}
+</div>
+
+<style>
+  .lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .lang-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: rgba(255, 255, 255, 0.6);
+    transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
+  }
+
+  .lang-option svg {
+    border-radius: 50%;
+    flex-shrink: 0;
+    /* The flags carry the meaning; desaturate the inactive one so the active
+       language reads first without hiding which options exist. */
+    filter: saturate(.35) opacity(.55);
+    transition: filter 160ms ease;
+  }
+
+  .lang-option.is-active {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+  }
+
+  .lang-option.is-active svg { filter: none; }
+
+  a.lang-option:hover { color: white; background: rgba(255, 255, 255, 0.07); }
+  a.lang-option:hover svg { filter: saturate(.9) opacity(.95); }
+  a.lang-option:focus-visible { outline: 2px solid #f25a2a; outline-offset: 2px; }
+
+  .lang-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+
+  /* In the mobile drawer the switch sits on its own row, full width. */
+  :global(.mobile-nav) .lang-switch {
+    justify-content: center;
+    margin-top: 6px;
+  }
+
+  :global(.mobile-nav) .lang-option { padding: 9px 14px 9px 10px; font-size: 12px; }
+</style>

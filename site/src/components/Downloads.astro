@@ -2,25 +2,59 @@
 import { Download } from "@lucide/astro";
 import { Icon } from "astro-icon/components";
 import { release } from "../data/release";
+import type { Dictionary } from "../i18n";
+
+interface Props {
+  t: Dictionary;
+}
+
+const { t } = Astro.props;
 
 const platforms = [
-  { id: "linux", name: "Linux", icon: "linux", description: "Debian, Ubuntu, Fedora, RHEL e outras distribuições.", choices: [
-    ["Intel / AMD · x64 · Debian / Ubuntu (.deb)", "_amd64.deb"],
-    ["ARM64 · Debian / Ubuntu (.deb)", "_arm64.deb"],
-    ["Intel / AMD · x64 · Fedora / RHEL (.rpm)", ".x86_64.rpm"],
-    ["ARM64 · Fedora / RHEL (.rpm)", ".aarch64.rpm"],
-    ["Intel / AMD · x64 · Portátil (.tar.gz)", "-linux-x64.tar.gz"],
-    ["ARM64 · Portátil (.tar.gz)", "-linux-arm64.tar.gz"],
-  ] },
-  { id: "macos", name: "macOS", icon: "apple", description: "Um único instalador universal. Escolha o chip do seu Mac: ambos usam o mesmo arquivo.", choices: [
-    ["Apple Silicon · M1 ou posterior (.dmg)", "-macos.dmg"],
-    ["Intel (.dmg)", "-macos.dmg"],
-  ] },
-  { id: "windows", name: "Windows", icon: "windows", description: "Escolha o processador do seu PC. AMD e Intel usam a versão x64.", choices: [
-    ["Intel / AMD · x64 (.exe)", "-windows-x64.exe"],
-    ["ARM64 · Snapdragon (.exe)", "-windows-arm64.exe"],
-  ] },
+  {
+    id: "linux",
+    name: t.downloads.linuxName,
+    icon: "linux",
+    description: t.downloads.linuxDescription,
+    pickerLabel: t.downloads.pickerProcessorAndPackage,
+    choices: [
+      [t.downloads.choiceDebX64, "_amd64.deb"],
+      [t.downloads.choiceDebArm, "_arm64.deb"],
+      [t.downloads.choiceRpmX64, ".x86_64.rpm"],
+      [t.downloads.choiceRpmArm, ".aarch64.rpm"],
+      [t.downloads.choiceTarX64, "-linux-x64.tar.gz"],
+      [t.downloads.choiceTarArm, "-linux-arm64.tar.gz"],
+    ],
+  },
+  {
+    id: "macos",
+    name: t.downloads.macosName,
+    icon: "apple",
+    description: t.downloads.macosDescription,
+    pickerLabel: t.downloads.pickerProcessor,
+    choices: [
+      [t.downloads.choiceMacSilicon, "-macos.dmg"],
+      [t.downloads.choiceMacIntel, "-macos.dmg"],
+    ],
+  },
+  {
+    id: "windows",
+    name: t.downloads.windowsName,
+    icon: "windows",
+    description: t.downloads.windowsDescription,
+    pickerLabel: t.downloads.pickerProcessor,
+    choices: [
+      [t.downloads.choiceWinX64, "-windows-x64.exe"],
+      [t.downloads.choiceWinArm, "-windows-arm64.exe"],
+    ],
+  },
 ];
+
+const assetFor = (suffix: string) => {
+  const asset = release.assets.find(asset => asset.name.endsWith(suffix));
+  if (!asset) throw new Error(`Installer missing from the release: ${suffix}`);
+  return asset;
+};
 ---
 <div class="platform-grid">
   {platforms.map(platform => (
@@ -29,19 +63,25 @@ const platforms = [
       <h3>{platform.name}</h3>
       <p>{platform.description}</p>
       <label class="download-picker" for={`build-${platform.id}`}>
-        Processador{platform.id === "linux" ? " e pacote" : ""}
+        {platform.pickerLabel}
         <select id={`build-${platform.id}`} data-build-picker>
-          <option value="">Selecione uma opção</option>
-          {platform.choices.map(([label, suffix]) => {
-            const asset = release.assets.find(asset => asset.name.endsWith(suffix));
-            if (!asset) throw new Error(`Instalador ausente na release: ${suffix}`);
-            return <option value={asset.browser_download_url}>{label}</option>;
-          })}
+          <option value="">{t.downloads.pickerPlaceholder}</option>
+          {platform.choices.map(([label, suffix]) => (
+            <option value={assetFor(suffix).browser_download_url}>{label}</option>
+          ))}
         </select>
       </label>
-      <a class="button button-primary button-platform" data-file-download aria-disabled="true" tabindex="-1"><Download size={17} /> <span>Escolha o processador</span></a>
-      <p class="download-file" data-file-name aria-live="polite">O arquivo será baixado diretamente do GitHub.</p>
-      <noscript><ul class="download-fallback">{platform.choices.map(([label, suffix]) => <li><a href={release.assets.find(asset => asset.name.endsWith(suffix))!.browser_download_url}>{label}</a></li>)}</ul></noscript>
+      <a
+        class="button button-primary button-platform"
+        data-file-download
+        data-label-idle={t.downloads.buttonIdle}
+        data-label-ready={t.downloads.buttonReady}
+        data-file-hint={t.downloads.fileHint}
+        aria-disabled="true"
+        tabindex="-1"
+      ><Download size={17} /> <span>{t.downloads.buttonIdle}</span></a>
+      <p class="download-file" data-file-name aria-live="polite">{t.downloads.fileHint}</p>
+      <noscript><ul class="download-fallback">{platform.choices.map(([label, suffix]) => <li><a href={assetFor(suffix).browser_download_url}>{label}</a></li>)}</ul></noscript>
     </article>
   ))}
 </div>
@@ -49,6 +89,10 @@ const platforms = [
   document.querySelectorAll<HTMLElement>("[data-download-card]").forEach(card => {
     const picker = card.querySelector<HTMLSelectElement>("[data-build-picker]")!;
     const link = card.querySelector<HTMLAnchorElement>("[data-file-download]")!;
+    // Labels ride along in data attributes so this script stays language-agnostic.
+    const labelIdle = link.dataset.labelIdle!;
+    const labelReady = link.dataset.labelReady!;
+    const fileHint = link.dataset.fileHint!;
     const update = () => {
       if (picker.value) {
         link.href = picker.value;
@@ -59,8 +103,10 @@ const platforms = [
         link.setAttribute("aria-disabled", "true");
         link.tabIndex = -1;
       }
-      link.querySelector("span")!.textContent = picker.value ? "Baixar instalador" : "Escolha o processador";
-      card.querySelector("[data-file-name]")!.textContent = picker.value ? decodeURIComponent(picker.value.split("/").pop()!) : "O arquivo será baixado diretamente do GitHub.";
+      link.querySelector("span")!.textContent = picker.value ? labelReady : labelIdle;
+      card.querySelector("[data-file-name]")!.textContent = picker.value
+        ? decodeURIComponent(picker.value.split("/").pop()!)
+        : fileHint;
     };
     picker.addEventListener("change", update);
     update();
