@@ -44,10 +44,10 @@ Tagged releases attach native binaries and installable packages built by CI:
 | `tunnel-yard-linux-arm64` | Linux ARM64 |
 | `tunnel-yard-linux-x64.tar.gz` | Linux x86_64 archive (executable) |
 | `tunnel-yard-linux-arm64.tar.gz` | Linux ARM64 archive (executable) |
-| `tunnel-yard_2.7.0_amd64.deb` | Debian/Ubuntu x86_64 |
-| `tunnel-yard_2.7.0_arm64.deb` | Debian/Ubuntu ARM64 |
-| `tunnel-yard-2.7.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
-| `tunnel-yard-2.7.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
+| `tunnel-yard_2.8.0_amd64.deb` | Debian/Ubuntu x86_64 |
+| `tunnel-yard_2.8.0_arm64.deb` | Debian/Ubuntu ARM64 |
+| `tunnel-yard-2.8.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
+| `tunnel-yard-2.8.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
 | `tunnel-yard-macos` | macOS universal (Intel + Apple Silicon) |
 | `tunnel-yard-macos.dmg` | macOS installer (Intel + Apple Silicon) |
 | `tunnel-yard-windows-x64.exe` | Windows x64 |
@@ -89,7 +89,7 @@ On x64, **Install now** downloads the pinned official OpenConnect 9.21 installer
 
 #### Architecture compatibility
 
-The 2.7.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
+The 2.8.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
 
 #### Linux
 

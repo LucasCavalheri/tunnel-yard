@@ -34,16 +34,21 @@ use tunnel_yard::vpn::{
     summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus,
 };
 
-const BRAND: u32 = 0xff5f2d;
-const BRAND_HOVER: u32 = 0xf04f20;
-const BRAND_ACTIVE: u32 = 0xd94317;
-const SIDEBAR_BG: u32 = 0x0d0f0f;
-const SIDEBAR_RAISED: u32 = 0x171919;
-const SIDEBAR_BORDER: u32 = 0x292c2b;
-const SIDEBAR_TEXT: u32 = 0xf4f5f1;
-const SIDEBAR_MUTED: u32 = 0x858b87;
-const CONSOLE_BG: u32 = 0x0c0e0e;
-const SIDEBAR_WIDTH: Pixels = px(218.);
+// Industrial, high-contrast palette: the warm yard-orange remains the brand
+// signal while cool graphite surfaces make connection state easier to scan.
+const BRAND: u32 = 0xff6b35;
+const BRAND_HOVER: u32 = 0xff7c4d;
+const BRAND_ACTIVE: u32 = 0xe95522;
+const WORKSPACE_BG: u32 = 0x0f141a;
+const CARD_BG: u32 = 0x151b22;
+const CARD_HOVER: u32 = 0x1a222b;
+const SIDEBAR_BG: u32 = 0x090d12;
+const SIDEBAR_RAISED: u32 = 0x111820;
+const SIDEBAR_BORDER: u32 = 0x26313b;
+const SIDEBAR_TEXT: u32 = 0xf4f7f5;
+const SIDEBAR_MUTED: u32 = 0x96a2ac;
+const CONSOLE_BG: u32 = 0x090d12;
+const SIDEBAR_WIDTH: Pixels = px(244.);
 
 #[allow(dead_code)]
 fn surfaces_are_shipped() -> bool {
@@ -146,6 +151,7 @@ struct Desk {
     search: Entity<InputState>,
     theme_applied: bool,
     preferences_open: bool,
+    console_expanded: bool,
 }
 
 pub fn run(hidden: bool) -> Result<(), String> {
@@ -165,8 +171,8 @@ pub fn run(hidden: bool) -> Result<(), String> {
                 .ok()
                 .map(|image| Arc::new(image.into_rgba8()));
             let mut options = TitleBar::window_options();
-            options.window_bounds = Some(WindowBounds::centered(size(px(1040.), px(690.)), cx));
-            options.window_min_size = Some(size(px(860.), px(580.)));
+            options.window_bounds = Some(WindowBounds::centered(size(px(1120.), px(740.)), cx));
+            options.window_min_size = Some(size(px(900.), px(620.)));
             options.app_id = Some(tunnel_yard::APP_ID.into());
             options.show = !hidden;
             options.icon = icon;
@@ -278,6 +284,7 @@ impl Desk {
             search,
             theme_applied: false,
             preferences_open: false,
+            console_expanded: false,
         };
 
         #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -702,39 +709,41 @@ impl Desk {
             .bg(rgb(SIDEBAR_BG))
             .px_4()
             .py_5()
-            .gap_3()
+            .gap_4()
             .child(
                 div()
                     .h_flex()
-                    .items_start()
+                    .items_center()
                     .justify_between()
-                    .px_1()
-                    .pb_2()
                     .child(
-                        div()
-                            .v_flex()
-                            .child(
-                                div()
-                                    .text_size(px(14.))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(rgb(SIDEBAR_TEXT))
-                                    .child(tunnel_yard::APP_NAME),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(9.))
-                                    .text_color(rgb(SIDEBAR_MUTED))
-                                    .child("Control desk"),
-                            ),
+                        div().h_flex().gap_3().child(brand_mark(cx, px(38.))).child(
+                            div()
+                                .v_flex()
+                                .gap(px(2.))
+                                .child(
+                                    div()
+                                        .text_size(px(16.))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(rgb(SIDEBAR_TEXT))
+                                        .child(tunnel_yard::APP_NAME),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(12.))
+                                        .text_color(rgb(SIDEBAR_MUTED))
+                                        .child(self.t("brand.subtitle")),
+                                ),
+                        ),
                     )
                     .child(
                         div()
                             .px_2()
                             .py_1()
-                            .rounded(px(3.))
+                            .rounded(px(6.))
                             .border_1()
                             .border_color(rgb(SIDEBAR_BORDER))
-                            .text_size(px(8.))
+                            .bg(rgb(SIDEBAR_RAISED))
+                            .text_size(px(12.))
                             .text_color(rgb(SIDEBAR_MUTED))
                             .font_family("monospace")
                             .child(format!("v{}", self.version)),
@@ -743,9 +752,9 @@ impl Desk {
             .child(
                 div()
                     .h_flex()
-                    .gap_2()
-                    .p_3()
-                    .rounded(px(7.))
+                    .gap_3()
+                    .p_4()
+                    .rounded(px(12.))
                     .border_1()
                     .border_color(if any_up {
                         cx.theme().success.opacity(0.2)
@@ -759,15 +768,15 @@ impl Desk {
                     })
                     .child(
                         div()
-                            .size(px(30.))
+                            .size(px(38.))
                             .flex_none()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .rounded(px(6.))
+                            .rounded(px(10.))
                             .bg(status_color.opacity(0.13))
                             .text_color(status_color)
-                            .child(Icon::new(IconName::Network).size(px(16.))),
+                            .child(Icon::new(IconName::Network).size(px(19.))),
                     )
                     .child(
                         div()
@@ -776,7 +785,7 @@ impl Desk {
                             .v_flex()
                             .child(
                                 div()
-                                    .text_size(px(11.))
+                                    .text_size(px(14.))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(if any_up {
                                         rgb(0xdce9e2)
@@ -787,7 +796,7 @@ impl Desk {
                             )
                             .child(
                                 div()
-                                    .text_size(px(9.))
+                                    .text_size(px(12.))
                                     .text_color(rgb(SIDEBAR_MUTED))
                                     .child(if any_up {
                                         self.t("ops.connectionsStable")
@@ -796,7 +805,7 @@ impl Desk {
                                     }),
                             ),
                     )
-                    .child(div().size(px(7.)).rounded(px(999.)).bg(status_color).when(
+                    .child(div().size(px(8.)).rounded(px(999.)).bg(status_color).when(
                         any_up,
                         |this| {
                             this.border_2()
@@ -808,6 +817,7 @@ impl Desk {
                 div()
                     .v_flex()
                     .gap_2()
+                    .child(sidebar_section_label(self.t("ops.quickActions")))
                     .child(
                         Button::new("new-profile")
                             .primary()
@@ -821,14 +831,18 @@ impl Desk {
                     .child(
                         Button::new("import-profile")
                             .w_full()
-                            .ghost()
+                            .outline()
                             .text_color(rgb(SIDEBAR_TEXT))
                             .icon(IconName::FileText)
                             .label(self.t("ops.importConf"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.open_import(window, cx)),
                             ),
-                    )
+                    ),
+            )
+            .child(
+                div()
+                    .mt_auto()
                     .child(
                         Button::new("open-preferences")
                             .w_full()
@@ -839,38 +853,39 @@ impl Desk {
                             .on_click(cx.listener(|this, _, _, _| {
                                 this.preferences_open = true;
                             })),
-                    ),
-            )
-            .child(
-                div()
-                    .mt_auto()
-                    .h_flex()
-                    .gap_2()
-                    .border_t_1()
-                    .border_color(rgb(SIDEBAR_BORDER))
-                    .pt_4()
-                    .px_1()
-                    .text_color(cx.theme().success)
-                    .child(
-                        Icon::new(IconName::CircleCheck)
-                            .size(px(17.))
-                            .text_color(cx.theme().success),
                     )
                     .child(
                         div()
-                            .v_flex()
+                            .mt_3()
+                            .h_flex()
+                            .gap_3()
+                            .p_3()
+                            .rounded(px(10.))
+                            .border_1()
+                            .border_color(cx.theme().success.opacity(0.18))
+                            .bg(cx.theme().success.opacity(0.06))
                             .child(
-                                div()
-                                    .text_size(px(9.))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(rgb(0x9da29e))
-                                    .child(self.t("ops.protected")),
+                                Icon::new(IconName::CircleCheck)
+                                    .size(px(18.))
+                                    .text_color(cx.theme().success),
                             )
                             .child(
                                 div()
-                                    .text_size(px(8.))
-                                    .text_color(rgb(SIDEBAR_MUTED))
-                                    .child(self.t("ops.unprivileged")),
+                                    .v_flex()
+                                    .gap(px(2.))
+                                    .child(
+                                        div()
+                                            .text_size(px(12.))
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(rgb(0xcad4ce))
+                                            .child(self.t("ops.protected")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(12.))
+                                            .text_color(rgb(SIDEBAR_MUTED))
+                                            .child(self.t("ops.unprivileged")),
+                                    ),
                             ),
                     ),
             )
@@ -888,11 +903,11 @@ impl Desk {
         Some(
             overlay().child(
                 surface(cx)
-                    .w(px(590.))
-                    .max_h(px(540.))
+                    .w(px(640.))
+                    .max_h(px(600.))
                     .v_flex()
                     .overflow_hidden()
-                    .bg(rgb(0x141616))
+                    .bg(rgb(CARD_BG))
                     .child(
                         div()
                             .h_flex()
@@ -907,13 +922,13 @@ impl Desk {
                                     .gap_1()
                                     .child(
                                         div()
-                                            .text_size(px(20.))
+                                            .text_size(px(22.))
                                             .font_weight(FontWeight::BOLD)
                                             .child(self.t("ops.preferences")),
                                     )
                                     .child(
                                         div()
-                                            .text_size(px(11.))
+                                            .text_size(px(14.))
                                             .text_color(cx.theme().muted_foreground)
                                             .child(self.t("ops.preferencesHint")),
                                     ),
@@ -943,36 +958,110 @@ impl Desk {
                                     .child(sidebar_section_label(self.t("ops.connectionSettings")))
                                     .child(
                                         div()
-                                            .h_flex()
-                                            .justify_between()
-                                            .gap_4()
-                                            .p_4()
-                                            .rounded(px(7.))
-                                            .border_1()
-                                            .border_color(cx.theme().border)
-                                            .bg(cx.theme().secondary)
                                             .child(
-                                                Switch::new("preferences-auto-reconnect")
-                                                    .checked(auto_reconnect)
-                                                    .label(self.t("ops.autoRelink"))
-                                                    .on_click(cx.listener(|this, next, _, _| {
-                                                        this.vpn
-                                                            .lock()
-                                                            .unwrap()
-                                                            .set_auto_reconnect(*next);
-                                                        this.state.auto_reconnect = *next;
-                                                    })),
+                                                div()
+                                                    .h_flex()
+                                                    .justify_between()
+                                                    .gap_4()
+                                                    .p_4()
+                                                    .rounded(px(10.))
+                                                    .border_1()
+                                                    .border_color(cx.theme().border)
+                                                    .bg(cx.theme().secondary)
+                                                    .child(
+                                                        div()
+                                                            .v_flex()
+                                                            .gap(px(3.))
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(14.))
+                                                                    .font_weight(
+                                                                        FontWeight::SEMIBOLD,
+                                                                    )
+                                                                    .child(
+                                                                        self.t("ops.autoRelink"),
+                                                                    ),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(12.))
+                                                                    .text_color(
+                                                                        cx.theme().muted_foreground,
+                                                                    )
+                                                                    .child(
+                                                                        self.t(
+                                                                            "ops.autoRelinkHint",
+                                                                        ),
+                                                                    ),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        Switch::new("preferences-auto-reconnect")
+                                                            .checked(auto_reconnect)
+                                                            .on_click(cx.listener(
+                                                                |this, next, _, _| {
+                                                                    this.vpn
+                                                                        .lock()
+                                                                        .unwrap()
+                                                                        .set_auto_reconnect(*next);
+                                                                    this.state.auto_reconnect =
+                                                                        *next;
+                                                                },
+                                                            )),
+                                                    ),
                                             )
                                             .child(
-                                                Switch::new("preferences-autostart")
-                                                    .checked(autostart)
-                                                    .label(self.t("ops.startWithLinux"))
-                                                    .tooltip(get_autostart_path())
-                                                    .on_click(cx.listener(|this, next, _, _| {
-                                                        if set_autostart_enabled(*next) {
-                                                            this.autostart = is_autostart_enabled();
-                                                        }
-                                                    })),
+                                                div()
+                                                    .mt_2()
+                                                    .h_flex()
+                                                    .justify_between()
+                                                    .gap_4()
+                                                    .p_4()
+                                                    .rounded(px(10.))
+                                                    .border_1()
+                                                    .border_color(cx.theme().border)
+                                                    .bg(cx.theme().secondary)
+                                                    .child(
+                                                        div()
+                                                            .v_flex()
+                                                            .gap(px(3.))
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(14.))
+                                                                    .font_weight(
+                                                                        FontWeight::SEMIBOLD,
+                                                                    )
+                                                                    .child(
+                                                                        self.t(
+                                                                            "ops.startWithLinux",
+                                                                        ),
+                                                                    ),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(12.))
+                                                                    .text_color(
+                                                                        cx.theme().muted_foreground,
+                                                                    )
+                                                                    .child(self.t(
+                                                                        "ops.startWithLinuxHint",
+                                                                    )),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        Switch::new("preferences-autostart")
+                                                            .checked(autostart)
+                                                            .tooltip(get_autostart_path())
+                                                            .on_click(cx.listener(
+                                                                |this, next, _, _| {
+                                                                    if set_autostart_enabled(*next)
+                                                                    {
+                                                                        this.autostart =
+                                                                            is_autostart_enabled();
+                                                                    }
+                                                                },
+                                                            )),
+                                                    ),
                                             ),
                                     ),
                             )
@@ -1134,13 +1223,16 @@ impl Desk {
                 .rounded(px(8.))
                 .bg(color.opacity(0.1))
                 .text_color(color)
-                .text_size(px(11.))
+                .text_size(px(12.))
                 .child(text)
         })
     }
 
     fn render_workspace(&self, cx: &mut Context<Self>) -> Div {
-        let filter = self.search.read(cx).value().to_lowercase();
+        let filter_value = self.search.read(cx).value().to_string();
+        let filter = filter_value.to_lowercase();
+        let summary = summarize_vpn_state(&self.state);
+        let active_count = summary.connected_count + summary.connecting_count;
         let visible: Vec<VpnProfile> = self
             .profiles
             .iter()
@@ -1164,7 +1256,7 @@ impl Desk {
             .min_w_0()
             .h_full()
             .v_flex()
-            .bg(rgb(0x141616))
+            .bg(rgb(WORKSPACE_BG))
             .children(self.render_update_banner(cx))
             .child(
                 div()
@@ -1172,39 +1264,76 @@ impl Desk {
                     .min_h_0()
                     .v_flex()
                     .px_6()
-                    .pt_6()
-                    .pb_5()
+                    .pt_5()
+                    .pb_4()
                     .gap_4()
                     .child(
                         div()
                             .h_flex()
                             .justify_between()
+                            .gap_5()
                             .child(
                                 div()
                                     .v_flex()
-                                    .gap_1()
+                                    .gap(px(3.))
                                     .child(
                                         div()
-                                            .text_size(px(25.))
+                                            .text_size(px(12.))
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(cx.theme().primary)
+                                            .child(self.t("ops.workspace")),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(28.))
                                             .font_weight(FontWeight::BOLD)
                                             .child(self.t("ops.tunnels")),
                                     )
                                     .child(
                                         div()
-                                            .text_size(px(12.))
+                                            .text_size(px(14.))
                                             .text_color(cx.theme().muted_foreground)
-                                            .child(self.t("brand.subtitleMulti")),
+                                            .child(self.tv(
+                                                "ops.workspaceSummary",
+                                                &[
+                                                    ("total", self.profiles.len().to_string()),
+                                                    ("active", active_count.to_string()),
+                                                ],
+                                            )),
                                     ),
                             )
                             .child(
-                                div().w(px(250.)).child(
+                                div().w(px(280.)).flex_none().child(
                                     Input::new(&self.search)
                                         .prefix(IconName::Search)
                                         .cleanable(true),
                                 ),
                             ),
                     )
-                    .child(self.render_profiles(visible, cx))
+                    .child(
+                        div()
+                            .h_flex()
+                            .gap_3()
+                            .child(metric_tile(
+                                self.profiles.len().to_string(),
+                                self.t("ops.totalProfiles"),
+                                cx.theme().primary,
+                                cx,
+                            ))
+                            .child(metric_tile(
+                                summary.connected_count.to_string(),
+                                self.t("ops.connectedNow"),
+                                cx.theme().success,
+                                cx,
+                            ))
+                            .child(metric_tile(
+                                summary.connecting_count.to_string(),
+                                self.t("ops.connectingNow"),
+                                cx.theme().warning,
+                                cx,
+                            )),
+                    )
+                    .child(self.render_profiles(visible, &filter_value, cx))
                     .child(self.render_console(cx)),
             )
     }
@@ -1300,6 +1429,7 @@ impl Desk {
     fn render_profiles(
         &self,
         visible: Vec<VpnProfile>,
+        filter: &str,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let body = div()
@@ -1320,9 +1450,43 @@ impl Desk {
                     .v_flex()
                     .items_center()
                     .justify_center()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(Icon::new(IconName::Search).size(px(28.)))
-                    .child(self.t("profiles.noMatch")),
+                    .gap_3()
+                    .rounded(px(14.))
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .bg(rgb(CARD_BG))
+                    .child(
+                        div()
+                            .size(px(48.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(12.))
+                            .bg(cx.theme().muted)
+                            .text_color(cx.theme().muted_foreground)
+                            .child(Icon::new(IconName::Search).size(px(23.))),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(18.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(self.t("profiles.noMatchTitle")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(14.))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.tv("profiles.noMatch", &[("query", filter.to_string())])),
+                    )
+                    .child(
+                        Button::new("clear-profile-search")
+                            .outline()
+                            .label(self.t("profiles.clearSearch"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.search
+                                    .update(cx, |search, cx| search.set_value("", window, cx));
+                            })),
+                    ),
             );
         }
         body.children(
@@ -1339,31 +1503,32 @@ impl Desk {
             .items_center()
             .justify_center()
             .gap_3()
-            .rounded(px(16.))
+            .rounded(px(14.))
             .border_1()
             .border_color(cx.theme().border)
-            .bg(cx.theme().muted.opacity(0.3))
+            .bg(rgb(CARD_BG))
             .child(
                 div()
-                    .size(px(54.))
+                    .size(px(56.))
                     .flex()
                     .items_center()
                     .justify_center()
-                    .rounded(px(16.))
+                    .rounded(px(14.))
                     .bg(cx.theme().primary.opacity(0.12))
                     .text_color(cx.theme().primary)
                     .child(Icon::new(IconName::Network).size(px(28.))),
             )
             .child(
                 div()
-                    .text_size(px(20.))
-                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_size(px(22.))
+                    .font_weight(FontWeight::BOLD)
                     .child(self.t("profiles.emptyTitle")),
             )
             .child(
                 div()
                     .max_w(px(440.))
                     .text_center()
+                    .text_size(px(14.))
                     .text_color(cx.theme().muted_foreground)
                     .child(self.t("profiles.emptyBody")),
             )
@@ -1405,7 +1570,7 @@ impl Desk {
             VpnStatus::Error => ("status.fault", cx.theme().danger),
             VpnStatus::Disconnected => ("status.idle", cx.theme().muted_foreground),
         };
-        let metadata = format!("{}  ·  {}", profile.host, profile.port);
+        let metadata = format!("{}:{}", profile.host, profile.port);
         let detail = match status {
             VpnStatus::Connected => session
                 .as_ref()
@@ -1420,45 +1585,46 @@ impl Desk {
         };
         let profile_id = profile.id.clone();
         let edit_id = profile.id.clone();
+        let username = if profile.username.is_empty() {
+            self.t("profiles.noUser")
+        } else {
+            profile.username.clone()
+        };
         let mark_color = profile_mark_color(&profile.name);
 
         div()
             .flex_none()
             .h_flex()
             .justify_between()
-            .gap_4()
-            .px_4()
-            .py_3()
-            .rounded(px(7.))
+            .gap_5()
+            .px_5()
+            .py_4()
+            .rounded(px(12.))
             .border_1()
             .border_color(if active {
                 status_color.opacity(0.32)
             } else {
                 cx.theme().border
             })
-            .bg(rgb(0x191b1b))
+            .bg(rgb(CARD_BG))
             .when(active, |this| this.border_l_2())
-            .hover(|style| {
-                style
-                    .border_color(cx.theme().primary.opacity(0.42))
-                    .bg(cx.theme().secondary.opacity(0.72))
-            })
             .child(
                 div()
                     .h_flex()
+                    .flex_1()
                     .min_w_0()
-                    .gap_3()
+                    .gap_4()
                     .child(
                         div()
-                            .size(px(44.))
+                            .size(px(48.))
                             .flex_none()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .rounded(px(7.))
+                            .rounded(px(12.))
                             .bg(rgb(mark_color))
                             .text_color(rgb(0xffffff))
-                            .text_size(px(12.))
+                            .text_size(px(14.))
                             .font_weight(FontWeight::BOLD)
                             .child(initials),
                     )
@@ -1466,41 +1632,27 @@ impl Desk {
                         div()
                             .v_flex()
                             .min_w_0()
-                            .gap_1()
+                            .gap(px(3.))
                             .child(
                                 div()
                                     .h_flex()
-                                    .gap_2()
+                                    .gap_3()
                                     .child(
                                         div()
-                                            .id(format!("profile-name-{edit_id}"))
-                                            .cursor_pointer()
-                                            .text_size(px(15.))
+                                            .text_size(px(17.))
                                             .font_weight(FontWeight::BOLD)
-                                            .child(profile.name)
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                if let Some(draft) =
-                                                    tunnel_yard::read_profile_draft(&edit_id)
-                                                {
-                                                    this.open_editor(
-                                                        EditorMode::Edit,
-                                                        draft,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                }
-                                            })),
+                                            .child(profile.name),
                                     )
                                     .child(
                                         div()
                                             .px_2()
-                                            .py(px(2.))
+                                            .py(px(3.))
                                             .h_flex()
                                             .gap_1()
-                                            .rounded(px(4.))
+                                            .rounded(px(999.))
                                             .bg(status_color.opacity(0.1))
                                             .text_color(status_color)
-                                            .text_size(px(10.))
+                                            .text_size(px(12.))
                                             .font_weight(FontWeight::SEMIBOLD)
                                             .child(
                                                 div()
@@ -1513,62 +1665,94 @@ impl Desk {
                             )
                             .child(
                                 div()
+                                    .h_flex()
+                                    .gap_2()
                                     .truncate()
-                                    .text_size(px(12.))
+                                    .text_size(px(13.))
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(metadata),
+                                    .child(metadata)
+                                    .child("·")
+                                    .child(username),
                             )
                             .when_some(detail, |this, detail| {
                                 this.child(
                                     div()
-                                        .text_size(px(11.))
+                                        .text_size(px(12.))
                                         .font_family("monospace")
-                                        .text_color(cx.theme().muted_foreground)
+                                        .text_color(if status == VpnStatus::Error {
+                                            cx.theme().danger
+                                        } else if status == VpnStatus::Connected {
+                                            cx.theme().success
+                                        } else {
+                                            cx.theme().muted_foreground
+                                        })
                                         .child(detail),
                                 )
                             }),
                     ),
             )
             .child(
-                div().h_flex().flex_none().gap_2().child(
-                    Button::new(format!("toggle-{profile_id}"))
-                        .when(active, |button| button.danger().outline())
-                        .when(!active, |button| button.primary())
-                        .disabled(status == VpnStatus::Connecting)
-                        .label(if active {
-                            self.t("profiles.killLink")
-                        } else {
-                            self.t("profiles.bringUp")
-                        })
-                        .on_click(
-                            cx.listener(move |this, _, _, _| this.toggle_profile(&profile_id)),
-                        ),
-                ),
+                div()
+                    .h_flex()
+                    .flex_none()
+                    .gap_2()
+                    .child(
+                        Button::new(format!("edit-{edit_id}"))
+                            .small()
+                            .ghost()
+                            .icon(IconName::Settings2)
+                            .tooltip(self.t("profiles.edit"))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                if let Some(draft) = tunnel_yard::read_profile_draft(&edit_id) {
+                                    this.open_editor(EditorMode::Edit, draft, window, cx);
+                                }
+                            })),
+                    )
+                    .child(
+                        Button::new(format!("toggle-{profile_id}"))
+                            .w(px(118.))
+                            .when(active, |button| button.danger().outline())
+                            .when(!active, |button| button.primary())
+                            .loading(status == VpnStatus::Connecting)
+                            .disabled(status == VpnStatus::Connecting)
+                            .label(if active {
+                                self.t("profiles.killLink")
+                            } else {
+                                self.t("profiles.bringUp")
+                            })
+                            .on_click(
+                                cx.listener(move |this, _, _, _| this.toggle_profile(&profile_id)),
+                            ),
+                    ),
             )
     }
 
     fn render_console(&self, cx: &mut Context<Self>) -> Div {
         div()
             .flex_none()
-            .h(px(112.))
+            .h(if self.console_expanded {
+                px(176.)
+            } else {
+                px(48.)
+            })
             .v_flex()
-            .rounded(px(7.))
+            .rounded(px(12.))
             .border_1()
             .border_color(rgb(SIDEBAR_BORDER))
             .bg(rgb(CONSOLE_BG))
             .child(
                 div()
-                    .h(px(38.))
+                    .h(px(46.))
                     .h_flex()
                     .justify_between()
-                    .px_3()
+                    .px_4()
                     .child(
                         div()
                             .h_flex()
-                            .gap_2()
-                            .text_size(px(12.))
+                            .gap_3()
+                            .text_size(px(14.))
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(rgb(0x8f9590))
+                            .text_color(rgb(0xc3ccd2))
                             .child(
                                 Icon::new(IconName::SquareTerminal).text_color(rgb(SIDEBAR_MUTED)),
                             )
@@ -1577,56 +1761,82 @@ impl Desk {
                     .child(
                         div()
                             .h_flex()
-                            .gap_1()
-                            .text_size(px(10.))
-                            .text_color(cx.theme().success)
-                            .child(div().size(px(5.)).rounded(px(999.)).bg(cx.theme().success))
-                            .child(self.t("console.receiving")),
+                            .gap_2()
+                            .when(self.console_expanded && !self.logs.is_empty(), |this| {
+                                this.child(
+                                    Button::new("clear-console")
+                                        .small()
+                                        .ghost()
+                                        .label(self.t("console.clear"))
+                                        .on_click(cx.listener(|this, _, _, _| this.logs.clear())),
+                                )
+                            })
+                            .child(
+                                Button::new("toggle-console")
+                                    .small()
+                                    .ghost()
+                                    .icon(if self.console_expanded {
+                                        IconName::ChevronDown
+                                    } else {
+                                        IconName::ChevronUp
+                                    })
+                                    .label(if self.console_expanded {
+                                        self.t("console.hide")
+                                    } else {
+                                        self.t("console.show")
+                                    })
+                                    .on_click(cx.listener(|this, _, _, _| {
+                                        this.console_expanded = !this.console_expanded;
+                                    })),
+                            ),
                     ),
             )
-            .child(
-                div()
-                    .id("console-lines")
-                    .h(px(74.))
-                    .overflow_y_scrollbar()
-                    .border_t_1()
-                    .border_color(rgb(SIDEBAR_BORDER))
-                    .px_3()
-                    .py_2()
-                    .v_flex()
-                    .gap_1()
-                    .font_family("monospace")
-                    .text_size(px(10.))
-                    .children(if self.logs.is_empty() {
-                        vec![div()
-                            .text_color(rgb(SIDEBAR_MUTED))
-                            .child(self.t("console.emptyCompact"))]
-                    } else {
-                        self.logs
-                            .iter()
-                            .rev()
-                            .take(3)
-                            .rev()
-                            .map(|line| {
-                                let lower = line.to_lowercase();
-                                let color = if lower.contains("error")
-                                    || lower.contains("failed")
-                                    || line.contains('✗')
-                                {
-                                    cx.theme().danger
-                                } else if line.contains('→')
-                                    || line.contains('↻')
-                                    || line.contains('✓')
-                                {
-                                    cx.theme().success
-                                } else {
-                                    rgb(SIDEBAR_MUTED).into()
-                                };
-                                div().text_color(color).child(line.clone())
-                            })
-                            .collect()
-                    }),
-            )
+            .when(self.console_expanded, |this| {
+                this.child(
+                    div()
+                        .id("console-lines")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scrollbar()
+                        .border_t_1()
+                        .border_color(rgb(SIDEBAR_BORDER))
+                        .px_4()
+                        .py_3()
+                        .v_flex()
+                        .gap_2()
+                        .font_family("monospace")
+                        .text_size(px(12.))
+                        .children(if self.logs.is_empty() {
+                            vec![div()
+                                .text_color(rgb(SIDEBAR_MUTED))
+                                .child(self.t("console.emptyCompact"))]
+                        } else {
+                            self.logs
+                                .iter()
+                                .rev()
+                                .take(8)
+                                .rev()
+                                .map(|line| {
+                                    let lower = line.to_lowercase();
+                                    let color = if lower.contains("error")
+                                        || lower.contains("failed")
+                                        || line.contains('✗')
+                                    {
+                                        cx.theme().danger
+                                    } else if line.contains('→')
+                                        || line.contains('↻')
+                                        || line.contains('✓')
+                                    {
+                                        cx.theme().success
+                                    } else {
+                                        rgb(SIDEBAR_MUTED).into()
+                                    };
+                                    div().text_color(color).child(line.clone())
+                                })
+                                .collect()
+                        }),
+                )
+            })
     }
 
     fn render_boot_fault(&self, error: String, cx: &mut Context<Self>) -> Div {
@@ -1738,7 +1948,7 @@ impl Desk {
                         .bg(cx.theme().muted.opacity(0.35))
                         .child(
                             div()
-                                .text_size(px(11.))
+                                .text_size(px(12.))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(cx.theme().muted_foreground)
                                 .child(self.tv(
@@ -1774,7 +1984,7 @@ impl Desk {
                             .bg(cx.theme().background)
                             .p_3()
                             .font_family("monospace")
-                            .text_size(px(11.))
+                            .text_size(px(12.))
                             .children(logs.into_iter().map(|line| div().child(line))),
                     )
                 })
@@ -1839,7 +2049,7 @@ impl Desk {
         Some(
             overlay().child(
                 surface(cx)
-                    .w(px(700.))
+                    .w(px(760.))
                     .h(relative(0.9))
                     .max_h(relative(0.9))
                     .v_flex()
@@ -1858,15 +2068,15 @@ impl Desk {
                                     .gap_1()
                                     .child(
                                         div()
-                                            .text_size(px(20.))
+                                            .text_size(px(22.))
                                             .font_weight(FontWeight::BOLD)
                                             .child(title),
                                     )
                                     .child(
                                         div()
-                                            .text_size(px(11.))
+                                            .text_size(px(13.))
                                             .text_color(cx.theme().muted_foreground)
-                                            .child("openfortivpn · .conf"),
+                                            .child(self.t("form.editorHint")),
                                     ),
                             )
                             .child(
@@ -1896,7 +2106,7 @@ impl Desk {
                                         .rounded(px(10.))
                                         .bg(cx.theme().warning.opacity(0.1))
                                         .text_color(cx.theme().warning)
-                                        .text_size(px(12.))
+                                        .text_size(px(13.))
                                         .child(self.tv(
                                             "form.extraOptions",
                                             &[("count", editor.extra_options.len().to_string())],
@@ -2387,7 +2597,7 @@ fn profile_initials(name: &str) -> String {
 }
 
 fn profile_mark_color(name: &str) -> u32 {
-    const COLORS: [u32; 3] = [0xa94021, 0x534488, 0x305977];
+    const COLORS: [u32; 5] = [0xc14f26, 0x336b87, 0x6652a3, 0x2f7a68, 0x8a5b2d];
     let index = name
         .bytes()
         .fold(0usize, |total, byte| total.wrapping_add(byte as usize))
@@ -2402,23 +2612,23 @@ fn apply_theme(_theme: &str, window: &mut Window, cx: &mut App) {
     let brand_active = rgb(BRAND_ACTIVE).into();
     let white: Hsla = rgb(0xffffff).into();
     let theme = Theme::global_mut(cx);
-    theme.background = rgb(0x141616).into();
-    theme.foreground = rgb(0xf4f5f1).into();
-    theme.border = rgb(0x2a2d2c).into();
-    theme.secondary = rgb(0x191b1b).into();
-    theme.secondary_hover = rgb(0x202323).into();
-    theme.secondary_active = rgb(0x272a29).into();
-    theme.muted = rgb(0x202323).into();
-    theme.muted_foreground = rgb(0x8f9590).into();
-    theme.input = rgb(0x303332).into();
-    theme.popover = rgb(0x191b1b).into();
-    theme.popover_foreground = rgb(0xf4f5f1).into();
-    theme.button = rgb(0x1b1e1d).into();
-    theme.button_hover = rgb(0x242726).into();
-    theme.button_active = rgb(0x2b2e2d).into();
-    theme.button_foreground = rgb(0xe9ebe7).into();
-    theme.title_bar = rgb(0x181a1a).into();
-    theme.title_bar_border = rgb(0x292c2b).into();
+    theme.background = rgb(WORKSPACE_BG).into();
+    theme.foreground = rgb(0xf4f7f5).into();
+    theme.border = rgb(SIDEBAR_BORDER).into();
+    theme.secondary = rgb(CARD_BG).into();
+    theme.secondary_hover = rgb(CARD_HOVER).into();
+    theme.secondary_active = rgb(0x202a34).into();
+    theme.muted = rgb(0x1c2530).into();
+    theme.muted_foreground = rgb(SIDEBAR_MUTED).into();
+    theme.input = rgb(0x2a3540).into();
+    theme.popover = rgb(CARD_BG).into();
+    theme.popover_foreground = rgb(0xf4f7f5).into();
+    theme.button = rgb(0x18212a).into();
+    theme.button_hover = rgb(0x212c37).into();
+    theme.button_active = rgb(0x293642).into();
+    theme.button_foreground = rgb(0xe8edef).into();
+    theme.title_bar = rgb(0x0c1117).into();
+    theme.title_bar_border = rgb(SIDEBAR_BORDER).into();
 
     theme.sidebar = rgb(SIDEBAR_BG).into();
     theme.sidebar_foreground = rgb(SIDEBAR_TEXT).into();
@@ -2427,11 +2637,11 @@ fn apply_theme(_theme: &str, window: &mut Window, cx: &mut App) {
     theme.sidebar_accent_foreground = rgb(SIDEBAR_TEXT).into();
     theme.sidebar_primary = brand;
     theme.sidebar_primary_foreground = white;
-    theme.success = rgb(0x29b47a).into();
-    theme.success_hover = rgb(0x239b69).into();
-    theme.success_active = rgb(0x1d8359).into();
-    theme.warning = rgb(0xe2a13a).into();
-    theme.danger = rgb(0xd65b52).into();
+    theme.success = rgb(0x38c58a).into();
+    theme.success_hover = rgb(0x31ad79).into();
+    theme.success_active = rgb(0x278f64).into();
+    theme.warning = rgb(0xf0ad4e).into();
+    theme.danger = rgb(0xef6a64).into();
     theme.ring = brand;
     theme.selection = brand.opacity(0.24);
     theme.primary = brand;
@@ -2449,8 +2659,8 @@ fn apply_theme(_theme: &str, window: &mut Window, cx: &mut App) {
     theme.tokens.button_primary_hover = brand_hover.into();
     theme.tokens.button_primary_active = brand_active.into();
     theme.tokens.button_primary_foreground = white.into();
-    theme.radius = px(6.);
-    theme.radius_lg = px(10.);
+    theme.radius = px(8.);
+    theme.radius_lg = px(12.);
     theme.shadow = true;
     Theme::sync_base(cx);
     window.refresh();
@@ -2473,22 +2683,56 @@ fn brand_mark(cx: &App, size: Pixels) -> Div {
 
 fn surface(cx: &App) -> Div {
     div()
-        .rounded(px(16.))
+        .rounded(px(14.))
         .border_1()
         .border_color(cx.theme().border)
-        .bg(cx.theme().background)
+        .bg(rgb(CARD_BG))
         .shadow_lg()
+}
+
+fn metric_tile(value: String, label: String, tone: Hsla, cx: &App) -> Div {
+    div()
+        .flex_1()
+        .min_w_0()
+        .h_flex()
+        .gap_3()
+        .px_4()
+        .py_3()
+        .rounded(px(10.))
+        .border_1()
+        .border_color(cx.theme().border)
+        .bg(rgb(CARD_BG))
+        .child(div().size(px(8.)).rounded(px(999.)).bg(tone))
+        .child(
+            div()
+                .h_flex()
+                .gap_2()
+                .child(
+                    div()
+                        .text_size(px(17.))
+                        .font_weight(FontWeight::BOLD)
+                        .child(value),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(13.))
+                        .text_color(cx.theme().muted_foreground)
+                        .child(label),
+                ),
+        )
 }
 
 fn sidebar_section_label(text: String) -> Div {
     div()
-        .text_size(px(10.))
+        .px_1()
+        .text_size(px(12.))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(rgb(SIDEBAR_MUTED))
         .child(text.to_uppercase())
 }
 
-fn centered_page(cx: &App) -> Div {
+fn centered_page(_cx: &App) -> Div {
     div()
         .flex_1()
         .min_h_0()
@@ -2496,7 +2740,7 @@ fn centered_page(cx: &App) -> Div {
         .items_center()
         .justify_center()
         .p_6()
-        .bg(cx.theme().muted.opacity(0.18))
+        .bg(rgb(WORKSPACE_BG))
 }
 
 fn overlay() -> Div {
@@ -2510,7 +2754,7 @@ fn overlay() -> Div {
         .items_center()
         .justify_center()
         .p_5()
-        .bg(rgba(0x00000088))
+        .bg(rgba(0x03070bbb))
 }
 
 fn form_section(title: String, fields: Vec<Div>, cx: &App) -> Div {
@@ -2523,7 +2767,7 @@ fn form_section(title: String, fields: Vec<Div>, cx: &App) -> Div {
                 .gap_2()
                 .child(
                     div()
-                        .text_size(px(13.))
+                        .text_size(px(15.))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(title),
                 )
@@ -2540,7 +2784,7 @@ fn field(label: String, hint: String, input: &Entity<InputState>, disabled: bool
         .gap_1()
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(px(13.))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(cx.theme().muted_foreground)
                 .child(label),
@@ -2549,7 +2793,7 @@ fn field(label: String, hint: String, input: &Entity<InputState>, disabled: bool
         .when(!hint.is_empty(), |this| {
             this.child(
                 div()
-                    .text_size(px(10.))
+                    .text_size(px(12.))
                     .text_color(cx.theme().muted_foreground.opacity(0.72))
                     .child(hint),
             )
@@ -2574,7 +2818,7 @@ fn password_field(label: String, hint: String, input: &Entity<InputState>, cx: &
         .gap_1()
         .child(
             div()
-                .text_size(px(11.))
+                .text_size(px(13.))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(cx.theme().muted_foreground)
                 .child(label),
@@ -2582,7 +2826,7 @@ fn password_field(label: String, hint: String, input: &Entity<InputState>, cx: &
         .child(Input::new(input).mask_toggle())
         .child(
             div()
-                .text_size(px(10.))
+                .text_size(px(12.))
                 .text_color(cx.theme().muted_foreground.opacity(0.72))
                 .child(hint),
         )

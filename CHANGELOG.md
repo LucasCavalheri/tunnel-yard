@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.8.0
+
+### Desktop experience redesign
+
+- Rebuilt the connection workspace around a clearer operational hierarchy,
+  with live profile, connected and connecting summaries in the first view.
+- Introduced a higher-contrast graphite visual system while preserving the
+  TunnelYard orange brand, with more readable typography and consistent
+  spacing, surfaces, borders and status colors.
+- Redesigned VPN profile cards so connection state, gateway, user and live
+  details are easier to scan, and made profile editing an explicit action.
+- Made the live console collapsible, added a clear action and increased its
+  useful log capacity without taking space from the profile list by default.
+- Improved empty and filtered states with clearer guidance and a direct way to
+  clear searches that return no results.
+- Reorganized preferences with descriptive connection settings and refined the
+  profile editor, setup, error and confirmation surfaces for legibility.
+- Removed the whole-card hover effect from connection rows, eliminating visual
+  jitter and keeping hover feedback on the controls that are actually clickable.
+- Updated the complete desktop experience in both English and Brazilian
+  Portuguese.
+
 ## 2.7.0
 
 ### Rebrand to TunnelYard
