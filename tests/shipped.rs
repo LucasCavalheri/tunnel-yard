@@ -3,6 +3,7 @@
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::net::TcpListener;
+use std::process::Command;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -553,6 +554,107 @@ fn linux_launcher_matches_wayland_app_id_and_quotes_paths() {
     assert!(entry.contains("StartupNotify=true"));
     assert!(entry.contains(&format!("StartupWMClass={}", tunnel_yard::APP_ID)));
     assert_eq!(tunnel_yard::APP_ID, "lucas.cavalheri.tunnelyard");
+}
+
+#[test]
+fn debian_postrm_does_not_delete_files_during_upgrade() {
+    let script = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/packaging/after-remove.sh"
+    ))
+    .unwrap();
+    let cleanup = script
+        .find("root_path /usr/lib/tunnel-yard/run-vpn.sh")
+        .expect("postrm cleanup must remain present");
+    let guard = &script[..cleanup];
+    assert!(guard.contains("case \"${1:-}\" in"));
+    assert!(guard.contains("remove|purge)"));
+    assert!(guard.contains("exit 0"));
+
+    let package_builder = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/packaging/build-linux-packages.sh"
+    ))
+    .unwrap();
+    assert!(package_builder.contains("/usr/lib/tunnel-yard/payload"));
+    assert!(package_builder.contains("/usr/lib/tunnel-yard/tunnel-yard"));
+
+    let postinst = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/packaging/after-install.sh"
+    ))
+    .unwrap();
+    assert!(postinst.contains("PACKAGE_PAYLOAD"));
+    assert!(postinst.contains("ln -sfn ../lib/tunnel-yard/tunnel-yard"));
+}
+
+#[cfg(unix)]
+#[test]
+fn debian_package_upgrade_preserves_and_repairs_the_full_installation() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile_dir("debian-upgrade-lifecycle");
+    let package_root = root.join("usr/lib/tunnel-yard");
+    let payload = package_root.join("payload");
+    fs::create_dir_all(&payload).unwrap();
+    fs::create_dir_all(root.join("etc/apt/sources.list.d")).unwrap();
+
+    let binary = package_root.join("tunnel-yard");
+    fs::write(&binary, b"#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+
+    for (name, contents) in [
+        ("run-vpn.sh", "#!/bin/sh\n"),
+        ("stop-vpn.sh", "#!/bin/sh\n"),
+        ("tunnel-yard.desktop", "[Desktop Entry]\nExec=tunnel-yard\n"),
+        ("lucas.cavalheri.tunnelyard.policy", "policy\n"),
+        ("icon.png", "icon-256\n"),
+        ("icon-64.png", "icon-64\n"),
+        ("icon-32.png", "icon-32\n"),
+        ("tunnel-yard-archive-keyring.asc", "keyring\n"),
+    ] {
+        fs::write(payload.join(name), contents).unwrap();
+    }
+
+    run_packaging_script("after-install.sh", &root);
+    assert_debian_installation_complete(&root);
+
+    // This is the real dpkg upgrade call. It must be a no-op for the old
+    // package's postrm, otherwise the newly unpacked files disappear again.
+    run_packaging_script_with_args("after-remove.sh", &["upgrade", "2.9.0"], &root);
+    assert_debian_installation_complete(&root);
+
+    // Reproduce the destructive cleanup from the released 2.8.0 postrm. The
+    // recovery payload must let the new postinst repair every user-visible
+    // package path without touching the host filesystem.
+    for relative in [
+        "usr/bin/tunnel-yard",
+        "usr/lib/tunnel-yard/run-vpn.sh",
+        "usr/lib/tunnel-yard/stop-vpn.sh",
+        "usr/share/applications/lucas.cavalheri.tunnelyard.desktop",
+        "usr/share/polkit-1/actions/lucas.cavalheri.tunnelyard.policy",
+        "usr/share/icons/hicolor/256x256/apps/tunnel-yard.png",
+        "usr/share/icons/hicolor/64x64/apps/tunnel-yard.png",
+        "usr/share/icons/hicolor/32x32/apps/tunnel-yard.png",
+        "usr/share/pixmaps/tunnel-yard.png",
+        "usr/share/keyrings/tunnel-yard-archive-keyring.asc",
+        "etc/apt/sources.list.d/tunnel-yard.list",
+    ] {
+        let _ = fs::remove_file(root.join(relative));
+    }
+    assert!(!root.join("usr/bin/tunnel-yard").exists());
+    assert!(!root
+        .join("usr/share/applications/lucas.cavalheri.tunnelyard.desktop")
+        .exists());
+
+    run_packaging_script("after-install.sh", &root);
+    assert_debian_installation_complete(&root);
+    let desktop =
+        fs::read_to_string(root.join("usr/share/applications/lucas.cavalheri.tunnelyard.desktop"))
+            .unwrap();
+    assert!(desktop.contains("Exec=/usr/bin/tunnel-yard %U"));
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
@@ -1164,4 +1266,50 @@ fn tempfile_dir(tag: &str) -> std::path::PathBuf {
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+#[cfg(unix)]
+fn run_packaging_script(name: &str, root: &std::path::Path) {
+    run_packaging_script_with_args(name, &[], root);
+}
+
+#[cfg(unix)]
+fn run_packaging_script_with_args(name: &str, args: &[&str], root: &std::path::Path) {
+    let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("packaging")
+        .join(name);
+    let output = Command::new("bash")
+        .arg(script)
+        .args(args)
+        .env("TUNNEL_YARD_ROOT", root)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{name} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[cfg(unix)]
+fn assert_debian_installation_complete(root: &std::path::Path) {
+    assert!(root.join("usr/lib/tunnel-yard/tunnel-yard").is_file());
+    assert_eq!(
+        fs::read_link(root.join("usr/bin/tunnel-yard")).unwrap(),
+        std::path::Path::new("../lib/tunnel-yard/tunnel-yard")
+    );
+    for relative in [
+        "usr/lib/tunnel-yard/run-vpn.sh",
+        "usr/lib/tunnel-yard/stop-vpn.sh",
+        "usr/share/applications/lucas.cavalheri.tunnelyard.desktop",
+        "usr/share/polkit-1/actions/lucas.cavalheri.tunnelyard.policy",
+        "usr/share/icons/hicolor/256x256/apps/tunnel-yard.png",
+        "usr/share/icons/hicolor/64x64/apps/tunnel-yard.png",
+        "usr/share/icons/hicolor/32x32/apps/tunnel-yard.png",
+        "usr/share/pixmaps/tunnel-yard.png",
+        "usr/share/keyrings/tunnel-yard-archive-keyring.asc",
+        "etc/apt/sources.list.d/tunnel-yard.list",
+    ] {
+        assert!(root.join(relative).is_file(), "missing {relative}");
+    }
 }

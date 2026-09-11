@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.8.1
+
+### Reliable Linux upgrades
+
+- Fixed Debian package upgrades removing the installed executable, desktop
+  launcher, helpers, icons and APT metadata.
+- Added a recovery payload so installations affected by the 2.8.0 upgrade can
+  be repaired by the next package upgrade.
+- Added an isolated package lifecycle regression test covering upgrade,
+  destructive legacy cleanup and post-install recovery.
+
 ## 2.8.0
 
 ### Desktop experience redesign

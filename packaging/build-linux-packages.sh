@@ -40,6 +40,7 @@ populate_root() {
   install -d \
     "$stage/usr/bin" \
     "$stage/usr/lib/tunnel-yard" \
+    "$stage/usr/lib/tunnel-yard/payload" \
     "$stage/usr/share/applications" \
     "$stage/usr/share/polkit-1/actions" \
     "$stage/usr/share/icons/hicolor/32x32/apps" \
@@ -48,18 +49,39 @@ populate_root() {
     "$stage/usr/share/keyrings" \
     "$stage/usr/share/licenses/tunnel-yard"
 
-  install -m 0755 "$BINARY" "$stage/usr/bin/tunnel-yard"
+  # Keep the real executable outside /usr/bin.  The old 2.7/2.8 postrm
+  # removed /usr/bin/tunnel-yard during upgrades, so the new postinst needs a
+  # package-owned path that survives that legacy cleanup long enough to
+  # recreate the launcher.
+  install -m 0755 "$BINARY" "$stage/usr/lib/tunnel-yard/tunnel-yard"
+  ln -s ../lib/tunnel-yard/tunnel-yard "$stage/usr/bin/tunnel-yard"
   install -m 0755 "$ROOT_DIR/packaging/run-vpn.sh" "$stage/usr/lib/tunnel-yard/run-vpn.sh"
   install -m 0755 "$ROOT_DIR/packaging/stop-vpn.sh" "$stage/usr/lib/tunnel-yard/stop-vpn.sh"
+  install -m 0755 "$ROOT_DIR/packaging/run-vpn.sh" \
+    "$stage/usr/lib/tunnel-yard/payload/run-vpn.sh"
+  install -m 0755 "$ROOT_DIR/packaging/stop-vpn.sh" \
+    "$stage/usr/lib/tunnel-yard/payload/stop-vpn.sh"
   install -m 0644 "$ROOT_DIR/packaging/tunnel-yard.desktop" \
     "$stage/usr/share/applications/lucas.cavalheri.tunnelyard.desktop"
+  install -m 0644 "$ROOT_DIR/packaging/tunnel-yard.desktop" \
+    "$stage/usr/lib/tunnel-yard/payload/tunnel-yard.desktop"
   install -m 0644 "$ROOT_DIR/packaging/polkit/lucas.cavalheri.tunnelyard.policy" \
     "$stage/usr/share/polkit-1/actions/lucas.cavalheri.tunnelyard.policy"
+  install -m 0644 "$ROOT_DIR/packaging/polkit/lucas.cavalheri.tunnelyard.policy" \
+    "$stage/usr/lib/tunnel-yard/payload/lucas.cavalheri.tunnelyard.policy"
   install -m 0644 "$ROOT_DIR/public/icon-32.png" "$stage/usr/share/icons/hicolor/32x32/apps/tunnel-yard.png"
   install -m 0644 "$ROOT_DIR/public/icon-64.png" "$stage/usr/share/icons/hicolor/64x64/apps/tunnel-yard.png"
   install -m 0644 "$ROOT_DIR/public/icon.png" "$stage/usr/share/icons/hicolor/256x256/apps/tunnel-yard.png"
+  install -m 0644 "$ROOT_DIR/public/icon-32.png" \
+    "$stage/usr/lib/tunnel-yard/payload/icon-32.png"
+  install -m 0644 "$ROOT_DIR/public/icon-64.png" \
+    "$stage/usr/lib/tunnel-yard/payload/icon-64.png"
+  install -m 0644 "$ROOT_DIR/public/icon.png" \
+    "$stage/usr/lib/tunnel-yard/payload/icon.png"
   install -m 0644 "$ROOT_DIR/packaging/tunnel-yard-archive-keyring.asc" \
     "$stage/usr/share/keyrings/tunnel-yard-archive-keyring.asc"
+  install -m 0644 "$ROOT_DIR/packaging/tunnel-yard-archive-keyring.asc" \
+    "$stage/usr/lib/tunnel-yard/payload/tunnel-yard-archive-keyring.asc"
   install -m 0644 "$ROOT_DIR/LICENSE" "$stage/usr/share/licenses/tunnel-yard/LICENSE"
 }
 
