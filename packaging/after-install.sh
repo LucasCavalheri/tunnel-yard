@@ -6,6 +6,13 @@ root_path() {
   printf '%s%s' "$ROOT_PREFIX" "$1"
 }
 
+normalize_desktop_entry() {
+  local desktop="$1"
+  sed -i.bak 's|^Exec=.*|Exec=/usr/bin/tunnel-yard %U|' "$desktop"
+  sed -i.bak 's|^StartupWMClass=.*|StartupWMClass=lucas.cavalheri.tunnelyard|' "$desktop"
+  rm -f "$desktop.bak"
+}
+
 PACKAGE_ROOT="$(root_path /usr/lib/tunnel-yard)"
 PACKAGE_BIN="$PACKAGE_ROOT/tunnel-yard"
 PACKAGE_PAYLOAD="$PACKAGE_ROOT/payload"
@@ -39,10 +46,7 @@ if [ -z "$APP_DIR" ] && [ -x "$USR_BIN/tunnel-yard" ]; then
     chmod 0755 "$PACKAGE_ROOT/run-vpn.sh" "$PACKAGE_ROOT/stop-vpn.sh"
   fi
   if [ -f "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop" ]; then
-    sed -i 's|^Exec=.*|Exec=/usr/bin/tunnel-yard %U|' \
-      "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
-    sed -i 's|^StartupWMClass=.*|StartupWMClass=lucas.cavalheri.tunnelyard|' \
-      "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
+    normalize_desktop_entry "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
   fi
 fi
 
@@ -69,10 +73,7 @@ if [ -x "$PACKAGE_BIN" ]; then
     install -d "$APPLICATIONS"
     install -m 0644 "$PACKAGE_PAYLOAD/tunnel-yard.desktop" \
       "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
-    sed -i 's|^Exec=.*|Exec=/usr/bin/tunnel-yard %U|' \
-      "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
-    sed -i 's|^StartupWMClass=.*|StartupWMClass=lucas.cavalheri.tunnelyard|' \
-      "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
+    normalize_desktop_entry "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
     if ! grep -q '^StartupWMClass=' "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"; then
       printf '\nStartupWMClass=lucas.cavalheri.tunnelyard\n' >> \
         "$APPLICATIONS/lucas.cavalheri.tunnelyard.desktop"
@@ -142,8 +143,7 @@ EOF
     "$APPLICATIONS/dev.cavallheri.myvpns.desktop" \
     "$APPLICATIONS/my-vpns.desktop"; do
     if [ -f "$DESKTOP" ]; then
-      sed -i 's|^Exec=.*|Exec=/usr/bin/tunnel-yard %U|' "$DESKTOP"
-      sed -i 's|^StartupWMClass=.*|StartupWMClass=lucas.cavalheri.tunnelyard|' "$DESKTOP"
+      normalize_desktop_entry "$DESKTOP"
       if ! grep -q '^StartupWMClass=' "$DESKTOP"; then
         printf '\nStartupWMClass=lucas.cavalheri.tunnelyard\n' >> "$DESKTOP"
       fi
