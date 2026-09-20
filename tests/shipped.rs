@@ -1403,7 +1403,7 @@ if (decodeLocaleScroll(raw, now + LOCALE_SCROLL_TTL_MS + 1) !== null) throw new 
 if (decodeLocaleScroll(null, now) !== null) throw new Error('empty');
 if (decodeLocaleScroll('nope', now) !== null) throw new Error('junk');
 "#,
-                url = format!("file://{}", script.canonicalize().unwrap().display())
+                url = file_url(&script)
             ),
         ])
         .status()
@@ -1461,12 +1461,44 @@ if (moveActiveIndex(-1, 1, 6) !== 0) throw new Error('start');
 if (moveActiveIndex(5, 1, 6) !== 0) throw new Error('wrap');
 if (moveActiveIndex(0, -1, 6) !== 5) throw new Error('back');
 "#,
-                url = format!("file://{}", script.canonicalize().unwrap().display())
+                url = file_url(&script)
             ),
         ])
         .status()
         .expect("node");
     assert!(status.success(), "download-picker.js contract failed");
+}
+
+fn file_url(path: &std::path::Path) -> String {
+    let path = path.canonicalize().unwrap();
+    let mut s = path.to_string_lossy().into_owned();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        s = rest.to_string();
+    }
+    s = s.replace('\\', "/");
+    if !s.starts_with('/') {
+        s.insert(0, '/');
+    }
+    format!("file://{s}")
+}
+
+#[test]
+fn node_can_import_a_module_through_file_url() {
+    let dir = tempfile_dir("file-url");
+    let js = dir.join("mod.js");
+    fs::write(&js, "export const n = 1;\n").unwrap();
+    let url = file_url(&js);
+    assert!(url.starts_with("file:///"), "{url}");
+    assert!(!url.contains('\\'), "{url}");
+    let status = Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            &format!("import {{ n }} from '{url}'; if (n !== 1) throw new Error('n')"),
+        ])
+        .status()
+        .expect("node");
+    assert!(status.success(), "node could not import {url}");
 }
 
 fn assert_built_styles(dist: &std::path::Path) -> std::process::Output {
