@@ -158,8 +158,6 @@ struct Desk {
     setup_busy: bool,
     quitting: Arc<Mutex<bool>>,
     tray_rx: Option<Receiver<TrayCmd>>,
-    #[cfg(any(target_os = "windows", target_os = "macos"))]
-    os_tray: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "linux")]
     linux_tray: Option<ksni::blocking::Handle<AppTray>>,
     update: Option<UpdateInfo>,
@@ -300,8 +298,6 @@ impl Desk {
             setup_busy: false,
             quitting,
             tray_rx: Some(tray_rx),
-            #[cfg(any(target_os = "windows", target_os = "macos"))]
-            os_tray: None,
             #[cfg(target_os = "linux")]
             linux_tray,
             update: None,
@@ -320,11 +316,6 @@ impl Desk {
             preferences_open: false,
             console_expanded: false,
         };
-
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        {
-            desk.os_tray = create_os_tray(&desk.locale, &desk.vpn.lock().unwrap());
-        }
 
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(get_dependency_status)) {
             Ok(status) => {
@@ -498,26 +489,6 @@ impl Desk {
             }
         }
 
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        {
-            while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
-                if matches!(
-                    event,
-                    tray_icon::TrayIconEvent::DoubleClick { .. }
-                        | tray_icon::TrayIconEvent::Click {
-                            button: tray_icon::MouseButton::Left,
-                            button_state: tray_icon::MouseButtonState::Up,
-                            ..
-                        }
-                ) {
-                    window.activate_window();
-                }
-            }
-            while let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
-                self.handle_tray_id(event.id.as_ref(), window, cx);
-            }
-        }
-
         let mut commands = Vec::new();
         if let Some(receiver) = &self.tray_rx {
             while let Ok(command) = receiver.try_recv() {
@@ -538,28 +509,6 @@ impl Desk {
                 }
                 TrayCmd::DisconnectAll => self.vpn.lock().unwrap().disconnect(None),
                 TrayCmd::Toggle(id) => self.toggle_profile(&id),
-            }
-        }
-    }
-
-    #[cfg(any(target_os = "windows", target_os = "macos"))]
-    fn handle_tray_id(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        match id {
-            "show" => window.activate_window(),
-            "quit" => self.request_quit(window, cx),
-            "refresh" => {
-                self.profiles = self.vpn.lock().unwrap().refresh_profiles();
-                self.rebuild_os_tray();
-            }
-            "check_updates" => {
-                self.check_feedback = CheckFeedback::Checking;
-                self.spawn_update_check();
-            }
-            "disconnect_all" => self.vpn.lock().unwrap().disconnect(None),
-            _ => {
-                if let Some(profile_id) = id.strip_prefix("profile:") {
-                    self.toggle_profile(profile_id);
-                }
             }
         }
     }
@@ -627,13 +576,6 @@ impl Desk {
     }
 
     fn rebuild_os_tray(&mut self) {
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        if let Some(tray) = self.os_tray.as_mut() {
-            if let Some(menu) = os_tray_menu(&self.locale, &self.profiles, &self.state) {
-                let _ = tray.set_menu(Some(Box::new(menu)));
-            }
-        }
-        #[cfg(target_os = "linux")]
         if let Some(handle) = &self.linux_tray {
             handle.update(|_| ());
         }
@@ -3179,58 +3121,6 @@ fn spawn_tray(
     _quitting: Arc<Mutex<bool>>,
 ) {
     let _ = (vpn, locale, tx);
-}
-
-#[cfg(any(target_os = "windows", target_os = "macos"))]
-fn os_tray_menu(
-    locale: &str,
-    profiles: &[VpnProfile],
-    state: &VpnState,
-) -> Option<tray_icon::menu::Menu> {
-    use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
-    use tunnel_yard::tray_menu::{build_tray_menu, TrayEntry};
-    let menu = Menu::new();
-    for entry in build_tray_menu(locale, profiles, state) {
-        let result = match entry {
-            TrayEntry::Separator => menu.append(&PredefinedMenuItem::separator()).ok(),
-            TrayEntry::Action { id, label } => {
-                let item = MenuItem::with_id(id, label, true, None);
-                menu.append(&item).ok()
-            }
-            TrayEntry::Profile {
-                profile_id,
-                label,
-                checked: _,
-            } => {
-                let item = MenuItem::with_id(format!("profile:{profile_id}"), label, true, None);
-                menu.append(&item).ok()
-            }
-        };
-        result?;
-    }
-    Some(menu)
-}
-
-#[cfg(any(target_os = "windows", target_os = "macos"))]
-fn create_os_tray(locale: &str, vpn: &VpnManager) -> Option<tray_icon::TrayIcon> {
-    let menu = os_tray_menu(locale, &vpn.get_profiles(), &vpn.get_state())?;
-    let icon = os_tray_icon()?;
-    tray_icon::TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_tooltip(tunnel_yard::APP_NAME)
-        .with_icon(icon)
-        .build()
-        .ok()
-}
-
-#[cfg(any(target_os = "windows", target_os = "macos"))]
-fn os_tray_icon() -> Option<tray_icon::Icon> {
-    let image = image::load_from_memory(tunnel_yard::app_icon::APP_ICON_PNG)
-        .ok()?
-        .into_rgba8();
-    let image = image::imageops::resize(&image, 32, 32, image::imageops::FilterType::Triangle);
-    let (width, height) = image.dimensions();
-    tray_icon::Icon::from_rgba(image.into_raw(), width, height).ok()
 }
 
 #[cfg(target_os = "linux")]

@@ -1,12 +1,10 @@
 //! openfortivpn `.conf` parse/serialize, profile ids, and file CRUD.
 
-use crate::openconnect::{
-    conf_entries, profile_health_check, profile_legacy_tunnel, profile_no_dtls,
-};
-use crate::platform::{config_directory_current, current_platform};
+use crate::platform::config_directory_current;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
+use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use unicode_normalization::UnicodeNormalization;
@@ -44,6 +42,100 @@ pub fn empty_draft() -> VpnProfileDraft {
         set_routes: true,
         ..VpnProfileDraft::default()
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HealthCheck {
+    pub health_host: Option<String>,
+    pub health_port: Option<u16>,
+}
+
+pub fn profile_health_check(raw: &str) -> Result<HealthCheck, String> {
+    let host = comment_value(raw, "my-vpns-health-host");
+    let port_text = comment_value(raw, "my-vpns-health-port");
+    if host.is_none() && port_text.is_none() {
+        return Ok(HealthCheck::default());
+    }
+    let host = host.unwrap_or_default();
+    let port = port_text
+        .and_then(|t| t.parse::<u16>().ok())
+        .filter(|p| *p >= 1);
+    let ipv4_ok = host.parse::<Ipv4Addr>().is_ok();
+    if !ipv4_ok || port.is_none() {
+        return Err("VPN health check requires an IPv4 address and a TCP port (1–65535).".into());
+    }
+    Ok(HealthCheck {
+        health_host: Some(host),
+        health_port: port,
+    })
+}
+
+fn comment_value(raw: &str, key: &str) -> Option<String> {
+    for line in raw.lines() {
+        let t = line.trim();
+        if !t.starts_with('#') {
+            continue;
+        }
+        let rest = t.trim_start_matches('#').trim_start();
+        let Some(eq) = rest.find('=') else { continue };
+        let k = rest[..eq].trim();
+        let current_key = key.replacen("my-vpns-", "tunnel-yard-", 1);
+        if k.eq_ignore_ascii_case(key) || k.eq_ignore_ascii_case(&current_key) {
+            let v = rest[eq + 1..].trim();
+            return Some(v.to_string());
+        }
+    }
+    None
+}
+
+fn flag_comment(raw: &str, key: &str) -> bool {
+    for line in raw.lines() {
+        let t = line.trim();
+        if !t.starts_with('#') {
+            continue;
+        }
+        let rest = t.trim_start_matches('#').trim_start();
+        let Some(eq) = rest.find('=') else { continue };
+        let current_key = key.replacen("my-vpns-", "tunnel-yard-", 1);
+        if !rest[..eq].trim().eq_ignore_ascii_case(key)
+            && !rest[..eq].trim().eq_ignore_ascii_case(&current_key)
+        {
+            continue;
+        }
+        let v = rest[eq + 1..].trim().to_ascii_lowercase();
+        if matches!(v.as_str(), "1" | "true" | "yes" | "on") {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn profile_no_dtls(raw: &str) -> bool {
+    flag_comment(raw, "my-vpns-no-dtls")
+}
+
+pub fn profile_legacy_tunnel(raw: &str) -> bool {
+    flag_comment(raw, "my-vpns-legacy-tunnel")
+}
+
+pub fn conf_entries(raw: &str) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let text = line.trim();
+        if text.is_empty() || text.starts_with('#') || text.starts_with(';') {
+            continue;
+        }
+        match text.find('=') {
+            Some(eq) if eq >= 1 => {
+                out.push((
+                    text[..eq].trim().to_lowercase(),
+                    text[eq + 1..].trim().to_string(),
+                ));
+            }
+            _ => return Err("Invalid .conf line (expected key = value).".into()),
+        }
+    }
+    Ok(out)
 }
 
 pub fn slugify_profile_id(raw: &str) -> String {
@@ -484,42 +576,6 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
             }
         }
     };
-    if current_platform() != "linux" {
-        if let Err(err) = crate::native::secure_directory(dest.parent().unwrap_or(Path::new("."))) {
-            return ProfileWriteResult {
-                ok: false,
-                message: err,
-                profile: None,
-            };
-        }
-        let mut opts = fs::OpenOptions::new();
-        opts.write(true);
-        if overwrite {
-            opts.create(true).truncate(true);
-        } else {
-            opts.create_new(true);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
-        return match opts
-            .open(&dest)
-            .and_then(|mut f| f.write_all(content.as_bytes()))
-        {
-            Ok(()) => ProfileWriteResult {
-                ok: true,
-                message: format!("Saved {}", dest.display()),
-                profile: parse_vpn_conf_content(&content, &dest.to_string_lossy()),
-            },
-            Err(err) => ProfileWriteResult {
-                ok: false,
-                message: err.to_string(),
-                profile: None,
-            },
-        };
-    }
     let tmp = std::env::temp_dir().join(format!(
         "tunnel-yard-{id}-{}.conf",
         std::time::SystemTime::now()
@@ -599,20 +655,6 @@ pub fn delete_profile_file(id: &str) -> ProfileWriteResult {
             ok: false,
             message: "Profile file not found.".into(),
             profile: None,
-        };
-    }
-    if current_platform() != "linux" {
-        return match fs::remove_file(&dest) {
-            Ok(()) => ProfileWriteResult {
-                ok: true,
-                message: format!("Deleted {}", dest.display()),
-                profile: None,
-            },
-            Err(err) => ProfileWriteResult {
-                ok: false,
-                message: err.to_string(),
-                profile: None,
-            },
         };
     }
     let dest_str = dest.to_string_lossy().into_owned();

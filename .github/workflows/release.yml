@@ -20,18 +20,6 @@ jobs:
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             artifact: tunnel-yard-linux-arm64
-          - os: macos-15
-            target: aarch64-apple-darwin
-            artifact: tunnel-yard-macos-arm64
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            artifact: tunnel-yard-macos-x64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: tunnel-yard-windows-x64
-          - os: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            artifact: tunnel-yard-windows-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -51,11 +39,7 @@ jobs:
         run: |
           mkdir -p dist-release
           binary="target/${{ matrix.target }}/release/tunnel-yard"
-          if [ -f "${binary}.exe" ]; then
-            cp "${binary}.exe" "dist-release/${{ matrix.artifact }}.exe"
-          else
-            cp "$binary" "dist-release/${{ matrix.artifact }}"
-          fi
+          cp "$binary" "dist-release/${{ matrix.artifact }}"
       - uses: actions/upload-artifact@v6
         with:
           name: build-${{ matrix.artifact }}
@@ -108,90 +92,8 @@ jobs:
           if-no-files-found: error
           path: dist-release/*
 
-  package-macos:
-    needs: build
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-tunnel-yard-macos-arm64
-          path: slices/arm64
-      - uses: actions/download-artifact@v7
-        with:
-          name: build-tunnel-yard-macos-x64
-          path: slices/x64
-      - name: Create universal macOS binary
-        run: |
-          set -euo pipefail
-          mkdir -p dist-release
-          lipo -create \
-            slices/arm64/tunnel-yard-macos-arm64 \
-            slices/x64/tunnel-yard-macos-x64 \
-            -output dist-release/tunnel-yard-macos
-          lipo -info dist-release/tunnel-yard-macos
-          codesign --force --sign - dist-release/tunnel-yard-macos
-          codesign --verify --strict --verbose=2 dist-release/tunnel-yard-macos
-      - name: Build macOS application bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          app="dist-release/TunnelYard.app"
-          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-          cp dist-release/tunnel-yard-macos "$app/Contents/MacOS/tunnel-yard"
-          chmod 0755 "$app/Contents/MacOS/tunnel-yard"
-          mkdir -p icon.iconset
-          for size in 16 32 128 256 512; do
-            sips -z "$size" "$size" public/icon.png --out "icon.iconset/icon_${size}x${size}.png" >/dev/null
-            double=$((size * 2))
-            sips -z "$double" "$double" public/icon.png --out "icon.iconset/icon_${size}x${size}@2x.png" >/dev/null
-          done
-          iconutil -c icns icon.iconset -o "$app/Contents/Resources/TunnelYard.icns"
-          rm -rf icon.iconset
-          cat > "$app/Contents/Info.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDisplayName</key>
-            <string>TunnelYard</string>
-            <key>CFBundleExecutable</key>
-            <string>tunnel-yard</string>
-            <key>CFBundleIconFile</key>
-            <string>TunnelYard</string>
-            <key>CFBundleIdentifier</key>
-            <string>lucas.cavalheri.tunnelyard</string>
-            <key>CFBundleName</key>
-            <string>TunnelYard</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>$version</string>
-            <key>CFBundleVersion</key>
-            <string>${GITHUB_RUN_NUMBER}</string>
-            <key>LSMinimumSystemVersion</key>
-            <string>11.0</string>
-          </dict>
-          </plist>
-          EOF
-          codesign --force --deep --sign - "$app"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          mkdir -p dmg-root
-          cp -R "$app" dmg-root/
-          hdiutil create -volname "TunnelYard" -srcfolder dmg-root -ov -format UDZO \
-            dist-release/tunnel-yard-macos.dmg
-          hdiutil imageinfo dist-release/tunnel-yard-macos.dmg | grep -E 'Format:|Total Bytes:'
-      - uses: actions/upload-artifact@v6
-        with:
-          name: build-tunnel-yard-macos
-          if-no-files-found: error
-          path: |
-            dist-release/tunnel-yard-macos
-            dist-release/tunnel-yard-macos.dmg
-
   publish:
-    needs: [build, package-linux, package-macos]
+    needs: [build, package-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -199,9 +101,6 @@ jobs:
         with:
           merge-multiple: true
           path: dist-release
-      - name: Keep only the universal macOS artifact
-        run: |
-          rm -f dist-release/tunnel-yard-macos-arm64 dist-release/tunnel-yard-macos-x64
       - name: Create / update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -234,8 +133,7 @@ jobs:
               printf '%s\n' "$SECTION"
             else
               cat <<'EOF'
-          Native Rust desktop host. Linux/macOS use openfortivpn; Windows x64 uses OpenConnect 9.21 + Wintun. Windows ARM64 includes the native GUI and requires a native ARM64 VPN client.
-          Privileged helpers remain under `packaging/`.
+          Native Rust desktop host for Linux. FortiGate SSL VPN via openfortivpn and PolicyKit helpers under `packaging/`.
           EOF
             fi
           } > release-notes.md

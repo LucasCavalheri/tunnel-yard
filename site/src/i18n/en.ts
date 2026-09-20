@@ -10,7 +10,7 @@ export const en = {
   meta: {
     title: "TunnelYard — corporate VPN without the hassle",
     description:
-      "TunnelYard brings your FortiGate SSL VPN connections together in a simple, native, open source desktop app for Linux, macOS and Windows.",
+      "TunnelYard brings your FortiGate SSL VPN connections together in a simple, native, open source desktop app for Linux.",
     ogTitle: "TunnelYard — all your VPNs in one place",
     ogDescription:
       "Connect multiple tunnels, organize profiles and keep track of everything without touching the terminal.",
@@ -47,12 +47,10 @@ export const en = {
     lead:
       "Connect multiple FortiGate environments, organize your profiles and know exactly what is going on — without memorizing commands or hand-editing files.",
     ctaDownload: "Download v{version}",
-    ctaDownloadMac: "Download for macOS",
-    ctaDownloadWindows: "Download for Windows",
     ctaDownloadLinux: "Download for Linux",
     ctaHow: "See how it works",
     metaFree: "Free and open source",
-    metaPlatforms: "Linux, macOS and Windows",
+    metaPlatforms: "Linux, any distro",
     previewLabel: "Preview of the TunnelYard interface",
     trustedWith: "Works with",
     app: {
@@ -162,7 +160,7 @@ export const en = {
     stepOneTitle: "You request the connection",
     stepOneBody: "The interface prepares only the profile you picked.",
     stepTwoTitle: "The system authorizes",
-    stepTwoBody: "PolicyKit, the native macOS prompt, or UAC.",
+    stepTwoBody: "PolicyKit asks, then the helper runs isolated.",
     stepThreeTitle: "The tunnel runs isolated",
     stepThreeBody: "Each session has its own lifecycle.",
   },
@@ -202,22 +200,18 @@ export const en = {
     methodTwo:
       "We also measured a freshly-opened instance with no tunnels at {idle} MiB. We are deliberately not showing that next to the number above: it was a different process, with a different lifetime and a different graphical state, so the two are not a controlled comparison and the difference says nothing about what connecting costs.",
     methodThree:
-      "Summed RSS can count shared pages more than once. Excludes GPU, kernel, shells and desktop services. No credentials were read and existing connections were preserved. Do not extrapolate to macOS, Windows or release builds.",
+      "Summed RSS can count shared pages more than once. Excludes GPU, kernel, shells and desktop services. No credentials were read and existing connections were preserved. Do not extrapolate to other machines or release builds.",
   },
 
   downloads: {
     eyebrow: "Version {version}",
-    title: "Ready for your system.",
-    lead: "Pick your platform and get going. No account, subscription or proprietary license.",
+    title: "Ready for your Linux.",
+    lead: "Pick the package for your distro and get going. No account, subscription or proprietary license.",
     note:
-      "macOS may ask for confirmation the first time you open it. On Windows ARM64, the native OpenConnect + Wintun client must be installed separately.",
+      "Debian packages, RPM packages and a portable archive. Arch, Alpine, Gentoo, Void and Nix use the tarball.",
     noteLink: "See every file and instruction.",
     linuxName: "Linux",
-    linuxDescription: "Debian, Ubuntu, Fedora, RHEL and other distributions.",
-    macosName: "macOS",
-    macosDescription: "A single universal installer. Pick your Mac's chip: both use the same file.",
-    windowsName: "Windows",
-    windowsDescription: "Pick your PC's processor. AMD and Intel both use the x64 build.",
+    linuxDescription: "Debian, Ubuntu, Fedora, Arch, Alpine, openSUSE, Gentoo, Void and the rest of the family.",
     pickerProcessor: "Processor",
     pickerProcessorAndPackage: "Processor and package",
     pickerPlaceholder: "Select an option",
@@ -230,10 +224,6 @@ export const en = {
     choiceRpmArm: "ARM64 · Fedora / RHEL (.rpm)",
     choiceTarX64: "Intel / AMD · x64 · Portable (.tar.gz)",
     choiceTarArm: "ARM64 · Portable (.tar.gz)",
-    choiceMacSilicon: "Apple Silicon · M1 or later (.dmg)",
-    choiceMacIntel: "Intel (.dmg)",
-    choiceWinX64: "Intel / AMD · x64 (.exe)",
-    choiceWinArm: "ARM64 · Snapdragon (.exe)",
   },
 
   cta: {

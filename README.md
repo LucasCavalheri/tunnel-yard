@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>FortiGate SSL VPN, without a root terminal left open forever.</strong><br>
-  Native desktop app for Linux, macOS and Windows.
+  Native desktop app for Linux. Open source, the Linux way.
 </p>
 
 <p align="center">
@@ -22,11 +22,11 @@
 <p align="center">
   <a href="https://github.com/LucasCavalheri/tunnel-yard/releases/latest"><img src="https://img.shields.io/github/v/release/LucasCavalheri/tunnel-yard?label=release" alt="Latest release"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-teal.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg" alt="Linux, macOS, Windows">
+  <img src="https://img.shields.io/badge/platform-Linux-blue.svg" alt="Linux">
   <img src="https://img.shields.io/badge/built%20with-Rust-informational.svg" alt="Built with Rust">
 </p>
 
-Linux and macOS speak **openfortivpn**. Windows speaks **OpenConnect 9.21 + Wintun**, still using the same `.conf` files. Connect one tunnel or several, hide the window, get a notification when a link drops, and let the app bring it back.
+TunnelYard 3 is Linux-only. It speaks **openfortivpn**, stores profiles in `/etc/openfortivpn`, and asks PolicyKit when a tunnel actually needs privilege. Connect one tunnel or several, hide the window, get a notification when a link drops, and let the app bring it back.
 
 ---
 
@@ -37,7 +37,7 @@ Linux and macOS speak **openfortivpn**. Windows speaks **OpenConnect 9.21 + Wint
 | 🔌 **Several tunnels at once** | Each profile is its own session. Bring up work, lab and a client VPN together. |
 | 🎨 **Light, dark or system** | Appearance follows the OS or stays on the theme you pick. Persisted. |
 | ♻️ **Auto-reconnect** | On by default. An unexpected drop starts a new tunnel; a manual disconnect does not. |
-| 🔐 **Unprivileged UI** | The window never runs as root. PolicyKit, the macOS administrator prompt or UAC only appear when a tunnel actually needs them. |
+| 🔐 **Unprivileged UI** | The window never runs as root. PolicyKit only appears when a tunnel actually needs it. |
 | 🧺 **Tray, not a terminal** | Close the window. The tunnels stay up. Quit only when you mean it. |
 | 🌐 **pt-BR and English** | Full UI language switch, saved next to the theme. |
 | 📦 **In-app updates** | Check, download and install the matching package for this machine. |
@@ -50,46 +50,36 @@ The desk is native [GPUI Kit](https://gpui-kit.com/), with Hugeicons on the chro
 
 Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yard/releases/latest).
 
-| File | Platform |
+| File | Distro family |
 |------|----------|
-| `tunnel-yard-linux-x64` / `.tar.gz` | Linux x86_64 |
-| `tunnel-yard-linux-arm64` / `.tar.gz` | Linux ARM64 |
-| `tunnel-yard_2.9.0_amd64.deb` | Debian / Ubuntu x86_64 |
-| `tunnel-yard_2.9.0_arm64.deb` | Debian / Ubuntu ARM64 |
-| `tunnel-yard-2.9.0-1.x86_64.rpm` | Fedora / RHEL x86_64 |
-| `tunnel-yard-2.9.0-1.aarch64.rpm` | Fedora / RHEL ARM64 |
-| `tunnel-yard-macos` / `.dmg` | macOS universal (Intel + Apple Silicon) |
-| `tunnel-yard-windows-x64.exe` | Windows x64 |
-| `tunnel-yard-windows-arm64.exe` | Windows ARM64 (GUI) |
+| `tunnel-yard-linux-x64` / `.tar.gz` | Any Linux x86_64 |
+| `tunnel-yard-linux-arm64` / `.tar.gz` | Any Linux ARM64 |
+| `tunnel-yard_3.0.0_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard_3.0.0_arm64.deb` | Same, ARM64 |
+| `tunnel-yard-3.0.0-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.0-1.aarch64.rpm` | Same, ARM64 |
 
 ```bash
-# Linux portable
+# Portable (any distro)
 tar -xzf tunnel-yard-linux-x64.tar.gz
 chmod +x tunnel-yard-linux-x64
 ./tunnel-yard-linux-x64
 
-# Debian / Ubuntu
-sudo apt install ./tunnel-yard_2.9.0_amd64.deb
+# Debian / Ubuntu / Mint / Pop!_OS / Kali
+sudo apt install ./tunnel-yard_3.0.0_amd64.deb
 
-# Fedora / RHEL
-sudo dnf install ./tunnel-yard-2.9.0-1.x86_64.rpm
+# Fedora / RHEL / Rocky / Alma
+sudo dnf install ./tunnel-yard-3.0.0-1.x86_64.rpm
+
+# openSUSE
+sudo zypper install ./tunnel-yard-3.0.0-1.x86_64.rpm
 ```
 
-Packages install the desktop launcher, icons, PolicyKit action and VPN helpers. The standalone `.tar.gz` keeps the executable bit.
+`.deb` and `.rpm` install the desktop launcher, icons, PolicyKit action and VPN helpers. The `.tar.gz` is the same binary with the executable bit, for Arch, Alpine, Gentoo, Void, NixOS, Solus and everywhere else.
 
-On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows x64). Privileged helpers live in `packaging/`.
+On first launch the app can install `openfortivpn` through the distro's own package manager (apt, dnf, yum, zypper, pacman, apk, xbps, emerge, eopkg). Immutable images (Silverblue and friends) and Nix/Guix show the command instead of running it for you.
 
 Linux also writes `~/.local/share/applications/lucas.cavalheri.tunnelyard.desktop` so GNOME can match the Wayland app id to the branded dock icon. Packagers can copy [`packaging/tunnel-yard.desktop`](packaging/tunnel-yard.desktop).
-
-Unsigned Windows builds may trip SmartScreen. The macOS `.dmg` is ad-hoc signed, not notarized, so Gatekeeper may want a secondary confirmation from Finder.
-
-### 🍎 macOS
-
-Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` (or use **Install now** when Homebrew is already there). Connecting asks for administrator authorization. Profiles: `~/Library/Application Support/TunnelYard/profiles`.
-
-### 🪟 Windows
-
-On x64, **Install now** downloads the pinned OpenConnect 9.21 installer, checks SHA256, and requests UAC. Wintun is included; WSL and FortiClient are not required. The ARM64 GUI is published, but the pinned OpenConnect installer is x64-only — ARM64 needs a native OpenConnect + Wintun package before connecting. Profiles: `%APPDATA%\TunnelYard\profiles`.
 
 ### 🐧 Linux
 
@@ -108,7 +98,7 @@ cargo build --release
 | `openfortivpn` | Optional at install — the app can install it |
 | GPUI native libs | Only when compiling; see [`docs/gpui-kit.md`](docs/gpui-kit.md) |
 
-If `openfortivpn` is missing, TunnelYard reads `/etc/os-release`, picks `apt`, `dnf`/`yum`, `zypper` or `pacman`, and offers a one-click install via PolicyKit.
+If `openfortivpn` is missing, TunnelYard reads `/etc/os-release` and offers a one-click install via PolicyKit for apt, dnf, yum, zypper, pacman, apk, xbps, emerge and eopkg.
 
 ### 🔄 In-app updates
 
@@ -119,7 +109,7 @@ When a newer GitHub release exists, the banner and the tray item **Check for upd
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-git tag v2.9.0
+git tag v3.0.0
 git push origin master --follow-tags
 ```
 
@@ -209,7 +199,7 @@ cargo run
 tunnel-yard/
 ├── src/            # library + desktop binary
 ├── packaging/      # elevated helpers + PolicyKit
-├── tests/          # cargo tests + TLS fixtures
+├── tests/          # cargo tests + packaging fixtures
 ├── site/           # Astro landing page
 ├── assets/icons/   # Hugeicons shipped with the desk
 └── public/         # app mark (PNG / ICO / SVG)
@@ -232,7 +222,7 @@ cargo test
 ./target/debug/tunnel-yard --smoke
 ```
 
-Coverage includes conf round-trip, log markers, OpenConnect argv without passwords, certificate pins, reconnect policy, native status rejection, i18n parity, autostart builders, Windows bootstrap, tray model, and isolated Debian upgrade/repair.
+Coverage includes conf round-trip, distro family detection (apt, dnf, zypper, pacman, apk, xbps, emerge, eopkg, Nix, ostree), reconnect policy, i18n parity, autostart, tray model, file pickers, and isolated Debian upgrade/repair.
 
 ---
 
@@ -254,7 +244,7 @@ If you find a security issue, report it privately when you can — don't open a 
 
 [MIT](./LICENSE).
 
-Built on [openfortivpn](https://github.com/adrienverge/openfortivpn) and, on Windows, OpenConnect + Wintun.
+Built on [openfortivpn](https://github.com/adrienverge/openfortivpn). Linux only.
 
 <p align="center">
   <strong>For people who just want the tunnel up. 🛡️</strong><br>

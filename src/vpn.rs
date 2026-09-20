@@ -1,8 +1,7 @@
 //! Multi-session VPN manager, log markers, and reconnect policy.
 
 use crate::conf::parse_vpn_conf_content;
-use crate::native::{prevents_reconnect, NativeEvent, NativeVpnSession};
-use crate::platform::{current_platform, linux_helpers};
+use crate::platform::linux_helpers;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -186,8 +185,29 @@ pub fn reconnect_delay_ms(
     })
 }
 
-/// Native (Windows/macOS) close → reconnect:
-/// skip user disconnect, UAC/pkexec cancel (126), and `can_reconnect == false`.
+pub fn prevents_reconnect(line: &str, pinned: bool) -> bool {
+    let lower = line.to_lowercase();
+    if pinned && lower.trim() == "server certificate verify failed: signer not found" {
+        return false;
+    }
+    let needles = [
+        "invalid credentials",
+        "authentication failed",
+        "could not authenticate",
+        "user input required",
+        "cookie was rejected",
+        "cookie is no longer valid",
+        "reconnect-after-drop is not allowed",
+        "certificate does not match",
+    ];
+    if needles.iter().any(|n| lower.contains(n)) {
+        return true;
+    }
+    lower.contains("certificate") && (lower.contains("failed") || lower.contains("mismatch"))
+}
+
+/// Close → reconnect: skip user disconnect, elevation cancel (126), and
+/// `can_reconnect == false`.
 pub fn should_native_reconnect(
     intentional_stop: bool,
     exit_code: i32,
@@ -450,12 +470,7 @@ impl VpnManager {
         ));
         self.emit_log(&format!("→ Config: {}", profile.path));
 
-        let platform = current_platform();
-        if platform == "macos" || platform == "windows" {
-            self.connect_native(profile, helper_stop, intentional_stop);
-        } else {
-            self.connect_linux(profile, intentional_stop);
-        }
+        self.connect_linux(profile, intentional_stop);
     }
 
     fn connect_linux(&self, profile: VpnProfile, stop: Arc<AtomicBool>) {
@@ -571,164 +586,6 @@ impl VpnManager {
         });
     }
 
-    fn connect_native(
-        &self,
-        profile: VpnProfile,
-        helper_stop: Arc<AtomicBool>,
-        intentional_stop: Arc<AtomicBool>,
-    ) {
-        let (tx, rx) = mpsc::channel();
-        let id = profile.id.clone();
-        match NativeVpnSession::start(Path::new(&profile.path), tx, helper_stop.clone()) {
-            Ok(native) => {
-                self.inner.lock().unwrap().live.get_mut(&id).map(|l| {
-                    l.persistent = native.persistent;
-                    l.can_reconnect = native.can_reconnect.clone();
-                });
-            }
-            Err(err) => {
-                self.emit_log(&format!("ERROR: {err}"));
-                if let Some(live) = self.inner.lock().unwrap().live.get_mut(&id) {
-                    live.status = VpnStatus::Error;
-                    live.message = err;
-                }
-                self.emit_state();
-                return;
-            }
-        }
-        let inner = self.inner.clone();
-        let events = self.events.clone();
-        thread::spawn(move || {
-            while let Ok(ev) = rx.recv() {
-                match ev {
-                    NativeEvent::Line(line) => {
-                        let _ = events
-                            .send(VpnEvent::Log(format!("[{}] [{id}] {line}", chrono_stamp())));
-                        let platform = current_platform();
-                        if (platform != "windows" && line.contains("TUNNELYARD_TUNNEL_UP"))
-                            || interpret_vpn_log_line(&line) == Some("error")
-                        {
-                            interpret_into(&inner, &id, &line);
-                            emit_state_from(&inner, &events);
-                        }
-                    }
-                    NativeEvent::Status { phase, message } => {
-                        if intentional_stop.load(Ordering::SeqCst) {
-                            continue;
-                        }
-                        if let Ok(mut g) = inner.lock() {
-                            if let Some(live) = g.live.get_mut(&id) {
-                                live.status = phase;
-                                live.message = if message.is_empty() {
-                                    if phase == VpnStatus::Connected {
-                                        "Túnel e rede validados".into()
-                                    } else {
-                                        "Túnel desconectado".into()
-                                    }
-                                } else {
-                                    message
-                                };
-                                live.connected_at = if phase == VpnStatus::Connected {
-                                    Some(now_ms())
-                                } else {
-                                    None
-                                };
-                            }
-                        }
-                        emit_state_from(&inner, &events);
-                    }
-                    NativeEvent::Close(code) => {
-                        let (user_intentional, helper_stopping, can_reconnect, persistent, auto) = {
-                            let g = inner.lock().unwrap();
-                            let auto = g.auto_reconnect;
-                            if let Some(live) = g.live.get(&id) {
-                                (
-                                    live.intentional_stop.load(Ordering::SeqCst),
-                                    live.helper_stop.load(Ordering::SeqCst),
-                                    live.can_reconnect.load(Ordering::SeqCst),
-                                    live.persistent,
-                                    auto,
-                                )
-                            } else {
-                                (true, true, false, 0, auto)
-                            }
-                        };
-                        let decision = native_close_decision(
-                            user_intentional,
-                            helper_stopping,
-                            code,
-                            can_reconnect,
-                            auto,
-                            persistent,
-                        );
-                        match decision {
-                            NativeCloseDecision::DropSession => {
-                                inner.lock().unwrap().live.remove(&id);
-                                emit_state_from(&inner, &events);
-                            }
-                            NativeCloseDecision::KeepSession { reconnect_after_ms } => {
-                                if let Ok(mut g) = inner.lock() {
-                                    if let Some(live) = g.live.get_mut(&id) {
-                                        let previous_error = if matches!(
-                                            live.status,
-                                            VpnStatus::Error | VpnStatus::Disconnected
-                                        ) {
-                                            Some(live.message.clone())
-                                        } else {
-                                            None
-                                        };
-                                        live.status = if live.status == VpnStatus::Connecting
-                                            || live.status == VpnStatus::Error
-                                        {
-                                            VpnStatus::Error
-                                        } else {
-                                            VpnStatus::Disconnected
-                                        };
-                                        live.connected_at = None;
-                                        live.message = previous_error.unwrap_or_else(|| {
-                                            if code == 126 {
-                                                "Autenticação cancelada".into()
-                                            } else {
-                                                format!("Conexão encerrada (código {code})")
-                                            }
-                                        });
-                                    }
-                                }
-                                emit_state_from(&inner, &events);
-                                if let Some(delay) = reconnect_after_ms {
-                                    let _ = events.send(VpnEvent::Log(format!(
-                                        "[{}] ↻ [{id}] Reconexão automática em {}s…",
-                                        chrono_stamp(),
-                                        delay / 1000
-                                    )));
-                                    let inner = inner.clone();
-                                    let events = events.clone();
-                                    let id = id.clone();
-                                    thread::spawn(move || {
-                                        thread::sleep(Duration::from_millis(delay));
-                                        let still = inner
-                                            .lock()
-                                            .ok()
-                                            .and_then(|g| {
-                                                g.live.get(&id).map(|l| {
-                                                    !l.intentional_stop.load(Ordering::SeqCst)
-                                                })
-                                            })
-                                            .unwrap_or(false);
-                                        if still {
-                                            let _ = events.send(VpnEvent::NeedReconnect(id));
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
     pub fn disconnect(&self, profile_id: Option<&str>) {
         let ids: Vec<String> = if let Some(id) = profile_id {
             vec![id.to_string()]
@@ -757,17 +614,15 @@ impl VpnManager {
         }
         self.emit_log(&format!("→ [{profile_id}] Solicitando desconexão…"));
         self.emit_state();
-        if current_platform() == "linux" {
-            stop_vpn(&path);
-            if let Some(pid) = pid {
-                let _ = Command::new("kill")
-                    .args(["-INT", &pid.to_string()])
-                    .status();
-                thread::sleep(Duration::from_millis(2500));
-                let _ = Command::new("kill")
-                    .args(["-KILL", &pid.to_string()])
-                    .status();
-            }
+        stop_vpn(&path);
+        if let Some(pid) = pid {
+            let _ = Command::new("kill")
+                .args(["-INT", &pid.to_string()])
+                .status();
+            thread::sleep(Duration::from_millis(2500));
+            let _ = Command::new("kill")
+                .args(["-KILL", &pid.to_string()])
+                .status();
         }
         self.inner.lock().unwrap().live.remove(profile_id);
         self.emit_log(&format!("← [{profile_id}] Desconectado"));

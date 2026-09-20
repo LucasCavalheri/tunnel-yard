@@ -2,6 +2,9 @@
 //! unprivileged GUI around these units; privileged VPN work stays in
 //! `packaging/` helpers.
 
+#[cfg(not(target_os = "linux"))]
+compile_error!("TunnelYard supports Linux only.");
+
 pub mod app_icon;
 pub mod arch;
 pub mod autostart;
@@ -10,9 +13,6 @@ pub mod deps;
 pub mod desktop;
 pub mod i18n;
 pub mod icons;
-pub mod install_native;
-pub mod native;
-pub mod openconnect;
 pub mod os_ui;
 pub mod platform;
 pub mod settings;
@@ -34,8 +34,8 @@ pub use i18n::{catalog_keys, list_locales, translate, AppLocale, MessageKey};
 pub use platform::{binary_candidates, config_directory, engine_for_platform, VpnEngine};
 pub use vpn::{
     interpret_vpn_log_line, linux_exit_reconnect, list_vpn_profiles, native_close_decision,
-    reconnect_delay_ms, reconnect_gate, should_native_reconnect, summarize_vpn_state,
-    NativeCloseDecision, VpnManager, VpnSession, VpnState, VpnStatus,
+    prevents_reconnect, reconnect_delay_ms, reconnect_gate, should_native_reconnect,
+    summarize_vpn_state, NativeCloseDecision, VpnManager, VpnSession, VpnState, VpnStatus,
 };
 
 pub const APP_NAME: &str = "TunnelYard";

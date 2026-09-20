@@ -4,7 +4,7 @@
 use std::sync::mpsc::TryRecvError;
 use std::time::Instant;
 use tunnel_yard::conf::parse_vpn_conf_content;
-use tunnel_yard::native::prevents_reconnect;
+use tunnel_yard::prevents_reconnect;
 use tunnel_yard::settings::{
     apply_settings_patch, encode_settings_json, load_settings_from, parse_settings_json,
     save_settings_to, AppSettings, AppSettingsPatch,

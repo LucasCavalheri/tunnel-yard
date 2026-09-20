@@ -1,4 +1,4 @@
-//! Platform profile directories, VPN engine choice, and helper lookup.
+//! Linux profile directory, openfortivpn lookup, and PolicyKit helpers.
 
 use std::env;
 use std::fs;
@@ -8,136 +8,51 @@ pub type VpnEngine = &'static str;
 
 pub fn normalize_platform(platform: &str) -> &str {
     match platform {
-        "win32" | "windows" => "windows",
-        "darwin" | "macos" => "macos",
-        _ => "linux",
+        "linux" | "gnu/linux" => "linux",
+        other => other,
     }
 }
 
 pub fn current_platform() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "windows"
-    } else if cfg!(target_os = "macos") {
-        "macos"
-    } else {
-        "linux"
-    }
+    "linux"
 }
 
-/// Node-style `process.platform` (`linux` / `darwin` / `win32`) for smoke JSON.
+/// Node-style `process.platform` for smoke JSON.
 pub fn node_platform() -> &'static str {
-    match current_platform() {
-        "windows" => "win32",
-        "macos" => "darwin",
-        _ => "linux",
-    }
+    "linux"
 }
 
 pub fn engine_for_platform(platform: &str) -> VpnEngine {
-    if normalize_platform(platform) == "windows" {
-        "openconnect"
-    } else {
-        "openfortivpn"
-    }
+    let _ = platform;
+    "openfortivpn"
 }
 
-pub fn config_directory(platform: &str, home: Option<&str>) -> Result<String, String> {
-    let home = home.map(str::to_string).or_else(|| {
-        env::var("HOME")
-            .ok()
-            .or_else(|| dirs::home_dir().map(|p| p.to_string_lossy().into_owned()))
-    });
+pub fn config_directory(platform: &str, _home: Option<&str>) -> Result<String, String> {
     match normalize_platform(platform) {
         "linux" => Ok("/etc/openfortivpn".into()),
-        "macos" => {
-            let home = home.ok_or_else(|| "Unsupported platform: macos (no home)".to_string())?;
-            Ok(user_profile_dir(
-                format!("{home}/Library/Application Support/TunnelYard/profiles"),
-                format!("{home}/Library/Application Support/My VPNs/profiles"),
-            ))
-        }
-        "windows" => {
-            let appdata = env::var("APPDATA")
-                .ok()
-                .or_else(|| home.as_ref().map(|h| format!("{h}/AppData/Roaming")));
-            let appdata =
-                appdata.ok_or_else(|| "Unsupported platform: windows (no APPDATA)".to_string())?;
-            Ok(user_profile_dir(
-                format!("{appdata}/TunnelYard/profiles"),
-                format!("{appdata}/My VPNs/profiles"),
-            ))
-        }
         other => Err(format!("Unsupported platform: {other}")),
     }
 }
 
 pub fn config_directory_current() -> String {
-    config_directory(current_platform(), None).expect("supported platform")
+    "/etc/openfortivpn".into()
 }
 
-fn user_profile_dir(preferred: String, legacy: String) -> String {
-    let preferred_path = PathBuf::from(&preferred);
-    let legacy_path = PathBuf::from(&legacy);
-    if preferred_path.exists() {
-        return preferred;
+pub fn binary_candidates(engine: &str, _platform: &str) -> Vec<String> {
+    let mut dirs = vec![
+        "/usr/bin".into(),
+        "/usr/sbin".into(),
+        "/usr/local/bin".into(),
+        "/usr/local/sbin".into(),
+        "/bin".into(),
+        "/sbin".into(),
+        "/opt/bin".into(),
+    ];
+    if let Ok(home) = env::var("HOME") {
+        dirs.push(format!("{home}/.local/bin"));
     }
-    if legacy_path.exists() {
-        if copy_dir_files(&legacy_path, &preferred_path) {
-            return preferred;
-        }
-        return legacy;
-    }
-    preferred
-}
-
-fn copy_dir_files(from: &Path, to: &Path) -> bool {
-    if fs::create_dir_all(to).is_err() {
-        return false;
-    }
-    let Ok(entries) = fs::read_dir(from) else {
-        return false;
-    };
-    let mut ok = true;
-    for entry in entries.flatten() {
-        let dest = to.join(entry.file_name());
-        if entry.path().is_file() && fs::copy(entry.path(), dest).is_err() {
-            ok = false;
-        }
-    }
-    ok
-}
-
-pub fn binary_candidates(engine: &str, platform: &str) -> Vec<String> {
-    let name = if normalize_platform(platform) == "windows" {
-        format!("{engine}.exe")
-    } else {
-        engine.to_string()
-    };
-    let mut dirs: Vec<String> = if normalize_platform(platform) == "windows" {
-        ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"]
-            .iter()
-            .filter_map(|k| env::var(k).ok())
-            .map(|p| format!("{p}/OpenConnect"))
-            .collect()
-    } else {
-        [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/usr/sbin",
-            "/bin",
-        ]
-        .iter()
-        .map(|s| (*s).to_string())
-        .collect()
-    };
-    let sep = if normalize_platform(platform) == "windows" {
-        ';'
-    } else {
-        ':'
-    };
     if let Ok(path) = env::var("PATH") {
-        for part in path.split(sep) {
+        for part in path.split(':') {
             if !part.is_empty() {
                 dirs.push(part.to_string());
             }
@@ -145,7 +60,7 @@ pub fn binary_candidates(engine: &str, platform: &str) -> Vec<String> {
     }
     let mut out = Vec::new();
     for dir in dirs {
-        let candidate = format!("{dir}/{name}");
+        let candidate = format!("{dir}/{engine}");
         if !out.contains(&candidate) {
             out.push(candidate);
         }
@@ -154,8 +69,8 @@ pub fn binary_candidates(engine: &str, platform: &str) -> Vec<String> {
 }
 
 pub fn find_vpn_binary(engine: Option<&str>) -> Option<String> {
-    let engine = engine.unwrap_or_else(|| engine_for_platform(current_platform()));
-    binary_candidates(engine, current_platform())
+    let engine = engine.unwrap_or("openfortivpn");
+    binary_candidates(engine, "linux")
         .into_iter()
         .find(|candidate| {
             let p = Path::new(candidate);
@@ -163,17 +78,11 @@ pub fn find_vpn_binary(engine: Option<&str>) -> Option<String> {
         })
 }
 
-#[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     fs::metadata(path)
         .map(|m| m.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
-}
-
-#[cfg(not(unix))]
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
 }
 
 pub fn helper_path(name: &str) -> Result<PathBuf, String> {

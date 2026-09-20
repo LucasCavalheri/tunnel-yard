@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.0.0
+
+TunnelYard 3 is a Linux desktop for FortiGate SSL VPN. The desk, packaging,
+website and CI follow the Linux way: openfortivpn, PolicyKit,
+`/etc/openfortivpn`, and the distro's own package manager.
+
+### Runtime
+
+- Profiles, autostart, notifications, file picking and in-app updates use the
+  Linux desktop.
+- Connecting goes through PolicyKit helpers and openfortivpn.
+
+### Distro coverage
+
+- Auto-install of `openfortivpn` covers apt, dnf, yum, zypper, pacman, apk,
+  xbps, emerge and eopkg.
+- Immutable ostree images, NixOS, Guix and Slackware show the native command
+  instead of a host-mutating pkexec.
+- Releases ship `.deb`, `.rpm` and a portable `.tar.gz`.
+
+### Website and docs
+
+- Downloads and notes cover Linux distros.
+
 ## 2.9.0
 
 TunnelYard 2.9.0 is a product release: the desk finally has a real appearance

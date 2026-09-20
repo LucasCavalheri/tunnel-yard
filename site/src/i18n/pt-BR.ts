@@ -10,7 +10,7 @@ export const ptBR: Dictionary = {
   meta: {
     title: "TunnelYard — VPN corporativa sem complicação",
     description:
-      "TunnelYard reúne suas conexões FortiGate SSL VPN em um app desktop simples, nativo e open source para Linux, macOS e Windows.",
+      "TunnelYard reúne suas conexões FortiGate SSL VPN em um app desktop simples, nativo e open source para Linux.",
     ogTitle: "TunnelYard — todas as suas VPNs em um só lugar",
     ogDescription:
       "Conecte múltiplos túneis, organize perfis e acompanhe tudo sem depender do terminal.",
@@ -47,12 +47,10 @@ export const ptBR: Dictionary = {
     lead:
       "Conecte múltiplos ambientes FortiGate, organize seus perfis e saiba exatamente o que está acontecendo — sem decorar comandos ou editar arquivos na mão.",
     ctaDownload: "Baixar v{version}",
-    ctaDownloadMac: "Baixar para macOS",
-    ctaDownloadWindows: "Baixar para Windows",
     ctaDownloadLinux: "Baixar para Linux",
     ctaHow: "Ver como funciona",
     metaFree: "Gratuito e open source",
-    metaPlatforms: "Linux, macOS e Windows",
+    metaPlatforms: "Linux, qualquer distro",
     previewLabel: "Prévia da interface do TunnelYard",
     trustedWith: "Compatível com",
     app: {
@@ -162,7 +160,7 @@ export const ptBR: Dictionary = {
     stepOneTitle: "Você pede a conexão",
     stepOneBody: "A interface prepara somente o perfil escolhido.",
     stepTwoTitle: "O sistema autoriza",
-    stepTwoBody: "PolicyKit, prompt nativo do macOS ou UAC.",
+    stepTwoBody: "O PolicyKit pede autorização e o helper roda isolado.",
     stepThreeTitle: "O túnel roda isolado",
     stepThreeBody: "Cada sessão possui seu próprio ciclo de vida.",
   },
@@ -202,22 +200,18 @@ export const ptBR: Dictionary = {
     methodTwo:
       "Também medimos uma instância recém-aberta, sem túneis, em {idle} MiB. Não mostramos esse número ao lado do de cima de propósito: era outro processo, com outro tempo de vida e outro estado gráfico, então os dois não formam uma comparação controlada e a diferença não diz nada sobre o custo de conectar.",
     methodThree:
-      "A soma de RSS pode contar páginas compartilhadas mais de uma vez. Exclui GPU, kernel, shells e serviços do desktop. Nenhuma credencial foi lida e as conexões existentes foram preservadas. Não extrapole para macOS, Windows ou builds release.",
+      "A soma de RSS pode contar páginas compartilhadas mais de uma vez. Exclui GPU, kernel, shells e serviços do desktop. Nenhuma credencial foi lida e as conexões existentes foram preservadas. Não extrapole para outras máquinas ou builds release.",
   },
 
   downloads: {
     eyebrow: "Versão {version}",
-    title: "Pronto para o seu sistema.",
-    lead: "Escolha a plataforma e comece. Sem conta, assinatura ou licença proprietária.",
+    title: "Pronto para o seu Linux.",
+    lead: "Escolha o pacote da sua distro e comece. Sem conta, assinatura ou licença proprietária.",
     note:
-      "O macOS pode pedir uma confirmação na primeira abertura. No Windows ARM64, o cliente OpenConnect + Wintun nativo deve ser instalado separadamente.",
+      "Pacotes Debian, RPM e um arquivo portátil. Arch, Alpine, Gentoo, Void e Nix usam o tarball.",
     noteLink: "Ver todos os arquivos e instruções.",
     linuxName: "Linux",
-    linuxDescription: "Debian, Ubuntu, Fedora, RHEL e outras distribuições.",
-    macosName: "macOS",
-    macosDescription: "Um único instalador universal. Escolha o chip do seu Mac: ambos usam o mesmo arquivo.",
-    windowsName: "Windows",
-    windowsDescription: "Escolha o processador do seu PC. AMD e Intel usam a versão x64.",
+    linuxDescription: "Debian, Ubuntu, Fedora, Arch, Alpine, openSUSE, Gentoo, Void e o resto da família.",
     pickerProcessor: "Processador",
     pickerProcessorAndPackage: "Processador e pacote",
     pickerPlaceholder: "Selecione uma opção",
@@ -230,10 +224,6 @@ export const ptBR: Dictionary = {
     choiceRpmArm: "ARM64 · Fedora / RHEL (.rpm)",
     choiceTarX64: "Intel / AMD · x64 · Portátil (.tar.gz)",
     choiceTarArm: "ARM64 · Portátil (.tar.gz)",
-    choiceMacSilicon: "Apple Silicon · M1 ou posterior (.dmg)",
-    choiceMacIntel: "Intel (.dmg)",
-    choiceWinX64: "Intel / AMD · x64 (.exe)",
-    choiceWinArm: "ARM64 · Snapdragon (.exe)",
   },
 
   cta: {

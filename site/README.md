@@ -64,16 +64,15 @@ O build consulta a última release estável do GitHub e usa os URLs dos assets
 publicados. Uma opção ausente ou falha na consulta interrompe o build para evitar
 publicar links inventados. Execute um novo deploy após publicar uma release —
 uma tag sozinha não basta, o site só vê a versão depois que o job `publish`
-termina. Linux oferece x64/ARM64 em DEB, RPM e tar.gz; Windows oferece
-x64/ARM64; Intel e Apple Silicon usam o mesmo DMG universal. Os botões da
-página levam ao seletor; o botão de cada plataforma baixa o arquivo escolhido
+termina. O seletor oferece x64/ARM64 em DEB, RPM e tar.gz. Os botões da
+página levam ao seletor; o botão de cada opção baixa o arquivo escolhido
 diretamente.
 
 ## Memória
 
 `src/data/memory.json` contém 60 amostras reais por cenário e as condições da
 coleta. São observações do build debug 2.6.0, não um benchmark controlado.
-Não extrapolar para macOS, Windows ou builds release.
+Não extrapolar para outras máquinas ou builds release.
 
 A seção do site mostra três coisas e só: o total com dois túneis conectados
 (115,4 MiB), a divisão entre interface e motores VPN (75/25) e a variação ao

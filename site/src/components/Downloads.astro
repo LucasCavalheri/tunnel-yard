@@ -26,28 +26,6 @@ const platforms = [
       [t.downloads.choiceTarArm, "-linux-arm64.tar.gz"],
     ],
   },
-  {
-    id: "macos",
-    name: t.downloads.macosName,
-    icon: "apple",
-    description: t.downloads.macosDescription,
-    pickerLabel: t.downloads.pickerProcessor,
-    choices: [
-      [t.downloads.choiceMacSilicon, "-macos.dmg"],
-      [t.downloads.choiceMacIntel, "-macos.dmg"],
-    ],
-  },
-  {
-    id: "windows",
-    name: t.downloads.windowsName,
-    icon: "windows",
-    description: t.downloads.windowsDescription,
-    pickerLabel: t.downloads.pickerProcessor,
-    choices: [
-      [t.downloads.choiceWinX64, "-windows-x64.exe"],
-      [t.downloads.choiceWinArm, "-windows-arm64.exe"],
-    ],
-  },
 ];
 
 const assetFor = (suffix: string) => {

@@ -168,8 +168,6 @@ const canonical = absolute(localePath(locale));
                 class="button button-primary button-large"
                 href="#downloads"
                 data-primary-download
-                data-label-mac={t.hero.ctaDownloadMac}
-                data-label-windows={t.hero.ctaDownloadWindows}
                 data-label-linux={t.hero.ctaDownloadLinux}
               >
                 <Download size={19} aria-hidden="true" />
@@ -317,8 +315,6 @@ const canonical = absolute(localePath(locale));
           <span>{t.hero.trustedWith}</span>
           <div class="trusted-platforms">
             <span><BrandIcon name="simple-icons:linux" size={17} /> Linux</span>
-            <span><BrandIcon name="simple-icons:apple" size={17} /> macOS</span>
-            <span><BrandIcon name="simple-icons:windows" size={17} /> Windows</span>
             <span class="trusted-divider"></span>
             <span>FortiGate SSL VPN</span>
           </div>
@@ -636,19 +632,10 @@ const canonical = absolute(localePath(locale));
 
         const download = document.querySelector<HTMLAnchorElement>("[data-primary-download]");
         const downloadLabel = document.querySelector<HTMLElement>("[data-download-label]");
-        const userAgent = navigator.userAgent.toLowerCase();
 
         if (download && downloadLabel) {
-          if (userAgent.includes("mac")) {
-            download.href = "#download-macos";
-            downloadLabel.textContent = download.dataset.labelMac!;
-          } else if (userAgent.includes("win")) {
-            download.href = "#download-windows";
-            downloadLabel.textContent = download.dataset.labelWindows!;
-          } else if (userAgent.includes("linux")) {
-            download.href = "#download-linux";
-            downloadLabel.textContent = download.dataset.labelLinux!;
-          }
+          download.href = "#download-linux";
+          downloadLabel.textContent = download.dataset.labelLinux!;
         }
 
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

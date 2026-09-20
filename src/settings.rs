@@ -1,7 +1,6 @@
 //! Persisted locale, theme, and dismissed-update version.
 
 use crate::i18n::detect_locale;
-use crate::platform::current_platform;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -45,41 +44,23 @@ pub fn normalize_theme(value: &str) -> &'static str {
 }
 
 pub fn settings_path() -> PathBuf {
-    match current_platform() {
-        "macos" => dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Library/Application Support/TunnelYard/settings.json"),
-        "windows" => dirs::data_dir()
-            .or_else(dirs::config_dir)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("TunnelYard/settings.json"),
-        _ => dirs::config_dir()
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".config")
-            })
-            .join("tunnel-yard/settings.json"),
-    }
+    dirs::config_dir()
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".config")
+        })
+        .join("tunnel-yard/settings.json")
 }
 
 fn legacy_settings_path() -> PathBuf {
-    match current_platform() {
-        "macos" => dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Library/Application Support/My VPNs/settings.json"),
-        "windows" => dirs::data_dir()
-            .or_else(dirs::config_dir)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("My VPNs/settings.json"),
-        _ => dirs::config_dir()
-            .unwrap_or_else(|| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".config")
-            })
-            .join("my-vpns/settings.json"),
-    }
+    dirs::config_dir()
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".config")
+        })
+        .join("my-vpns/settings.json")
 }
 
 pub fn parse_settings_json(raw: &str) -> AppSettings {

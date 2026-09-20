@@ -1,7 +1,5 @@
 //! Distro detection, install plan, and VPN client dependency status.
 
-use crate::arch::{current_arch, native_windows_client_supported};
-use crate::install_native::{find_brew, install_native_client};
 use crate::platform::{
     config_directory_current, current_platform, engine_for_platform, find_vpn_binary, node_platform,
 };
@@ -76,6 +74,23 @@ pub fn detect_package_family(id: &str, like: &[String], exists: impl Fn(&str) ->
         .map(|t| t.to_lowercase())
         .collect();
     let has = |names: &[&str]| tokens.iter().any(|t| names.contains(&t.as_str()));
+    let rpm_like = has(&[
+        "fedora",
+        "rhel",
+        "centos",
+        "rocky",
+        "almalinux",
+        "ol",
+        "nobara",
+        "silverblue",
+        "kinoite",
+        "bazzite",
+        "bluefin",
+    ]);
+    // Immutable ostree images: dnf is present but layered installs need rpm-ostree.
+    if rpm_like && exists("/run/ostree-booted") {
+        return "rpm-ostree".into();
+    }
     if has(&[
         "debian",
         "ubuntu",
@@ -84,6 +99,22 @@ pub fn detect_package_family(id: &str, like: &[String], exists: impl Fn(&str) ->
         "elementary",
         "raspbian",
         "zorin",
+        "kali",
+        "neon",
+        "devuan",
+        "trisquel",
+        "pureos",
+        "mx",
+        "antix",
+        "parrot",
+        "peppermint",
+        "deepin",
+        "uos",
+        "kylin",
+        "linuxlite",
+        "bodhi",
+        "lmde",
+        "tails",
     ]) {
         return "apt".into();
     }
@@ -95,6 +126,16 @@ pub fn detect_package_family(id: &str, like: &[String], exists: impl Fn(&str) ->
         "almalinux",
         "ol",
         "nobara",
+        "ultramarine",
+        "amzn",
+        "amazon",
+        "mageia",
+        "openmandriva",
+        "pclinuxos",
+        "altlinux",
+        "rosa",
+        "openeuler",
+        "opencloudos",
     ]) {
         if exists("/usr/bin/dnf") || exists("/usr/bin/dnf5") {
             return "dnf".into();
@@ -106,12 +147,55 @@ pub fn detect_package_family(id: &str, like: &[String], exists: impl Fn(&str) ->
     }
     if tokens
         .iter()
-        .any(|t| t.contains("suse") || t == "opensuse" || t == "sles")
+        .any(|t| t.contains("suse") || t == "opensuse" || t == "sles" || t == "sled")
     {
         return "zypper".into();
     }
-    if has(&["arch", "manjaro", "endeavouros", "garuda", "artix"]) {
+    if has(&[
+        "arch",
+        "manjaro",
+        "endeavouros",
+        "garuda",
+        "artix",
+        "cachyos",
+        "archcraft",
+        "arcolinux",
+        "athena",
+    ]) {
         return "pacman".into();
+    }
+    if has(&["alpine", "postmarketos", "chimera"]) {
+        return "apk".into();
+    }
+    if has(&["void"]) {
+        return "xbps".into();
+    }
+    if has(&["gentoo", "funtoo", "calculate", "sabayon"]) {
+        return "emerge".into();
+    }
+    if has(&["solus"]) {
+        return "eopkg".into();
+    }
+    if has(&["nixos"]) {
+        return "nix".into();
+    }
+    if has(&["guix", "guixsd"]) {
+        return "guix".into();
+    }
+    if has(&["slackware"]) {
+        return "slackpkg".into();
+    }
+    if exists("/sbin/apk") || exists("/usr/bin/apk") {
+        return "apk".into();
+    }
+    if exists("/usr/bin/xbps-install") {
+        return "xbps".into();
+    }
+    if exists("/usr/bin/emerge") {
+        return "emerge".into();
+    }
+    if exists("/usr/bin/eopkg") {
+        return "eopkg".into();
     }
     if exists("/usr/bin/apt-get") {
         return "apt".into();
@@ -128,7 +212,6 @@ pub fn detect_package_family(id: &str, like: &[String], exists: impl Fn(&str) ->
     if exists("/usr/bin/pacman") {
         return "pacman".into();
     }
-    let _ = tokens;
     "unknown".into()
 }
 
@@ -186,6 +269,59 @@ pub fn build_install_plan(family: &str) -> InstallPlan {
                 "openfortivpn".into(),
             ]),
         },
+        "apk" => InstallPlan {
+            can_auto_install: true,
+            install_command: Some("apk add openfortivpn".into()),
+            pkexec_args: Some(vec!["apk".into(), "add".into(), "openfortivpn".into()]),
+        },
+        "xbps" => InstallPlan {
+            can_auto_install: true,
+            install_command: Some("xbps-install -y openfortivpn".into()),
+            pkexec_args: Some(vec![
+                "xbps-install".into(),
+                "-y".into(),
+                "openfortivpn".into(),
+            ]),
+        },
+        "emerge" => InstallPlan {
+            can_auto_install: true,
+            install_command: Some("emerge --ask=n net-vpn/openfortivpn".into()),
+            pkexec_args: Some(vec![
+                "emerge".into(),
+                "--ask=n".into(),
+                "net-vpn/openfortivpn".into(),
+            ]),
+        },
+        "eopkg" => InstallPlan {
+            can_auto_install: true,
+            install_command: Some("eopkg install -y openfortivpn".into()),
+            pkexec_args: Some(vec![
+                "eopkg".into(),
+                "install".into(),
+                "-y".into(),
+                "openfortivpn".into(),
+            ]),
+        },
+        "rpm-ostree" => InstallPlan {
+            can_auto_install: false,
+            install_command: Some("rpm-ostree install openfortivpn".into()),
+            pkexec_args: None,
+        },
+        "nix" => InstallPlan {
+            can_auto_install: false,
+            install_command: Some("nix-env -iA nixos.openfortivpn".into()),
+            pkexec_args: None,
+        },
+        "guix" => InstallPlan {
+            can_auto_install: false,
+            install_command: Some("guix install openfortivpn".into()),
+            pkexec_args: None,
+        },
+        "slackpkg" => InstallPlan {
+            can_auto_install: false,
+            install_command: Some("slackpkg install openfortivpn".into()),
+            pkexec_args: None,
+        },
         _ => InstallPlan {
             can_auto_install: false,
             install_command: None,
@@ -194,29 +330,8 @@ pub fn build_install_plan(family: &str) -> InstallPlan {
     }
 }
 
-fn parse_os_release() -> std::collections::HashMap<String, String> {
-    for file in ["/etc/os-release", "/usr/lib/os-release"] {
-        if let Ok(raw) = fs::read_to_string(file) {
-            return parse_os_release_text(&raw);
-        }
-    }
-    Default::default()
-}
-
-pub fn detect_distro() -> DistroInfo {
-    let platform = current_platform();
-    if platform == "macos" || platform == "windows" {
-        let mac = platform == "macos";
-        return DistroInfo {
-            id: if mac { "darwin" } else { "win32" }.into(),
-            name: if mac { "macOS" } else { "Windows" }.into(),
-            version: std::env::consts::OS.to_string(),
-            like: vec![],
-            family: if mac { "brew" } else { "windows" }.into(),
-            pretty: if mac { "macOS" } else { "Windows" }.into(),
-        };
-    }
-    let os = parse_os_release();
+pub fn distro_from_os_release(raw: &str, exists: impl Fn(&str) -> bool) -> DistroInfo {
+    let os = parse_os_release_text(raw);
     let id = os
         .get("ID")
         .cloned()
@@ -237,7 +352,7 @@ pub fn detect_distro() -> DistroInfo {
         .cloned()
         .or_else(|| os.get("VERSION").cloned())
         .unwrap_or_default();
-    let family = detect_package_family(&id, &like, |p| Path::new(p).exists());
+    let family = detect_package_family(&id, &like, exists);
     let pretty = os
         .get("PRETTY_NAME")
         .cloned()
@@ -252,6 +367,40 @@ pub fn detect_distro() -> DistroInfo {
     }
 }
 
+pub fn detect_distro() -> DistroInfo {
+    distro_from_os_release(&os_release_raw(), |p| Path::new(p).exists())
+}
+
+fn os_release_raw() -> String {
+    for file in ["/etc/os-release", "/usr/lib/os-release"] {
+        if let Ok(raw) = fs::read_to_string(file) {
+            return raw;
+        }
+    }
+    String::new()
+}
+
+pub fn parse_client_version_text(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let lower = trimmed.to_lowercase();
+        if lower.contains("version") {
+            return Some(trimmed.to_string());
+        }
+        let has_semver_token = trimmed.split_whitespace().any(|word| {
+            word.chars().next().is_some_and(|c| c.is_ascii_digit()) && word.contains('.')
+        });
+        if has_semver_token {
+            Some(trimmed.to_string())
+        } else {
+            None
+        }
+    })
+}
+
 fn read_client_version(bin: &str) -> Option<String> {
     let output = Command::new(bin)
         .arg("--version")
@@ -262,23 +411,7 @@ fn read_client_version(bin: &str) -> Option<String> {
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
     text.push('\n');
     text.push_str(&String::from_utf8_lossy(&output.stderr));
-    let text = text.trim().to_string();
-    if current_platform() == "windows" {
-        let dll = Path::new(bin).parent().map(|p| p.join("wintun.dll"));
-        if !text.to_lowercase().contains("fortinet") || !dll.map(|p| p.exists()).unwrap_or(false) {
-            return None;
-        }
-    }
-    text.lines()
-        .find(|line| {
-            let l = line.to_lowercase();
-            l.contains("version") || {
-                let mut chars = line.trim().chars();
-                chars.next().map(|c| c.is_ascii_digit()).unwrap_or(false) && line.contains('.')
-            }
-        })
-        .map(|s| s.to_string())
-        .or(None)
+    parse_client_version_text(text.trim())
 }
 
 pub fn get_dependency_status() -> DependencyStatus {
@@ -288,23 +421,8 @@ pub fn get_dependency_status() -> DependencyStatus {
     let client_version = client_path.as_deref().and_then(read_client_version);
     let client_installed = client_path.is_some() && client_version.is_some();
     let platform = current_platform();
-    let can_auto_install = if platform == "windows" {
-        native_windows_client_supported(current_arch())
-    } else if platform == "macos" {
-        find_brew().is_some()
-    } else {
-        plan.can_auto_install
-    };
-    let install_command =
-        if platform == "windows" && native_windows_client_supported(current_arch()) {
-            Some("OpenConnect 9.21 + Wintun (Windows administrator prompt)".into())
-        } else if platform == "windows" {
-            Some("Native OpenConnect + Wintun ARM64 package required (manual installation)".into())
-        } else if platform == "macos" {
-            Some("brew install openfortivpn".into())
-        } else {
-            plan.install_command.as_ref().map(|c| format!("pkexec {c}"))
-        };
+    let can_auto_install = plan.can_auto_install;
+    let install_command = plan.install_command.as_ref().map(|c| format!("pkexec {c}"));
     DependencyStatus {
         engine: engine_for_platform(platform).into(),
         config_dir: config_directory_current(),
@@ -357,17 +475,6 @@ pub fn install_vpn_client(mut on_log: impl FnMut(&str)) -> InstallResult {
             code: Some(0),
             output: "Já instalado".into(),
             status: before,
-        };
-    }
-    let platform = current_platform();
-    if platform == "macos" || platform == "windows" {
-        let (code, output) = install_native_client(&mut on_log);
-        let status = get_dependency_status();
-        return InstallResult {
-            ok: status.client_installed,
-            code: Some(code),
-            output,
-            status,
         };
     }
     let plan = build_install_plan(&before.distro.family);

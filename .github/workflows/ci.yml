@@ -15,14 +15,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          - os: macos-15
-            target: aarch64-apple-darwin
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - os: windows-11-arm
-            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -46,14 +38,7 @@ jobs:
         shell: bash
         run: |
           binary="target/${{ matrix.target }}/debug/tunnel-yard"
-          if [ -f "${binary}.exe" ]; then
-            "${binary}.exe" --smoke
-          else
-            "$binary" --smoke
-          fi
-      - name: Check macOS helper syntax
-        if: runner.os == 'macOS'
-        run: bash -n packaging/macos-vpn.sh
+          "$binary" --smoke
 
   site:
     runs-on: ubuntu-24.04
