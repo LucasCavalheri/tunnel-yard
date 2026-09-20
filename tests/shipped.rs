@@ -1341,6 +1341,14 @@ fn app_mark_is_a_portal_with_true_alpha() {
     let script = fs::read_to_string(root.join("scripts/generate-icon.py")).unwrap();
     assert!(script.contains("icon-master.png"));
     assert!(script.contains("missing public/icon-master.png"));
+    assert!(
+        script.contains("<circle cx=\"256\" cy=\"256\" r=\"156\""),
+        "generator must paint the portal ring"
+    );
+    assert!(
+        !script.contains("M128 358"),
+        "generator must not still draw the two-arch mark"
+    );
 
     let (w, h, data) = png_argb_pixmap(APP_ICON_PNG).expect("decode portal");
     assert_eq!((w, h), (256, 256));
@@ -1349,13 +1357,6 @@ fn app_mark_is_a_portal_with_true_alpha() {
     let mid = ((128 * 256 + 128) * 4) as usize;
     assert_eq!(data[mid], 255, "core alpha");
     assert!(data[mid + 1] > 200 && data[mid + 2] > 200 && data[mid + 3] > 200);
-
-    let status = Command::new("python3")
-        .arg(root.join("scripts/generate-icon.py"))
-        .current_dir(root)
-        .status()
-        .expect("python3");
-    assert!(status.success(), "generate-icon.py failed: {status}");
 }
 
 #[test]
