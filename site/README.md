@@ -64,7 +64,7 @@ O build consulta a última release estável do GitHub e usa os URLs dos assets
 publicados. Uma opção ausente ou falha na consulta interrompe o build para evitar
 publicar links inventados. Execute um novo deploy após publicar uma release —
 uma tag sozinha não basta, o site só vê a versão depois que o job `publish`
-termina. O seletor oferece x64/ARM64 em DEB, RPM e tar.gz. Os botões da
+termina. O seletor oferece x64/ARM64 em DEB, RPM, pacman, apk e tar.gz. Os botões da
 página levam ao seletor; o botão de cada opção baixa o arquivo escolhido
 diretamente.
 

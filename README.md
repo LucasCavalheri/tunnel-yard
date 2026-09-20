@@ -52,30 +52,35 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 
 | File | Distro family |
 |------|----------|
-| `tunnel-yard-linux-x64` / `.tar.gz` | Any Linux x86_64 |
-| `tunnel-yard-linux-arm64` / `.tar.gz` | Any Linux ARM64 |
-| `tunnel-yard_3.0.0_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
-| `tunnel-yard_3.0.0_arm64.deb` | Same, ARM64 |
-| `tunnel-yard-3.0.0-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
-| `tunnel-yard-3.0.0-1.aarch64.rpm` | Same, ARM64 |
+| `tunnel-yard_3.0.1_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard-3.0.1-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
+| `tunnel-yard-3.0.1-r0-x86_64.apk` | Alpine (needs `gcompat`) |
+| `tunnel-yard-linux-x64.tar.gz` | Gentoo, Void, NixOS and anywhere else |
+
+ARM64 files use `arm64` / `aarch64` in the name.
 
 ```bash
-# Portable (any distro)
+# Debian / Ubuntu / Mint / Pop!_OS / Kali
+sudo apt install ./tunnel-yard_3.0.1_amd64.deb
+
+# Fedora / RHEL / Rocky / Alma
+sudo dnf install ./tunnel-yard-3.0.1-1.x86_64.rpm
+
+# Arch / Manjaro
+sudo pacman -U ./tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst
+
+# Alpine
+sudo apk add gcompat
+sudo apk add --allow-untrusted ./tunnel-yard-3.0.1-r0-x86_64.apk
+
+# Portable
 tar -xzf tunnel-yard-linux-x64.tar.gz
 chmod +x tunnel-yard-linux-x64
 ./tunnel-yard-linux-x64
-
-# Debian / Ubuntu / Mint / Pop!_OS / Kali
-sudo apt install ./tunnel-yard_3.0.0_amd64.deb
-
-# Fedora / RHEL / Rocky / Alma
-sudo dnf install ./tunnel-yard-3.0.0-1.x86_64.rpm
-
-# openSUSE
-sudo zypper install ./tunnel-yard-3.0.0-1.x86_64.rpm
 ```
 
-`.deb` and `.rpm` install the desktop launcher, icons, PolicyKit action and VPN helpers. The `.tar.gz` is the same binary with the executable bit, for Arch, Alpine, Gentoo, Void, NixOS, Solus and everywhere else.
+`.deb`, `.rpm`, the pacman package and the apk install the desktop launcher, icons, PolicyKit action and VPN helpers. The `.tar.gz` is the same binary with the executable bit.
 
 On first launch the app can install `openfortivpn` through the distro's own package manager (apt, dnf, yum, zypper, pacman, apk, xbps, emerge, eopkg). Immutable images (Silverblue and friends) and Nix/Guix show the command instead of running it for you.
 
@@ -109,7 +114,7 @@ When a newer GitHub release exists, the banner and the tray item **Check for upd
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-git tag v3.0.0
+git tag v3.0.1
 git push origin master --follow-tags
 ```
 

@@ -103,6 +103,10 @@ pub fn artifact_kind(name: &str) -> Option<&'static str> {
         Some("deb")
     } else if lower.ends_with(".rpm") {
         Some("rpm")
+    } else if lower.ends_with(".pkg.tar.zst") {
+        Some("arch")
+    } else if lower.ends_with(".apk") {
+        Some("apk")
     } else if branded_prefix(&lower) && !lower.contains('.') && lower.contains("linux") {
         Some("linux")
     } else {
@@ -112,7 +116,7 @@ pub fn artifact_kind(name: &str) -> Option<&'static str> {
 
 pub fn artifact_platform(name: &str) -> Option<&'static str> {
     match artifact_kind(name) {
-        Some("linux") | Some("deb") | Some("rpm") => Some("linux"),
+        Some("linux") | Some("deb") | Some("rpm") | Some("arch") | Some("apk") => Some("linux"),
         _ => None,
     }
 }

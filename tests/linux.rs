@@ -1,6 +1,9 @@
 //! Linux-only distro detection, helpers, pickers and conf edge cases.
 
 use std::collections::HashMap;
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
 use tunnel_yard::conf::{
     conf_entries, conf_path_for_id, empty_draft, parse_vpn_draft, serialize_vpn_draft,
 };
@@ -211,6 +214,18 @@ fn settings_live_under_xdg_config() {
 
 #[test]
 fn updater_ignores_foreign_os_artifacts() {
+    assert_eq!(
+        artifact_kind("tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst"),
+        Some("arch")
+    );
+    assert_eq!(
+        artifact_kind("tunnel-yard-3.0.1-r0-aarch64.apk"),
+        Some("apk")
+    );
+    assert_eq!(
+        artifact_platform("tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst"),
+        Some("linux")
+    );
     assert_eq!(artifact_kind("tunnel-yard-macos.dmg"), None);
     assert_eq!(artifact_kind("tunnel-yard-windows-x64.exe"), None);
     assert_eq!(
@@ -273,4 +288,78 @@ fn distro_matrix_os_release_snippets() {
     for (id, raw) in snippets {
         assert_eq!(distro_from_os_release(raw, none).family, expect[id], "{id}");
     }
+}
+
+#[test]
+fn pacman_and_apk_packages_carry_the_desktop_tree() {
+    let root = std::env::temp_dir().join(format!("tunnel-yard-pacman-apk-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("usr/bin")).unwrap();
+    fs::create_dir_all(root.join("usr/lib/tunnel-yard")).unwrap();
+    fs::create_dir_all(root.join("usr/share/applications")).unwrap();
+    let bin = root.join("usr/bin/tunnel-yard");
+    fs::write(&bin, b"#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(root.join("usr/lib/tunnel-yard/run-vpn.sh"), "#!/bin/sh\n").unwrap();
+    fs::write(
+        root.join("usr/share/applications/lucas.cavalheri.tunnelyard.desktop"),
+        "[Desktop Entry]\nName=TunnelYard\n",
+    )
+    .unwrap();
+
+    let out =
+        std::env::temp_dir().join(format!("tunnel-yard-pacman-apk-out-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&out);
+    fs::create_dir_all(&out).unwrap();
+
+    let script =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("packaging/build-pacman-apk.sh");
+    let status = Command::new("bash")
+        .arg(&script)
+        .args([
+            root.as_os_str(),
+            std::ffi::OsStr::new("3.0.1"),
+            std::ffi::OsStr::new("x86_64"),
+            out.as_os_str(),
+        ])
+        .status()
+        .expect("bash");
+    assert!(status.success(), "build-pacman-apk.sh failed");
+
+    let pkg = out.join("tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst");
+    let apk = out.join("tunnel-yard-3.0.1-r0-x86_64.apk");
+    assert!(pkg.is_file(), "{}", pkg.display());
+    assert!(apk.is_file(), "{}", apk.display());
+
+    let pkg_list = Command::new("tar")
+        .args(["-tf", pkg.to_str().unwrap()])
+        .output()
+        .expect("tar");
+    let pkg_text = String::from_utf8_lossy(&pkg_list.stdout);
+    assert!(pkg_text.contains(".PKGINFO"), "{pkg_text}");
+    assert!(pkg_text.contains("usr/bin/tunnel-yard"), "{pkg_text}");
+    assert!(
+        pkg_text.contains("usr/share/applications/lucas.cavalheri.tunnelyard.desktop"),
+        "{pkg_text}"
+    );
+
+    let info = Command::new("tar")
+        .args(["-xOf", pkg.to_str().unwrap(), ".PKGINFO"])
+        .output()
+        .expect("tar");
+    let info_text = String::from_utf8_lossy(&info.stdout);
+    assert!(info_text.contains("pkgname = tunnel-yard"), "{info_text}");
+    assert!(info_text.contains("arch = x86_64"), "{info_text}");
+    assert!(info_text.contains("depend = polkit"), "{info_text}");
+
+    let apk_info = Command::new("tar")
+        .args(["-xOf", apk.to_str().unwrap(), ".PKGINFO"])
+        .output()
+        .expect("tar");
+    let apk_text = String::from_utf8_lossy(&apk_info.stdout);
+    assert!(apk_text.contains("pkgver = 3.0.1-r0"), "{apk_text}");
+    assert!(apk_text.contains("depend = gcompat"), "{apk_text}");
+
+    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_dir_all(&out);
 }

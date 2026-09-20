@@ -2424,6 +2424,90 @@
     text-transform: uppercase;
   }
 
+  .distro-kicker {
+    margin: 28px 0 14px;
+  }
+
+  .cpu-warning {
+    position: relative;
+    margin: -12px 0 16px;
+    color: var(--coral-dark);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .cpu-pick {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .cpu-card {
+    display: grid;
+    gap: 8px;
+    min-height: 148px;
+    padding: 22px 22px 20px;
+    border: 2px solid var(--line);
+    background: #fffdf8;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      color 160ms ease,
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 180ms ease;
+  }
+
+  .cpu-card-kicker {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .cpu-card strong {
+    font-size: 28px;
+    letter-spacing: -0.05em;
+    line-height: 1.05;
+  }
+
+  .cpu-card span:last-child {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .cpu-card:hover {
+    border-color: rgba(242, 90, 42, 0.55);
+    transform: translateY(-2px);
+  }
+
+  .cpu-card:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: 3px;
+  }
+
+  .cpu-card.is-selected,
+  .cpu-card[aria-checked="true"] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: white;
+    box-shadow: 6px 6px 0 var(--coral);
+  }
+
+  .cpu-card.is-selected .cpu-card-kicker,
+  .cpu-card[aria-checked="true"] .cpu-card-kicker,
+  .cpu-card.is-selected span:last-child,
+  .cpu-card[aria-checked="true"] span:last-child {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
   .arch-pill {
     border: 1px solid var(--line);
     padding: 4px 7px;
@@ -2507,49 +2591,9 @@
 
   .linux-dock {
     position: relative;
-    display: grid;
-    grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
-    gap: 28px;
-    align-items: end;
     margin-top: 32px;
     padding-top: 24px;
     border-top: 1px solid var(--line);
-  }
-
-  .arch-switch {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .arch-chip {
-    padding: 10px 14px;
-    border: 1px solid var(--line);
-    background: #fffdf8;
-    color: var(--ink);
-    font: 12px/1.2 inherit;
-    font-weight: 700;
-    cursor: pointer;
-    transition:
-      border-color 160ms ease,
-      background 160ms ease,
-      color 160ms ease;
-  }
-
-  .arch-chip:hover {
-    border-color: rgba(242, 90, 42, 0.55);
-  }
-
-  .arch-chip:focus-visible {
-    outline: 2px solid var(--coral);
-    outline-offset: 3px;
-  }
-
-  .arch-chip.is-selected,
-  .arch-chip[aria-checked="true"] {
-    border-color: var(--ink);
-    background: var(--ink);
-    color: white;
   }
 
   .linux-cta .button-platform {
@@ -2905,9 +2949,16 @@
       padding: 26px 22px 22px;
     }
 
-    .linux-dock {
+    .cpu-pick {
       grid-template-columns: 1fr;
-      gap: 18px;
+    }
+
+    .cpu-card {
+      min-height: 128px;
+    }
+
+    .linux-dock {
+      margin-top: 24px;
     }
 
     .footer-inner {

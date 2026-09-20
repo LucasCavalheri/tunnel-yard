@@ -6,8 +6,8 @@ and openfortivpn.
 
 | Architecture | VPN engine | Release artifact | Profile directory |
 | --- | --- | --- | --- |
-| Linux x86_64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`tunnel-yard-linux-x64`) | `/etc/openfortivpn` |
-| Linux ARM64 | openfortivpn | `.tar.gz`, `.deb` or `.rpm` (`tunnel-yard-linux-arm64`) | `/etc/openfortivpn` |
+| Linux x86_64 | openfortivpn | `.deb`, `.rpm`, `.pkg.tar.zst`, `.apk` or `.tar.gz` | `/etc/openfortivpn` |
+| Linux ARM64 | openfortivpn | same set, `arm64` / `aarch64` in the filename | `/etc/openfortivpn` |
 
 The GUI never runs as root. Each connection starts through PolicyKit (`pkexec`)
 and a helper under `/usr/lib/tunnel-yard/`. Profiles stay as openfortivpn
@@ -31,8 +31,10 @@ how to install `openfortivpn`:
 | rpm-ostree | Silverblue, Kinoite, Bazzite | shows `rpm-ostree install openfortivpn` |
 | nix / guix / slackpkg | NixOS, Guix, Slackware | shows the native command |
 
-The portable `.tar.gz` runs on any of the above. `.deb` and `.rpm` also install
-the desktop launcher, icons, PolicyKit action and VPN helpers.
+`.deb`, `.rpm`, the Arch pacman package and the Alpine apk also install the
+desktop launcher, icons, PolicyKit action and VPN helpers. The Alpine apk
+depends on `gcompat` because the desktop binary is a glibc build. The portable
+`.tar.gz` is the same binary for Gentoo, Void, NixOS and similar.
 
 ## Configuration
 
@@ -68,8 +70,8 @@ On Linux the app also writes a per-user launcher named
 `lucas.cavalheri.tunnelyard`, matching the Wayland app id.
 
 CI runs `cargo fmt --check` (x64), `cargo test` and `cargo build` on Linux x64
-and ARM64. Release tags build those targets and publish `.tar.gz`, `.deb` and
-`.rpm`.
+and ARM64. Release tags build those targets and publish `.deb`, `.rpm`,
+`.pkg.tar.zst`, `.apk` and `.tar.gz`.
 
 ## Verification
 

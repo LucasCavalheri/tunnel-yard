@@ -836,6 +836,7 @@ fn helpers_exist_in_tree() {
         "packaging/run-vpn.sh",
         "packaging/stop-vpn.sh",
         "packaging/build-linux-packages.sh",
+        "packaging/build-pacman-apk.sh",
         "packaging/polkit/lucas.cavalheri.tunnelyard.policy",
         "packaging/tunnel-yard.desktop",
         "public/icon.png",
@@ -1114,6 +1115,9 @@ fn download_board_maps_distro_and_arch_to_a_linux_package() {
     assert!(downloads.contains("\"archlinux\""));
     assert!(css.contains(".linux-board"));
     assert!(css.contains(".distro-tile"));
+    assert!(css.contains(".cpu-card"));
+    assert!(downloads.contains("data-arch=\"x64\""));
+    assert!(downloads.contains("data-family={family.id}"));
 
     let script = root.join("site/src/download-board.js");
     let status = Command::new("node")
@@ -1126,6 +1130,8 @@ import {{ packageSuffix, resolveDownload }} from '{url}';
 if (packageSuffix('deb', 'x64') !== '_amd64.deb') throw new Error('deb x64');
 if (packageSuffix('rpm', 'arm64') !== '.aarch64.rpm') throw new Error('rpm arm');
 if (packageSuffix('tar', 'x64') !== '-linux-x64.tar.gz') throw new Error('tar');
+if (packageSuffix('arch', 'x64') !== '-x86_64.pkg.tar.zst') throw new Error('arch');
+if (packageSuffix('apk', 'arm64') !== '-aarch64.apk') throw new Error('apk');
 if (packageSuffix('deb', 'ppc') !== '') throw new Error('unknown arch');
 const urls = {{ 'deb-x64': 'https://x/a.deb', 'tar-arm64': 'https://x/a.tar.gz' }};
 if (resolveDownload('deb', 'x64', urls) !== 'https://x/a.deb') throw new Error('resolve');

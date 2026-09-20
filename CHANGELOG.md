@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.1
+
+- Arch and Manjaro download a pacman package (`.pkg.tar.zst`). Alpine
+  downloads an `.apk` (needs `gcompat` for the glibc desktop binary).
+- The download board asks for the processor first, in two large Intel/AMD
+  and ARM64 cards, then the distro.
+
 ## 3.0.0
 
 TunnelYard 3 is a Linux desktop for FortiGate SSL VPN. The desk, packaging,

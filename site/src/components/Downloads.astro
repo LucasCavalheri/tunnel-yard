@@ -39,13 +39,25 @@ const families = [
     ],
   },
   {
+    id: "arch",
+    label: t.downloads.familyArch,
+    pack: t.downloads.packageArch,
+    distros: [
+      ["archlinux", "Arch"],
+      ["manjaro", "Manjaro"],
+    ],
+  },
+  {
+    id: "apk",
+    label: t.downloads.familyApk,
+    pack: t.downloads.packageApk,
+    distros: [["alpinelinux", "Alpine"]],
+  },
+  {
     id: "tar",
     label: t.downloads.familyTar,
     pack: t.downloads.packageTar,
     distros: [
-      ["archlinux", "Arch"],
-      ["manjaro", "Manjaro"],
-      ["alpinelinux", "Alpine"],
       ["gentoo", "Gentoo"],
       ["voidlinux", "Void"],
       ["nixos", "NixOS"],
@@ -54,10 +66,12 @@ const families = [
   },
 ] as const;
 
-const assetFor = (suffix: string) => {
-  const asset = release.assets.find(asset => asset.name.endsWith(suffix));
-  if (!asset) throw new Error(`Installer missing from the release: ${suffix}`);
-  return asset;
+const assetFor = (...suffixes: string[]) => {
+  for (const suffix of suffixes) {
+    const asset = release.assets.find(asset => asset.name.endsWith(suffix));
+    if (asset) return asset;
+  }
+  throw new Error(`Installer missing from the release: ${suffixes.join(" / ")}`);
 };
 
 const files = [
@@ -65,9 +79,17 @@ const files = [
   [t.downloads.choiceDebArm, "_arm64.deb"],
   [t.downloads.choiceRpmX64, ".x86_64.rpm"],
   [t.downloads.choiceRpmArm, ".aarch64.rpm"],
+  [t.downloads.choiceArchX64, "-x86_64.pkg.tar.zst"],
+  [t.downloads.choiceArchArm, "-aarch64.pkg.tar.zst"],
+  [t.downloads.choiceApkX64, "-x86_64.apk"],
+  [t.downloads.choiceApkArm, "-aarch64.apk"],
   [t.downloads.choiceTarX64, "-linux-x64.tar.gz"],
   [t.downloads.choiceTarArm, "-linux-arm64.tar.gz"],
 ] as const;
+
+const optionalFiles = files.filter(([, suffix]) =>
+  release.assets.some(asset => asset.name.endsWith(suffix))
+);
 ---
 <article
   class="linux-board reveal"
@@ -78,16 +100,37 @@ const files = [
   data-url-deb-arm64={assetFor("_arm64.deb").browser_download_url}
   data-url-rpm-x64={assetFor(".x86_64.rpm").browser_download_url}
   data-url-rpm-arm64={assetFor(".aarch64.rpm").browser_download_url}
+  data-url-arch-x64={assetFor("-x86_64.pkg.tar.zst", "-linux-x64.tar.gz").browser_download_url}
+  data-url-arch-arm64={assetFor("-aarch64.pkg.tar.zst", "-linux-arm64.tar.gz").browser_download_url}
+  data-url-apk-x64={assetFor("-x86_64.apk", "-linux-x64.tar.gz").browser_download_url}
+  data-url-apk-arm64={assetFor("-aarch64.apk", "-linux-arm64.tar.gz").browser_download_url}
   data-url-tar-x64={assetFor("-linux-x64.tar.gz").browser_download_url}
   data-url-tar-arm64={assetFor("-linux-arm64.tar.gz").browser_download_url}
   data-pick-hint={t.downloads.pickHint}
+  data-pick-arch-hint={t.downloads.pickArchHint}
+  data-pick-distro-hint={t.downloads.pickDistroHint}
   data-selected-hint={t.downloads.selectedHint}
 >
   <div class="linux-board-top">
-    <p class="linux-board-kicker">{t.downloads.pickDistro}</p>
+    <p class="linux-board-kicker">{t.downloads.pickArch}</p>
     <span class="arch-pill">{release.tag_name}</span>
   </div>
 
+  <p class="cpu-warning">{t.downloads.archWarning}</p>
+  <div class="cpu-pick" role="radiogroup" aria-label={t.downloads.pickArch}>
+    <button type="button" class="cpu-card" role="radio" aria-checked="false" data-arch="x64">
+      <span class="cpu-card-kicker">{t.downloads.archX64Kicker}</span>
+      <strong>{t.downloads.archX64Title}</strong>
+      <span>{t.downloads.archX64Help}</span>
+    </button>
+    <button type="button" class="cpu-card" role="radio" aria-checked="false" data-arch="arm64">
+      <span class="cpu-card-kicker">{t.downloads.archArm64Kicker}</span>
+      <strong>{t.downloads.archArm64Title}</strong>
+      <span>{t.downloads.archArm64Help}</span>
+    </button>
+  </div>
+
+  <p class="linux-board-kicker distro-kicker">{t.downloads.pickDistro}</p>
   {families.map(family => (
     <div class="distro-family">
       <p class="distro-family-label">{family.label}</p>
@@ -114,10 +157,6 @@ const files = [
   ))}
 
   <div class="linux-dock">
-    <div class="arch-switch" role="radiogroup" aria-label={t.downloads.pickArch}>
-      <button type="button" class="arch-chip" role="radio" aria-checked="true" data-arch="x64">{t.downloads.archX64}</button>
-      <button type="button" class="arch-chip" role="radio" aria-checked="false" data-arch="arm64">{t.downloads.archArm64}</button>
-    </div>
     <div class="linux-cta">
       <p class="linux-status" data-distro-status aria-live="polite">{t.downloads.pickHint}</p>
       <a
@@ -135,9 +174,10 @@ const files = [
 
   <noscript>
     <ul class="download-fallback">
-      {files.map(([label, suffix]) => (
-        <li><a href={assetFor(suffix).browser_download_url}>{label}</a></li>
-      ))}
+      {optionalFiles.map(([label, suffix]) => {
+        const asset = release.assets.find(item => item.name.endsWith(suffix));
+        return asset ? <li><a href={asset.browser_download_url}>{label}</a></li> : null;
+      })}
     </ul>
   </noscript>
 </article>

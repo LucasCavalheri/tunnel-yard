@@ -177,3 +177,12 @@ cp "$RPM_FILE" "$OUTPUT_DIR/tunnel-yard-${VERSION}-1.${RPM_ARCH}.rpm"
 
 echo "created: $OUTPUT_DIR/tunnel-yard_${VERSION}_${DEB_ARCH}.deb"
 echo "created: $OUTPUT_DIR/tunnel-yard-${VERSION}-1.${RPM_ARCH}.rpm"
+
+NATIVE_ROOT="$TMP_DIR/native-root"
+populate_root "$NATIVE_ROOT"
+chmod +x "$ROOT_DIR/packaging/build-pacman-apk.sh"
+"$ROOT_DIR/packaging/build-pacman-apk.sh" \
+  "$NATIVE_ROOT" \
+  "$VERSION" \
+  "$RPM_ARCH" \
+  "$OUTPUT_DIR"
