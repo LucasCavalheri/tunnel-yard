@@ -1102,40 +1102,42 @@ fn landing_language_switch_and_github_star_are_wired() {
 }
 
 #[test]
-fn download_picker_styles_choices_instead_of_native_options() {
+fn download_board_maps_distro_and_arch_to_a_linux_package() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let downloads = fs::read_to_string(root.join("site/src/components/Downloads.astro")).unwrap();
     let css = fs::read_to_string(root.join("site/src/styles/global.css")).unwrap();
     assert!(!downloads.contains("<select"));
-    assert!(downloads.contains("role=\"listbox\""));
-    assert!(downloads.contains("role=\"option\""));
-    assert!(downloads.contains("data-download-picker"));
-    assert!(css.contains(".picker-menu [role=\"option\"]"));
+    assert!(downloads.contains("data-download-board"));
+    assert!(downloads.contains("data-distro"));
+    assert!(downloads.contains("simple-icons:${icon}"));
+    assert!(downloads.contains("\"ubuntu\""));
+    assert!(downloads.contains("\"archlinux\""));
+    assert!(css.contains(".linux-board"));
+    assert!(css.contains(".distro-tile"));
 
-    let script = root.join("site/src/download-picker.js");
+    let script = root.join("site/src/download-board.js");
     let status = Command::new("node")
         .args([
             "--input-type=module",
             "-e",
             &format!(
                 r#"
-import {{ fileNameFromUrl, downloadButtonState, moveActiveIndex }} from '{url}';
-if (fileNameFromUrl('https://example.test/a/tunnel-yard_1.2.3_amd64.deb') !== 'tunnel-yard_1.2.3_amd64.deb') throw new Error('name');
-if (fileNameFromUrl('') !== '') throw new Error('empty');
-const idle = downloadButtonState('', {{ idle: 'Pick', ready: 'Go', hint: 'hint' }});
-if (idle.enabled || idle.buttonLabel !== 'Pick' || idle.fileLabel !== 'hint') throw new Error('idle');
-const ready = downloadButtonState('https://x/y/file.exe', {{ idle: 'Pick', ready: 'Go', hint: 'hint' }});
-if (!ready.enabled || ready.buttonLabel !== 'Go' || ready.fileLabel !== 'file.exe') throw new Error('ready');
-if (moveActiveIndex(-1, 1, 6) !== 0) throw new Error('start');
-if (moveActiveIndex(5, 1, 6) !== 0) throw new Error('wrap');
-if (moveActiveIndex(0, -1, 6) !== 5) throw new Error('back');
+import {{ packageSuffix, resolveDownload }} from '{url}';
+if (packageSuffix('deb', 'x64') !== '_amd64.deb') throw new Error('deb x64');
+if (packageSuffix('rpm', 'arm64') !== '.aarch64.rpm') throw new Error('rpm arm');
+if (packageSuffix('tar', 'x64') !== '-linux-x64.tar.gz') throw new Error('tar');
+if (packageSuffix('deb', 'ppc') !== '') throw new Error('unknown arch');
+const urls = {{ 'deb-x64': 'https://x/a.deb', 'tar-arm64': 'https://x/a.tar.gz' }};
+if (resolveDownload('deb', 'x64', urls) !== 'https://x/a.deb') throw new Error('resolve');
+if (resolveDownload('deb', 'arm64', urls) !== '') throw new Error('missing');
+if (resolveDownload('', 'x64', urls) !== '') throw new Error('no distro');
 "#,
                 url = file_url(&script)
             ),
         ])
         .status()
         .expect("node");
-    assert!(status.success(), "download-picker.js contract failed");
+    assert!(status.success(), "download-board.js contract failed");
 }
 
 fn file_url(path: &std::path::Path) -> String {

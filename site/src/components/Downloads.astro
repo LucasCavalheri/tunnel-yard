@@ -1,5 +1,5 @@
 ---
-import { ChevronDown, Download } from "@lucide/astro";
+import { Download } from "@lucide/astro";
 import { Icon } from "astro-icon/components";
 import { release } from "../data/release";
 import type { Dictionary } from "../i18n";
@@ -10,64 +10,116 @@ interface Props {
 
 const { t } = Astro.props;
 
-const platforms = [
+const families = [
   {
-    id: "linux",
-    name: t.downloads.linuxName,
-    icon: "linux",
-    description: t.downloads.linuxDescription,
-    pickerLabel: t.downloads.pickerProcessorAndPackage,
-    choices: [
-      [t.downloads.choiceDebX64, "_amd64.deb"],
-      [t.downloads.choiceDebArm, "_arm64.deb"],
-      [t.downloads.choiceRpmX64, ".x86_64.rpm"],
-      [t.downloads.choiceRpmArm, ".aarch64.rpm"],
-      [t.downloads.choiceTarX64, "-linux-x64.tar.gz"],
-      [t.downloads.choiceTarArm, "-linux-arm64.tar.gz"],
+    id: "deb",
+    label: t.downloads.familyDeb,
+    pack: t.downloads.packageDeb,
+    distros: [
+      ["debian", "Debian"],
+      ["ubuntu", "Ubuntu"],
+      ["linuxmint", "Linux Mint"],
+      ["popos", "Pop!_OS"],
+      ["kalilinux", "Kali"],
+      ["elementary", "elementary"],
+      ["raspberrypi", "Raspberry Pi OS"],
+      ["zorin", "Zorin"],
     ],
   },
-];
+  {
+    id: "rpm",
+    label: t.downloads.familyRpm,
+    pack: t.downloads.packageRpm,
+    distros: [
+      ["fedora", "Fedora"],
+      ["redhat", "RHEL"],
+      ["rockylinux", "Rocky"],
+      ["almalinux", "AlmaLinux"],
+      ["opensuse", "openSUSE"],
+    ],
+  },
+  {
+    id: "tar",
+    label: t.downloads.familyTar,
+    pack: t.downloads.packageTar,
+    distros: [
+      ["archlinux", "Arch"],
+      ["manjaro", "Manjaro"],
+      ["alpinelinux", "Alpine"],
+      ["gentoo", "Gentoo"],
+      ["voidlinux", "Void"],
+      ["nixos", "NixOS"],
+      ["linux", t.downloads.otherLinux],
+    ],
+  },
+] as const;
 
 const assetFor = (suffix: string) => {
   const asset = release.assets.find(asset => asset.name.endsWith(suffix));
   if (!asset) throw new Error(`Installer missing from the release: ${suffix}`);
   return asset;
 };
+
+const files = [
+  [t.downloads.choiceDebX64, "_amd64.deb"],
+  [t.downloads.choiceDebArm, "_arm64.deb"],
+  [t.downloads.choiceRpmX64, ".x86_64.rpm"],
+  [t.downloads.choiceRpmArm, ".aarch64.rpm"],
+  [t.downloads.choiceTarX64, "-linux-x64.tar.gz"],
+  [t.downloads.choiceTarArm, "-linux-arm64.tar.gz"],
+] as const;
 ---
-<div class="platform-grid">
-  {platforms.map(platform => (
-    <article class="platform-card reveal" id={`download-${platform.id}`} data-download-card>
-      <div class="platform-top"><span class="platform-icon"><Icon name={`simple-icons:${platform.icon}`} size={28} /></span><span class="arch-pill">{release.tag_name}</span></div>
-      <h3>{platform.name}</h3>
-      <p>{platform.description}</p>
-      <div class="download-picker">
-        <span class="picker-label" id={`build-${platform.id}-label`}>{platform.pickerLabel}</span>
-        <div class="picker" data-download-picker>
+<article
+  class="linux-board reveal"
+  id="download-linux"
+  data-download-board
+  data-download-card
+  data-url-deb-x64={assetFor("_amd64.deb").browser_download_url}
+  data-url-deb-arm64={assetFor("_arm64.deb").browser_download_url}
+  data-url-rpm-x64={assetFor(".x86_64.rpm").browser_download_url}
+  data-url-rpm-arm64={assetFor(".aarch64.rpm").browser_download_url}
+  data-url-tar-x64={assetFor("-linux-x64.tar.gz").browser_download_url}
+  data-url-tar-arm64={assetFor("-linux-arm64.tar.gz").browser_download_url}
+  data-pick-hint={t.downloads.pickHint}
+  data-selected-hint={t.downloads.selectedHint}
+>
+  <div class="linux-board-top">
+    <p class="linux-board-kicker">{t.downloads.pickDistro}</p>
+    <span class="arch-pill">{release.tag_name}</span>
+  </div>
+
+  {families.map(family => (
+    <div class="distro-family">
+      <p class="distro-family-label">{family.label}</p>
+      <div class="distro-galaxy" role="radiogroup" aria-label={family.label}>
+        {family.distros.map(([icon, name]) => (
           <button
             type="button"
-            class="picker-trigger"
-            id={`build-${platform.id}`}
-            aria-haspopup="listbox"
-            aria-expanded="false"
-            aria-controls={`build-${platform.id}-list`}
-            aria-labelledby={`build-${platform.id}-label build-${platform.id}-value`}
+            class="distro-tile"
+            role="radio"
+            aria-checked="false"
+            data-distro
+            data-family={family.id}
+            data-name={name}
+            data-pack={family.pack}
           >
-            <span id={`build-${platform.id}-value`} data-picker-label>{t.downloads.pickerPlaceholder}</span>
-            <ChevronDown size={16} aria-hidden="true" />
+            <span class="distro-glyph" aria-hidden="true">
+              <Icon name={`simple-icons:${icon}`} size={28} />
+            </span>
+            <span class="distro-name">{name}</span>
           </button>
-          <ul
-            class="picker-menu"
-            id={`build-${platform.id}-list`}
-            role="listbox"
-            aria-labelledby={`build-${platform.id}-label`}
-            hidden
-          >
-            {platform.choices.map(([label, suffix]) => (
-              <li role="option" data-value={assetFor(suffix).browser_download_url} aria-selected="false">{label}</li>
-            ))}
-          </ul>
-        </div>
+        ))}
       </div>
+    </div>
+  ))}
+
+  <div class="linux-dock">
+    <div class="arch-switch" role="radiogroup" aria-label={t.downloads.pickArch}>
+      <button type="button" class="arch-chip" role="radio" aria-checked="true" data-arch="x64">{t.downloads.archX64}</button>
+      <button type="button" class="arch-chip" role="radio" aria-checked="false" data-arch="arm64">{t.downloads.archArm64}</button>
+    </div>
+    <div class="linux-cta">
+      <p class="linux-status" data-distro-status aria-live="polite">{t.downloads.pickHint}</p>
       <a
         class="button button-primary button-platform"
         data-file-download
@@ -77,24 +129,27 @@ const assetFor = (suffix: string) => {
         aria-disabled="true"
         tabindex="-1"
       ><Download size={17} /> <span>{t.downloads.buttonIdle}</span></a>
-      <p class="download-file" data-file-name aria-live="polite">{t.downloads.fileHint}</p>
-      <noscript><ul class="download-fallback">{platform.choices.map(([label, suffix]) => <li><a href={assetFor(suffix).browser_download_url}>{label}</a></li>)}</ul></noscript>
-    </article>
-  ))}
-</div>
+      <p class="download-file" data-file-name>{t.downloads.fileHint}</p>
+    </div>
+  </div>
+
+  <noscript>
+    <ul class="download-fallback">
+      {files.map(([label, suffix]) => (
+        <li><a href={assetFor(suffix).browser_download_url}>{label}</a></li>
+      ))}
+    </ul>
+  </noscript>
+</article>
 <script>
-  import { bindDownloadPickers, closeDownloadPickersOnOutside } from "../download-picker.js";
+  import { bindDownloadBoard } from "../download-board.js";
 
   let bootedPath = "";
   const bootDownloads = () => {
     if (bootedPath === location.pathname) return;
     bootedPath = location.pathname;
-    bindDownloadPickers(document);
+    bindDownloadBoard(document);
   };
   bootDownloads();
   document.addEventListener("astro:page-load", bootDownloads);
-  document.addEventListener("pointerdown", (event) => closeDownloadPickersOnOutside(event));
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDownloadPickersOnOutside({ target: document.body });
-  });
 </script>

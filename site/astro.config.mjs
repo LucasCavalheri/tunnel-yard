@@ -16,7 +16,30 @@ export default defineConfig({
   integrations: [
     icon({
       include: {
-        "simple-icons": ["debian", "fedora", "github", "linux", "redhat", "rust", "ubuntu"],
+        "simple-icons": [
+          "almalinux",
+          "alpinelinux",
+          "archlinux",
+          "debian",
+          "elementary",
+          "fedora",
+          "gentoo",
+          "github",
+          "kalilinux",
+          "linux",
+          "linuxmint",
+          "manjaro",
+          "nixos",
+          "opensuse",
+          "popos",
+          "raspberrypi",
+          "redhat",
+          "rockylinux",
+          "rust",
+          "ubuntu",
+          "voidlinux",
+          "zorin"
+        ],
         "circle-flags": ["br", "us"]
       }
     })
