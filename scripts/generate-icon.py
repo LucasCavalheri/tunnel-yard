@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Paint the TunnelYard mark: two tunnel arches meeting at a small hub.
+"""Paint the TunnelYard mark: a circular tunnel portal on a coral squircle.
 
-The concept was explored with OpenAI ImageGen, then rebuilt geometrically here
-so every shipped size has true alpha, pixel-clean curves and no raster artifacts.
+The concept was explored with Grok ImageGen (`public/icon-master.png`), then
+rebuilt geometrically here so every shipped size has true alpha, pixel-clean
+curves and no raster fringe from the generated master.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from PIL import Image, ImageChops, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 CORAL = (242, 90, 42, 255)  # #F25A2A
 WHITE = (255, 255, 255, 255)
+MASTER = ROOT / "public" / "icon-master.png"
 
 
 def squircle(size: int) -> Image.Image:
@@ -28,73 +30,32 @@ def squircle(size: int) -> Image.Image:
     return badge
 
 
-def cubic(
-    p0: tuple[float, float],
-    p1: tuple[float, float],
-    p2: tuple[float, float],
-    p3: tuple[float, float],
-    steps: int = 28,
-) -> list[tuple[float, float]]:
-    points: list[tuple[float, float]] = []
-    for i in range(steps + 1):
-        t = i / steps
-        u = 1.0 - t
-        points.append(
-            (
-                u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
-                u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
-            )
-        )
-    return points
-
-
 def draw_mark(base: Image.Image) -> Image.Image:
-    """Two friendly tunnel arches sharing a small connection hub."""
+    """Concentric portal: a thick white ring around a solid connection core."""
     s = base.size[0]
     layer = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
-    left_foot = (s * 0.25, s * 0.70)
-    left_shoulder = (s * 0.25, s * 0.46)
-    hub = (s * 0.50, s * 0.57)
-    right_shoulder = (s * 0.75, s * 0.46)
-    right_foot = (s * 0.75, s * 0.70)
-    stroke = max(int(s * 0.075), 2)
-
-    path = [left_foot, left_shoulder]
-    path += cubic(
-        left_shoulder,
-        (s * 0.25, s * 0.28),
-        (s * 0.50, s * 0.28),
-        hub,
-    )[1:]
-    path += cubic(
-        hub,
-        (s * 0.50, s * 0.28),
-        (s * 0.75, s * 0.28),
-        right_shoulder,
-    )[1:]
-    path.append(right_foot)
-    d.line(path, fill=WHITE, width=stroke, joint="curve")
-    r = stroke / 2
-    for pt in (left_foot, right_foot):
-        d.ellipse((pt[0] - r, pt[1] - r, pt[0] + r, pt[1] + r), fill=WHITE)
-    # Ring-shaped hub remains distinct from the arches down to the 16 px copy.
-    nr = s * 0.065
-    d.ellipse(
-        (hub[0] - nr, hub[1] - nr, hub[0] + nr, hub[1] + nr),
-        fill=WHITE,
-    )
-    inner = s * 0.030
-    d.ellipse(
-        (hub[0] - inner, hub[1] - inner, hub[0] + inner, hub[1] + inner),
-        fill=CORAL,
-    )
+    cx = cy = s / 2
+    outer = s * 0.305
+    hole = s * 0.215
+    core = s * 0.125
+    d.ellipse((cx - outer, cy - outer, cx + outer, cy + outer), fill=WHITE)
+    d.ellipse((cx - hole, cy - hole, cx + hole, cy + hole), fill=CORAL)
+    d.ellipse((cx - core, cy - core, cx + core, cy + core), fill=WHITE)
     return Image.alpha_composite(base, layer)
 
 
 def _premul(im: Image.Image) -> Image.Image:
     r, g, b, a = im.split()
-    return Image.merge("RGBA", (ImageChops.multiply(r, a), ImageChops.multiply(g, a), ImageChops.multiply(b, a), a))
+    return Image.merge(
+        "RGBA",
+        (
+            ImageChops.multiply(r, a),
+            ImageChops.multiply(g, a),
+            ImageChops.multiply(b, a),
+            a,
+        ),
+    )
 
 
 def _unpremul(im: Image.Image) -> Image.Image:
@@ -124,21 +85,30 @@ def render(size: int) -> Image.Image:
     return _unpremul(_premul(hi).resize((size, size), Image.Resampling.LANCZOS))
 
 
-def write_svg(path: Path) -> None:
-    path.write_text(
-        """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+def portal_svg() -> str:
+    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <rect x="28" y="28" width="456" height="456" rx="110" fill="#f25a2a"/>
-  <path d="M128 358 V236 C128 111 256 132 256 292 C256 132 384 111 384 236 V358"
-        stroke="#fff" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="256" cy="292" r="33" fill="#fff"/>
-  <circle cx="256" cy="292" r="15" fill="#f25a2a"/>
+  <circle cx="256" cy="256" r="156" fill="#fff"/>
+  <circle cx="256" cy="256" r="110" fill="#f25a2a"/>
+  <circle cx="256" cy="256" r="64" fill="#fff"/>
 </svg>
-""",
-        encoding="utf-8",
-    )
+"""
+
+
+def write_svg(path: Path) -> None:
+    path.write_text(portal_svg(), encoding="utf-8")
+
+
+def master_is_present() -> bool:
+    return MASTER.is_file() and MASTER.stat().st_size > 32
 
 
 def main() -> None:
+    if not master_is_present():
+        raise SystemExit(
+            "missing public/icon-master.png — drop the generated 1:1 PNG there first"
+        )
+
     public = ROOT / "public"
     build = ROOT / "build"
     public.mkdir(exist_ok=True)
@@ -150,10 +120,8 @@ def main() -> None:
         public / "icon-32.png": 32,
         build / "icon.png": 512,
     }
-    images: dict[int, Image.Image] = {}
     for dest, size in sizes.items():
         im = render(size)
-        images[size] = im
         im.save(dest, "PNG", optimize=True)
         print(f"wrote {dest.relative_to(ROOT)} {im.size}")
 

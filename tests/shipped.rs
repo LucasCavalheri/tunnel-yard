@@ -1173,6 +1173,7 @@ fn helpers_exist_in_tree() {
         "public/icon-32.png",
         "public/icon.ico",
         "public/icon.svg",
+        "public/icon-master.png",
         "scripts/generate-icon.py",
         "assets/icons/wifi-01.svg",
         "assets/icons/sun-03.svg",
@@ -1290,6 +1291,40 @@ fn light_and_dark_palettes_diverge_and_keep_brand() {
     assert_eq!(resolve_theme_mode("dark", false), "dark");
     assert_eq!(toggle_light_dark("dark", true), "light");
     assert_eq!(toggle_light_dark("system", false), "dark");
+}
+
+
+#[test]
+fn app_mark_is_a_portal_with_true_alpha() {
+    use tunnel_yard::app_icon::{png_argb_pixmap, APP_ICON_PNG};
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let svg = fs::read_to_string(root.join("public/icon.svg")).unwrap();
+    assert!(svg.contains("<circle cx=\"256\" cy=\"256\" r=\"156\""));
+    assert!(svg.contains("<circle cx=\"256\" cy=\"256\" r=\"64\""));
+    assert!(
+        !svg.contains("M128 358"),
+        "old two-arch mark must not ship in the SVG"
+    );
+    assert!(root.join("public/icon-master.png").exists());
+
+    let script = fs::read_to_string(root.join("scripts/generate-icon.py")).unwrap();
+    assert!(script.contains("icon-master.png"));
+    assert!(script.contains("missing public/icon-master.png"));
+
+    let (w, h, data) = png_argb_pixmap(APP_ICON_PNG).expect("decode portal");
+    assert_eq!((w, h), (256, 256));
+    // ARGB corner must be fully transparent (no black square behind the squircle).
+    assert_eq!(&data[0..4], &[0, 0, 0, 0]);
+    let mid = ((128 * 256 + 128) * 4) as usize;
+    assert_eq!(data[mid], 255, "core alpha");
+    assert!(data[mid + 1] > 200 && data[mid + 2] > 200 && data[mid + 3] > 200);
+
+    let status = Command::new("python3")
+        .arg(root.join("scripts/generate-icon.py"))
+        .current_dir(root)
+        .status()
+        .expect("python3");
+    assert!(status.success(), "generate-icon.py failed: {status}");
 }
 
 

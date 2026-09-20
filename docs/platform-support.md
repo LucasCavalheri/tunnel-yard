@@ -69,11 +69,11 @@ Supervisors observe a heartbeat. Closing the window keeps the app in the tray; q
 
 ## Distribution
 
-The mark is a coral squircle with two white tunnel arches meeting at a hub. The
-concept was explored with OpenAI ImageGen and rebuilt as precise geometry in
-`scripts/generate-icon.py`, which writes `public/icon.svg`, `public/icon.png`,
-`public/icon-32.png`, `public/icon-64.png`, `public/icon.ico`, and
-`build/icon.png`. The binary embeds the PNG/ICO (`include_bytes`) and copies
+The mark is a coral squircle with a white circular tunnel portal (a ring around
+a solid core). The concept lives in `public/icon-master.png` and is rebuilt as
+precise geometry in `scripts/generate-icon.py`, which writes `public/icon.svg`,
+`public/icon.png`, `public/icon-32.png`, `public/icon-64.png`, `public/icon.ico`,
+and `build/icon.png`. The binary embeds the PNG/ICO (`include_bytes`) and copies
 them into the user cache so the window, tray and notifications all show the
 same icon. On Linux it also writes a per-user launcher named after
 `lucas.cavalheri.tunnelyard`, matching the Wayland app id used by the window and
