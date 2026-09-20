@@ -2,7 +2,7 @@
   <img src="public/icon.svg" width="96" height="96" alt="TunnelYard">
 </p>
 
-<h1 align="center">TunnelYard</h1>
+<h1 align="center">🛡️ TunnelYard</h1>
 
 <p align="center">
   <strong>FortiGate SSL VPN, without a root terminal left open forever.</strong><br>
@@ -26,31 +26,27 @@
   <img src="https://img.shields.io/badge/built%20with-Rust-informational.svg" alt="Built with Rust">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/desk-dark.png" width="720" alt="TunnelYard desk in dark theme">
-</p>
-
 Linux and macOS speak **openfortivpn**. Windows speaks **OpenConnect 9.21 + Wintun**, still using the same `.conf` files. Connect one tunnel or several, hide the window, get a notification when a link drops, and let the app bring it back.
 
 ---
 
-## Highlights
+## ✨ Highlights
 
 | | |
 |---|---|
-| **Several tunnels at once** | Each profile is its own session. Bring up work, lab and a client VPN together. |
-| **Light, dark or system** | Appearance follows the OS or stays on the theme you pick. Persisted. |
-| **Auto-reconnect** | On by default. An unexpected drop starts a new tunnel; a manual disconnect does not. |
-| **Unprivileged UI** | The window never runs as root. PolicyKit, the macOS administrator prompt or UAC only appear when a tunnel actually needs them. |
-| **Tray, not a terminal** | Close the window. The tunnels stay up. Quit only when you mean it. |
-| **pt-BR and English** | Full UI language switch, saved next to the theme. |
-| **In-app updates** | Check, download and install the matching package for this machine. |
+| 🔌 **Several tunnels at once** | Each profile is its own session. Bring up work, lab and a client VPN together. |
+| 🎨 **Light, dark or system** | Appearance follows the OS or stays on the theme you pick. Persisted. |
+| ♻️ **Auto-reconnect** | On by default. An unexpected drop starts a new tunnel; a manual disconnect does not. |
+| 🔐 **Unprivileged UI** | The window never runs as root. PolicyKit, the macOS administrator prompt or UAC only appear when a tunnel actually needs them. |
+| 🧺 **Tray, not a terminal** | Close the window. The tunnels stay up. Quit only when you mean it. |
+| 🌐 **pt-BR and English** | Full UI language switch, saved next to the theme. |
+| 📦 **In-app updates** | Check, download and install the matching package for this machine. |
 
 The desk is native [GPUI Kit](https://gpui-kit.com/), with Hugeicons on the chrome. See [`docs/gpui-kit.md`](docs/gpui-kit.md).
 
 ---
 
-## Install
+## 🚀 Install
 
 Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yard/releases/latest).
 
@@ -87,15 +83,15 @@ Linux also writes `~/.local/share/applications/lucas.cavalheri.tunnelyard.deskto
 
 Unsigned Windows builds may trip SmartScreen. The macOS `.dmg` is ad-hoc signed, not notarized, so Gatekeeper may want a secondary confirmation from Finder.
 
-### macOS
+### 🍎 macOS
 
 Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` (or use **Install now** when Homebrew is already there). Connecting asks for administrator authorization. Profiles: `~/Library/Application Support/TunnelYard/profiles`.
 
-### Windows
+### 🪟 Windows
 
 On x64, **Install now** downloads the pinned OpenConnect 9.21 installer, checks SHA256, and requests UAC. Wintun is included; WSL and FortiClient are not required. The ARM64 GUI is published, but the pinned OpenConnect installer is x64-only — ARM64 needs a native OpenConnect + Wintun package before connecting. Profiles: `%APPDATA%\TunnelYard\profiles`.
 
-### Linux
+### 🐧 Linux
 
 Profiles live in `/etc/openfortivpn`. Connecting uses PolicyKit (`pkexec`). From source:
 
@@ -114,11 +110,11 @@ cargo build --release
 
 If `openfortivpn` is missing, TunnelYard reads `/etc/os-release`, picks `apt`, `dnf`/`yum`, `zypper` or `pacman`, and offers a one-click install via PolicyKit.
 
-### In-app updates
+### 🔄 In-app updates
 
 When a newer GitHub release exists, the banner and the tray item **Check for updates** offer **Download and install**. One click fetches the artifact for this OS, asks for administrator approval if needed, replaces the app and relaunches.
 
-### Publishing a release
+### 🏷️ Publishing a release
 
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
@@ -133,7 +129,7 @@ The APT repo is signed with [`packaging/tunnel-yard-archive-keyring.asc`](packag
 
 ---
 
-## Profiles
+## 🧰 Profiles
 
 Standard openfortivpn configs:
 
@@ -165,16 +161,16 @@ set-dns = 0
 set-routes = 1
 ```
 
-### Privacy
+### 🔒 Privacy
 
 - Credentials stay in plaintext `.conf` files in the platform profile directory (same model as CLI openfortivpn). Native directories are created with restricted access.
 - The list shows host, port and username — not the password.
 - Harden permissions on shared machines.
-- Never commit personal `.conf` files.
+- Never commit personal `.conf` files or screenshots of real tunnels.
 
 ---
 
-## Use
+## 🎮 Use
 
 1. Open **TunnelYard**.
 2. Create, import or pick a profile.
@@ -191,7 +187,7 @@ Show window · per-profile connect/disconnect · disconnect all · refresh profi
 
 ---
 
-## Develop
+## 🛠️ Develop
 
 Rust **1.90+**. Linux needs the GPUI packages in [`docs/gpui-kit.md`](docs/gpui-kit.md).
 
@@ -229,7 +225,7 @@ On Linux, connect goes through PolicyKit helpers under `/usr/lib/tunnel-yard/` a
 
 ---
 
-## Tests
+## 🧪 Tests
 
 ```bash
 cargo test
@@ -240,7 +236,7 @@ Coverage includes conf round-trip, log markers, OpenConnect argv without passwor
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Fixes, UI polish, distro support, docs, packaging, tests and translations are welcome.
 
@@ -254,13 +250,13 @@ If you find a security issue, report it privately when you can — don't open a 
 
 ---
 
-## License
+## 📄 License
 
 [MIT](./LICENSE).
 
 Built on [openfortivpn](https://github.com/adrienverge/openfortivpn) and, on Windows, OpenConnect + Wintun.
 
 <p align="center">
-  <strong>For people who just want the tunnel up.</strong><br>
+  <strong>For people who just want the tunnel up. 🛡️</strong><br>
   <sub>Star the repo if it helps — it keeps the project visible.</sub>
 </p>
