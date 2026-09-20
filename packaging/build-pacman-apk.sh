@@ -27,6 +27,10 @@ esac
 command -v tar >/dev/null || { echo "tar is required" >&2; exit 1; }
 command -v zstd >/dev/null || { echo "zstd is required for the Arch package" >&2; exit 1; }
 mkdir -p "$OUTPUT_DIR"
+# Later we `cd` into a staging tree; keep destinations absolute so tar -f
+# does not try to create dist-release/... inside that tree.
+ROOT="$(cd "$ROOT" && pwd)"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 SIZE="$(du -sb "$ROOT" | awk '{print $1}')"
 BUILDDATE="$(date -u +%s)"

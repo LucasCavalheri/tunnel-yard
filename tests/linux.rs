@@ -307,25 +307,32 @@ fn pacman_and_apk_packages_carry_the_desktop_tree() {
     )
     .unwrap();
 
-    let out =
-        std::env::temp_dir().join(format!("tunnel-yard-pacman-apk-out-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&out);
-    fs::create_dir_all(&out).unwrap();
+    let cwd = std::env::temp_dir().join(format!(
+        "tunnel-yard-pacman-apk-cwd-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&cwd);
+    fs::create_dir_all(cwd.join("dist-release")).unwrap();
 
     let script =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("packaging/build-pacman-apk.sh");
     let status = Command::new("bash")
         .arg(&script)
+        .current_dir(&cwd)
         .args([
             root.as_os_str(),
             std::ffi::OsStr::new("3.0.1"),
             std::ffi::OsStr::new("x86_64"),
-            out.as_os_str(),
+            std::ffi::OsStr::new("dist-release"),
         ])
         .status()
         .expect("bash");
-    assert!(status.success(), "build-pacman-apk.sh failed");
+    assert!(
+        status.success(),
+        "build-pacman-apk.sh failed with a relative output dir"
+    );
 
+    let out = cwd.join("dist-release");
     let pkg = out.join("tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst");
     let apk = out.join("tunnel-yard-3.0.1-r0-x86_64.apk");
     assert!(pkg.is_file(), "{}", pkg.display());
@@ -361,5 +368,5 @@ fn pacman_and_apk_packages_carry_the_desktop_tree() {
     assert!(apk_text.contains("depend = gcompat"), "{apk_text}");
 
     let _ = fs::remove_dir_all(&root);
-    let _ = fs::remove_dir_all(&out);
+    let _ = fs::remove_dir_all(&cwd);
 }
