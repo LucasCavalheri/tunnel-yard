@@ -2,3 +2,9 @@
 *.ts text eol=lf
 *.tsx text eol=lf
 *.ps1 text eol=crlf
+
+# GitHub Linguist: the product is the Rust desktop app. Site, packaging,
+# docs and assets stay in the tree but must not dilute language stats.
+* linguist-vendored
+*.rs linguist-vendored=false
+*.rs linguist-detectable

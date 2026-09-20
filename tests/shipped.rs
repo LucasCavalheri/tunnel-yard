@@ -1179,6 +1179,7 @@ fn helpers_exist_in_tree() {
         "assets/icons/sun-03.svg",
         "assets/icons/moon-02.svg",
         "assets/icons/settings-02.svg",
+        ".gitattributes",
     ] {
         assert!(root.join(name).exists(), "{name}");
     }
@@ -1188,6 +1189,37 @@ fn helpers_exist_in_tree() {
     let postinst = fs::read_to_string(root.join("packaging/after-install.sh")).unwrap();
     assert!(!postinst.contains("resources/"));
     assert!(postinst.contains("StartupWMClass=lucas.cavalheri.tunnelyard"));
+}
+
+#[test]
+fn gitattributes_keeps_github_language_stats_on_rust() {
+    let attrs =
+        fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".gitattributes"))
+            .unwrap();
+    assert!(
+        attrs
+            .lines()
+            .any(|line| line.trim() == "* linguist-vendored"),
+        "non-Rust paths must be vendored for Linguist"
+    );
+    assert!(
+        attrs
+            .lines()
+            .any(|line| line.trim() == "*.rs linguist-vendored=false"),
+        "Rust sources must remain in language statistics"
+    );
+    assert!(
+        attrs
+            .lines()
+            .any(|line| line.trim() == "*.rs linguist-detectable"),
+        "Rust sources must stay detectable"
+    );
+    let rust_pos = attrs.rfind("*.rs linguist-vendored=false").unwrap();
+    let star_pos = attrs.find("* linguist-vendored").unwrap();
+    assert!(
+        rust_pos > star_pos,
+        "*.rs override must come after the catch-all vendored rule"
+    );
 }
 
 #[test]
@@ -1293,7 +1325,6 @@ fn light_and_dark_palettes_diverge_and_keep_brand() {
     assert_eq!(toggle_light_dark("system", false), "dark");
 }
 
-
 #[test]
 fn app_mark_is_a_portal_with_true_alpha() {
     use tunnel_yard::app_icon::{png_argb_pixmap, APP_ICON_PNG};
@@ -1326,7 +1357,6 @@ fn app_mark_is_a_portal_with_true_alpha() {
         .expect("python3");
     assert!(status.success(), "generate-icon.py failed: {status}");
 }
-
 
 #[test]
 fn landing_page_ships_the_portal_mark() {
@@ -1400,7 +1430,6 @@ fn landing_language_switch_and_github_star_are_wired() {
     assert!(en.contains("github: \"Star on GitHub\""));
     assert!(pt.contains("github: \"Dá uma estrela no GitHub\""));
 }
-
 
 #[test]
 fn download_picker_styles_choices_instead_of_native_options() {
