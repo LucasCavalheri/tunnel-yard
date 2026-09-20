@@ -307,10 +307,8 @@ fn pacman_and_apk_packages_carry_the_desktop_tree() {
     )
     .unwrap();
 
-    let cwd = std::env::temp_dir().join(format!(
-        "tunnel-yard-pacman-apk-cwd-{}",
-        std::process::id()
-    ));
+    let cwd =
+        std::env::temp_dir().join(format!("tunnel-yard-pacman-apk-cwd-{}", std::process::id()));
     let _ = fs::remove_dir_all(&cwd);
     fs::create_dir_all(cwd.join("dist-release")).unwrap();
 
