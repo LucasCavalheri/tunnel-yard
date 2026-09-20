@@ -253,6 +253,16 @@ export const ptBR: Dictionary = {
     choiceTarArm: "ARM64 · Portátil (.tar.gz)",
   },
 
+  install: {
+    eyebrow: "Um comando",
+    titleLine1: "Cola.",
+    titleLine2: "A distro faz o resto.",
+    lead: "O script lê o processador e o gerenciador de pacotes e instala o arquivo certo do GitHub. PolicyKit, ícones, o pacote inteiro.",
+    copy: "Copiar",
+    copied: "Copiado",
+    hint: "Root ou sudo. x86_64 e ARM64. apt, dnf, yum, zypper, pacman, apk, ou um tarball se nenhum desses existir.",
+  },
+
   cta: {
     eyebrow: "Menos terminal. Mais fluxo.",
     titleLine1: "Sua próxima conexão",

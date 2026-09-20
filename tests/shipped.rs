@@ -837,6 +837,7 @@ fn helpers_exist_in_tree() {
         "packaging/stop-vpn.sh",
         "packaging/build-linux-packages.sh",
         "packaging/build-pacman-apk.sh",
+        "public/install.sh",
         "packaging/polkit/lucas.cavalheri.tunnelyard.policy",
         "packaging/tunnel-yard.desktop",
         "public/icon.png",
@@ -1146,6 +1147,41 @@ if (resolveDownload('', 'x64', urls) !== '') throw new Error('no distro');
         .status()
         .expect("node");
     assert!(status.success(), "download-board.js contract failed");
+}
+
+#[test]
+fn install_command_copy_toggles_the_copied_label() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let landing = fs::read_to_string(root.join("site/src/components/Landing.astro")).unwrap();
+    let panel = fs::read_to_string(root.join("site/src/components/InstallCommand.astro")).unwrap();
+    let css = fs::read_to_string(root.join("site/src/styles/global.css")).unwrap();
+    assert!(landing.contains("InstallCommand"));
+    assert!(panel.contains("tunnelyard.lucascavalheri.com.br/install.sh"));
+    assert!(panel.contains("data-install-copy"));
+    assert!(css.contains(".install-copy.is-copied"));
+    assert!(css.contains("install-blink"));
+
+    let script = root.join("site/src/install-copy.js");
+    let status = Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            &format!(
+                r#"
+import {{ INSTALL_COMMAND, copyButtonLabel, copyText }} from '{url}';
+if (!INSTALL_COMMAND.includes('tunnelyard.lucascavalheri.com.br/install.sh')) throw new Error('url');
+if (copyButtonLabel(false, {{ copy: 'Copy', copied: 'Copied' }}) !== 'Copy') throw new Error('idle');
+if (copyButtonLabel(true, {{ copy: 'Copy', copied: 'Copied' }}) !== 'Copied') throw new Error('copied');
+let wrote = '';
+await copyText('hello', {{ writeText: async (t) => {{ wrote = t; }} }});
+if (wrote !== 'hello') throw new Error('clipboard');
+"#,
+                url = file_url(&script)
+            ),
+        ])
+        .status()
+        .expect("node");
+    assert!(status.success(), "install-copy.js contract failed");
 }
 
 fn file_url(path: &std::path::Path) -> String {

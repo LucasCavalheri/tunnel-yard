@@ -253,6 +253,16 @@ export const en = {
     choiceTarArm: "ARM64 · Portable (.tar.gz)",
   },
 
+  install: {
+    eyebrow: "One command",
+    titleLine1: "Paste it.",
+    titleLine2: "Your distro takes it from there.",
+    lead: "The script reads your chip and package manager, then installs the matching GitHub package. PolicyKit, icons, the lot.",
+    copy: "Copy",
+    copied: "Copied",
+    hint: "Root or sudo. x86_64 and ARM64. apt, dnf, yum, zypper, pacman, apk, or a tarball if none of those are there.",
+  },
+
   cta: {
     eyebrow: "Less terminal. More flow.",
     titleLine1: "Your next connection",

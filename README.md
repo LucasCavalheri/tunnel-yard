@@ -61,6 +61,12 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 ARM64 files use `arm64` / `aarch64` in the name.
 
 ```bash
+curl -fsSL https://tunnelyard.lucascavalheri.com.br/install.sh | bash
+```
+
+The script reads `uname` and the package manager, then installs the matching GitHub asset (deb, rpm, pacman, apk, or the portable archive).
+
+```bash
 # Debian / Ubuntu / Mint / Pop!_OS / Kali
 sudo apt install ./tunnel-yard_3.0.1_amd64.deb
 

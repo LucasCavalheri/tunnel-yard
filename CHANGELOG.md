@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Public installer at `/install.sh`: one curl, the distro's own package.
+- Site section to copy `curl -fsSL https://tunnelyard.lucascavalheri.com.br/install.sh | bash`.
+
 ## 3.0.1
 
 - Arch and Manjaro download a pacman package (`.pkg.tar.zst`). Alpine

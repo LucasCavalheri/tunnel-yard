@@ -368,3 +368,65 @@ fn pacman_and_apk_packages_carry_the_desktop_tree() {
     let _ = fs::remove_dir_all(&root);
     let _ = fs::remove_dir_all(&cwd);
 }
+
+fn install_sh() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("public/install.sh")
+}
+
+fn install_plan(arch: &str, pm: &str, version: &str) -> String {
+    let output = Command::new("bash")
+        .arg(install_sh())
+        .args(["--print-plan", "--version", version])
+        .env("TUNNEL_YARD_ARCH", arch)
+        .env("TUNNEL_YARD_PM", pm)
+        .env("TUNNEL_YARD_VERSION", version)
+        .output()
+        .expect("install.sh");
+    assert!(
+        output.status.success(),
+        "install.sh --print-plan failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+#[test]
+fn install_sh_plans_native_packages_per_distro() {
+    let apt = install_plan("x86_64", "apt", "3.0.1");
+    assert!(apt.contains("family=apt"), "{apt}");
+    assert!(apt.contains("tunnel-yard_3.0.1_amd64.deb"), "{apt}");
+    assert!(apt.contains("/download/v3.0.1/"), "{apt}");
+
+    let arm_apt = install_plan("aarch64", "apt", "3.0.1");
+    assert!(arm_apt.contains("tunnel-yard_3.0.1_arm64.deb"), "{arm_apt}");
+
+    let pacman = install_plan("x86_64", "pacman", "3.0.1");
+    assert!(pacman.contains("family=pacman"), "{pacman}");
+    assert!(
+        pacman.contains("tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst"),
+        "{pacman}"
+    );
+
+    let apk = install_plan("aarch64", "apk", "3.0.1");
+    assert!(apk.contains("tunnel-yard-3.0.1-r0-aarch64.apk"), "{apk}");
+
+    let rpm = install_plan("x86_64", "dnf", "3.0.1");
+    assert!(rpm.contains("tunnel-yard-3.0.1-1.x86_64.rpm"), "{rpm}");
+
+    let tar = install_plan("x86_64", "tar", "3.0.1");
+    assert!(tar.contains("tunnel-yard-linux-x64.tar.gz"), "{tar}");
+}
+
+#[test]
+fn install_sh_rejects_foreign_chips() {
+    let output = Command::new("bash")
+        .arg(install_sh())
+        .args(["--print-plan", "--version", "3.0.1"])
+        .env("TUNNEL_YARD_ARCH", "riscv64")
+        .env("TUNNEL_YARD_PM", "apt")
+        .output()
+        .expect("install.sh");
+    assert!(!output.status.success());
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("x86_64"), "{err}");
+}

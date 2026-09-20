@@ -1,0 +1,57 @@
+---
+import { Check, Copy, Terminal } from "@lucide/astro";
+import type { Dictionary } from "../i18n";
+
+interface Props {
+  t: Dictionary;
+}
+
+const { t } = Astro.props;
+const command = "curl -fsSL https://tunnelyard.lucascavalheri.com.br/install.sh | bash";
+---
+<section class="one-liner" id="install">
+  <div class="container">
+    <div class="one-liner-panel reveal">
+      <div class="one-liner-grid" aria-hidden="true"></div>
+      <div class="one-liner-orb" aria-hidden="true"></div>
+      <div class="eyebrow eyebrow-light"><Terminal size={14} aria-hidden="true" /> {t.install.eyebrow}</div>
+      <h2>{t.install.titleLine1}<br />{t.install.titleLine2}</h2>
+      <p class="one-liner-lead">{t.install.lead}</p>
+      <div class="install-term">
+        <div class="install-term-bar" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="install-term-body">
+          <code data-install-command>{command}</code>
+          <span class="install-cursor" aria-hidden="true"></span>
+          <button
+            type="button"
+            class="install-copy"
+            data-install-copy
+            data-command={command}
+            data-label-copy={t.install.copy}
+            data-label-copied={t.install.copied}
+            aria-label={t.install.copy}
+            aria-pressed="false"
+          >
+            <span class="copy-idle"><Copy size={16} aria-hidden="true" /> <span data-copy-label>{t.install.copy}</span></span>
+            <span class="copy-done"><Check size={16} aria-hidden="true" /> <span>{t.install.copied}</span></span>
+          </button>
+        </div>
+      </div>
+      <p class="one-liner-hint">{t.install.hint}</p>
+    </div>
+  </div>
+</section>
+<script>
+  import { bindInstallCopy } from "../install-copy.js";
+
+  let bootedPath = "";
+  const boot = () => {
+    if (bootedPath === location.pathname) return;
+    bootedPath = location.pathname;
+    bindInstallCopy(document);
+  };
+  boot();
+  document.addEventListener("astro:page-load", boot);
+</script>
