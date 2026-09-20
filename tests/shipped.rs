@@ -1402,6 +1402,43 @@ fn landing_language_switch_and_github_star_are_wired() {
 }
 
 
+#[test]
+fn download_picker_styles_choices_instead_of_native_options() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let downloads = fs::read_to_string(root.join("site/src/components/Downloads.astro")).unwrap();
+    let css = fs::read_to_string(root.join("site/src/styles/global.css")).unwrap();
+    assert!(!downloads.contains("<select"));
+    assert!(downloads.contains("role=\"listbox\""));
+    assert!(downloads.contains("role=\"option\""));
+    assert!(downloads.contains("data-download-picker"));
+    assert!(css.contains(".picker-menu [role=\"option\"]"));
+
+    let script = root.join("site/src/download-picker.js");
+    let status = Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            &format!(
+                r#"
+import {{ fileNameFromUrl, downloadButtonState, moveActiveIndex }} from '{url}';
+if (fileNameFromUrl('https://example.test/a/tunnel-yard_1.2.3_amd64.deb') !== 'tunnel-yard_1.2.3_amd64.deb') throw new Error('name');
+if (fileNameFromUrl('') !== '') throw new Error('empty');
+const idle = downloadButtonState('', {{ idle: 'Pick', ready: 'Go', hint: 'hint' }});
+if (idle.enabled || idle.buttonLabel !== 'Pick' || idle.fileLabel !== 'hint') throw new Error('idle');
+const ready = downloadButtonState('https://x/y/file.exe', {{ idle: 'Pick', ready: 'Go', hint: 'hint' }});
+if (!ready.enabled || ready.buttonLabel !== 'Go' || ready.fileLabel !== 'file.exe') throw new Error('ready');
+if (moveActiveIndex(-1, 1, 6) !== 0) throw new Error('start');
+if (moveActiveIndex(5, 1, 6) !== 0) throw new Error('wrap');
+if (moveActiveIndex(0, -1, 6) !== 5) throw new Error('back');
+"#,
+                url = format!("file://{}", script.canonicalize().unwrap().display())
+            ),
+        ])
+        .status()
+        .expect("node");
+    assert!(status.success(), "download-picker.js contract failed");
+}
+
 fn fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")

@@ -1,5 +1,5 @@
 ---
-import { Download } from "@lucide/astro";
+import { ChevronDown, Download } from "@lucide/astro";
 import { Icon } from "astro-icon/components";
 import { release } from "../data/release";
 import type { Dictionary } from "../i18n";
@@ -62,15 +62,34 @@ const assetFor = (suffix: string) => {
       <div class="platform-top"><span class="platform-icon"><Icon name={`simple-icons:${platform.icon}`} size={28} /></span><span class="arch-pill">{release.tag_name}</span></div>
       <h3>{platform.name}</h3>
       <p>{platform.description}</p>
-      <label class="download-picker" for={`build-${platform.id}`}>
-        {platform.pickerLabel}
-        <select id={`build-${platform.id}`} data-build-picker>
-          <option value="">{t.downloads.pickerPlaceholder}</option>
-          {platform.choices.map(([label, suffix]) => (
-            <option value={assetFor(suffix).browser_download_url}>{label}</option>
-          ))}
-        </select>
-      </label>
+      <div class="download-picker">
+        <span class="picker-label" id={`build-${platform.id}-label`}>{platform.pickerLabel}</span>
+        <div class="picker" data-download-picker>
+          <button
+            type="button"
+            class="picker-trigger"
+            id={`build-${platform.id}`}
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls={`build-${platform.id}-list`}
+            aria-labelledby={`build-${platform.id}-label build-${platform.id}-value`}
+          >
+            <span id={`build-${platform.id}-value`} data-picker-label>{t.downloads.pickerPlaceholder}</span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <ul
+            class="picker-menu"
+            id={`build-${platform.id}-list`}
+            role="listbox"
+            aria-labelledby={`build-${platform.id}-label`}
+            hidden
+          >
+            {platform.choices.map(([label, suffix]) => (
+              <li role="option" data-value={assetFor(suffix).browser_download_url} aria-selected="false">{label}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
       <a
         class="button button-primary button-platform"
         data-file-download
@@ -86,29 +105,18 @@ const assetFor = (suffix: string) => {
   ))}
 </div>
 <script>
-  document.querySelectorAll<HTMLElement>("[data-download-card]").forEach(card => {
-    const picker = card.querySelector<HTMLSelectElement>("[data-build-picker]")!;
-    const link = card.querySelector<HTMLAnchorElement>("[data-file-download]")!;
-    // Labels ride along in data attributes so this script stays language-agnostic.
-    const labelIdle = link.dataset.labelIdle!;
-    const labelReady = link.dataset.labelReady!;
-    const fileHint = link.dataset.fileHint!;
-    const update = () => {
-      if (picker.value) {
-        link.href = picker.value;
-        link.removeAttribute("aria-disabled");
-        link.removeAttribute("tabindex");
-      } else {
-        link.removeAttribute("href");
-        link.setAttribute("aria-disabled", "true");
-        link.tabIndex = -1;
-      }
-      link.querySelector("span")!.textContent = picker.value ? labelReady : labelIdle;
-      card.querySelector("[data-file-name]")!.textContent = picker.value
-        ? decodeURIComponent(picker.value.split("/").pop()!)
-        : fileHint;
-    };
-    picker.addEventListener("change", update);
-    update();
+  import { bindDownloadPickers, closeDownloadPickersOnOutside } from "../download-picker.js";
+
+  let bootedPath = "";
+  const bootDownloads = () => {
+    if (bootedPath === location.pathname) return;
+    bootedPath = location.pathname;
+    bindDownloadPickers(document);
+  };
+  bootDownloads();
+  document.addEventListener("astro:page-load", bootDownloads);
+  document.addEventListener("pointerdown", (event) => closeDownloadPickersOnOutside(event));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeDownloadPickersOnOutside({ target: document.body });
   });
 </script>
