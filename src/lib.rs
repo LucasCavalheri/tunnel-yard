@@ -17,6 +17,7 @@ pub mod os_ui;
 pub mod platform;
 pub mod settings;
 pub mod smoke;
+pub mod theme;
 pub mod tray_menu;
 pub mod updates;
 pub mod vpn;
