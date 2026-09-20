@@ -9,6 +9,7 @@ pub mod conf;
 pub mod deps;
 pub mod desktop;
 pub mod i18n;
+pub mod icons;
 pub mod install_native;
 pub mod native;
 pub mod openconnect;
