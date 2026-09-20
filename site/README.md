@@ -18,8 +18,10 @@ chave de tradução faltando — interrompe o build.
 
 Na Vercel, selecione `site` como **Root Directory**. O framework preset pode
 ficar como Astro, o comando de build é `npm run build` e a pasta de saída é
-`dist`. O site está publicado em <https://tunnelyard.lucascavalheri.com.br/> e
-a Vercel republica a cada push no `master`.
+`dist`. O CSS da landing vai inline no HTML (`inlineStylesheets: "always"`)
+para um 404 em `/_astro/*.css` não publicar a página sem estilo. O site está
+publicado em <https://tunnelyard.lucascavalheri.com.br/> e a Vercel republica
+a cada push no `master`.
 
 ## Idiomas
 

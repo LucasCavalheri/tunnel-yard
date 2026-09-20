@@ -54,3 +54,19 @@ jobs:
       - name: Check macOS helper syntax
         if: runner.os == 'macOS'
         run: bash -n packaging/macos-vpn.sh
+
+  site:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site
+      - run: node scripts/assert-built-styles.mjs dist
+        working-directory: site

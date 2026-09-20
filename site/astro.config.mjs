@@ -22,6 +22,12 @@ export default defineConfig({
     })
   ],
   build: {
-    format: "directory"
+    format: "directory",
+    // Keep hashed JS under /assets (not /_astro): Vercel sends
+    // Cache-Control: immutable on 404s for that prefix, so a deploy race
+    // sticks in the browser for a year. CSS is inlined so the landing page
+    // cannot render as unstyled markup when a stylesheet 404s.
+    assets: "assets",
+    inlineStylesheets: "always"
   }
 });

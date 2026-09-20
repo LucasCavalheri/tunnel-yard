@@ -45,6 +45,8 @@ website that does not throw you back to the top when you switch language.
 - Header and CTA invite a GitHub star, with the live count from the API.
 - Download package pickers use a styled list instead of the native OS
   dropdown.
+- Landing CSS is inlined in the HTML. A hashed `/_astro/*.css` 404 — cached
+  by Vercel as immutable — can no longer leave the page as unstyled markup.
 
 ## 2.8.1
 

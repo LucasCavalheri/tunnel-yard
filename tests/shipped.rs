@@ -1469,6 +1469,137 @@ if (moveActiveIndex(0, -1, 6) !== 5) throw new Error('back');
     assert!(status.success(), "download-picker.js contract failed");
 }
 
+fn assert_built_styles(dist: &std::path::Path) -> std::process::Output {
+    let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("site/scripts/assert-built-styles.mjs");
+    Command::new("node")
+        .arg(&script)
+        .arg(dist)
+        .output()
+        .expect("node")
+}
+
+fn write_landing_pair(root: &std::path::Path, en: &str, pt: &str) {
+    fs::create_dir_all(root.join("pt-br")).unwrap();
+    fs::write(root.join("index.html"), en).unwrap();
+    fs::write(root.join("pt-br/index.html"), pt).unwrap();
+}
+
+const LANDING_LAYOUT_CSS: &str =
+    ".desktop-nav{display:flex}.site-header{position:fixed}.hero{min-height:80vh}";
+
+#[test]
+fn landing_pages_without_reachable_css_are_rejected() {
+    let missing = tempfile_dir("site-css-missing");
+    write_landing_pair(
+        &missing,
+        "<html><head></head><body><nav class=\"desktop-nav\"></nav></body></html>",
+        "<html><head></head><body></body></html>",
+    );
+    let out = assert_built_styles(&missing);
+    assert!(
+        !out.status.success(),
+        "unstyled HTML must fail: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let dangling = tempfile_dir("site-css-404");
+    write_landing_pair(
+        &dangling,
+        "<html><head><link rel=\"stylesheet\" href=\"/_astro/Landing.missing.css\"></head><body></body></html>",
+        "<html><head><link rel=\"stylesheet\" href=\"/_astro/Landing.missing.css\"></head><body></body></html>",
+    );
+    let out = assert_built_styles(&dangling);
+    let err = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !out.status.success(),
+        "dangling stylesheet must fail: {err}"
+    );
+    assert!(
+        err.contains("stylesheet 404"),
+        "expected a 404 diagnostic, got: {err}"
+    );
+}
+
+#[test]
+fn landing_pages_accept_inlined_or_present_layout_css() {
+    let inlined = tempfile_dir("site-css-inline");
+    let page =
+        format!("<html><head><style>{LANDING_LAYOUT_CSS}</style></head><body></body></html>");
+    write_landing_pair(&inlined, &page, &page);
+    let out = assert_built_styles(&inlined);
+    assert!(
+        out.status.success(),
+        "inlined CSS must pass: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let linked = tempfile_dir("site-css-linked");
+    fs::create_dir_all(linked.join("assets")).unwrap();
+    fs::write(linked.join("assets/Landing.css"), LANDING_LAYOUT_CSS).unwrap();
+    let page =
+        "<html><head><link rel=\"stylesheet\" href=\"/assets/Landing.css\"></head><body></body></html>";
+    write_landing_pair(&linked, page, page);
+    let out = assert_built_styles(&linked);
+    assert!(
+        out.status.success(),
+        "linked CSS on disk must pass: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn astro_build_inlines_landing_css() {
+    let config = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("site/astro.config.mjs"),
+    )
+    .unwrap();
+    assert!(
+        config.contains("inlineStylesheets: \"always\""),
+        "landing CSS must be inlined so a hashed stylesheet 404 cannot unstyle the page"
+    );
+    assert!(config.contains("assets: \"assets\""));
+}
+
+#[test]
+fn built_site_dist_keeps_landing_css_reachable() {
+    let site = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("site");
+    let dist = site.join("dist");
+    if site.join("node_modules/astro").is_dir() {
+        let output = Command::new("npm")
+            .args(["run", "build"])
+            .current_dir(&site)
+            .output()
+            .expect("npm");
+        assert!(
+            output.status.success(),
+            "astro build failed: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    } else if !dist.join("index.html").is_file() {
+        return;
+    }
+    let out = assert_built_styles(&dist);
+    assert!(
+        out.status.success(),
+        "site/dist CSS check failed: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = fs::read_to_string(dist.join("pt-br/index.html")).unwrap();
+    assert!(
+        html.contains("<style") && html.contains(".desktop-nav"),
+        "Portuguese page must ship layout CSS in the HTML, not a hashed file that can 404"
+    );
+}
+
 fn fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
