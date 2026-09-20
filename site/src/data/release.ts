@@ -17,3 +17,16 @@ if (!release.tag_name || !Array.isArray(release.assets) || !release.html_url?.st
 for (const asset of release.assets) {
   if (!asset.browser_download_url?.startsWith(`${repoUrl}/releases/download/`)) throw new Error("URL de instalador inválida.");
 }
+
+const repoResponse = await fetch("https://api.github.com/repos/LucasCavalheri/tunnel-yard", {
+  headers: { Accept: "application/vnd.github+json" },
+  signal: AbortSignal.timeout(15000),
+});
+if (!repoResponse.ok) {
+  throw new Error(`Não foi possível ler o repositório: GitHub HTTP ${repoResponse.status}.`);
+}
+const repo = (await repoResponse.json()) as { stargazers_count?: unknown };
+if (typeof repo.stargazers_count !== "number" || !Number.isFinite(repo.stargazers_count) || repo.stargazers_count < 0) {
+  throw new Error("Contagem de estrelas inválida.");
+}
+export const starCount: number = Math.round(repo.stargazers_count);

@@ -33,6 +33,8 @@ export const ptBR: Dictionary = {
     downloads: "Downloads",
     github: "GitHub",
     viewOnGithub: "Ver no GitHub",
+    star: "Dá uma estrela",
+    starHint: "Dá uma estrela no GitHub se curtir o projeto",
     download: "Baixar",
     openMenu: "Abrir menu",
   },
@@ -240,7 +242,7 @@ export const ptBR: Dictionary = {
     titleLine2: "pode levar um clique.",
     body: "Baixe o TunnelYard, importe seus perfis e siga o trabalho.",
     download: "Baixar v{version}",
-    github: "Ver no GitHub",
+    github: "Dá uma estrela no GitHub",
   },
 
   footer: {

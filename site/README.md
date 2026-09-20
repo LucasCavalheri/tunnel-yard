@@ -48,7 +48,10 @@ O seletor de idioma (`LanguageSwitcher.astro`) mostra as bandeiras do Brasil e
 dos EUA no header e dentro do menu mobile. O link para cada idioma é rotulado
 no próprio idioma de destino, por isso `switcher.toPortuguese` é igual nos dois
 dicionários. As bandeiras vêm de `@iconify-json/circle-flags` e são inlined em
-build time.
+build time. Com JavaScript, a troca usa o `ClientRouter` do Astro: o texto
+muda com um fade e o scroll atual é restaurado (`tunnelyard-locale-scroll`).
+Sem JavaScript, o link continua sendo uma navegação normal entre `/` e
+`/pt-br/`.
 
 Ao adicionar uma seção, lembre de incluir o link nos **dois** navs (desktop e
 mobile) e de registrar o rótulo em `nav`.

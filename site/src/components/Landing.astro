@@ -23,16 +23,18 @@ import {
   ShieldCheck,
   Sparkles,
   SquareTerminal,
+  Star,
   X,
   Zap
 } from "@lucide/astro";
 import { Icon as BrandIcon } from "astro-icon/components";
 import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
 import Downloads from "./Downloads.astro";
 import LanguageSwitcher from "./LanguageSwitcher.astro";
 import MemoryLab from "./MemoryLab.astro";
-import { release, repoUrl } from "../data/release";
-import { dictionaries, fill, localePath, type Locale } from "../i18n";
+import { release, repoUrl, starCount } from "../data/release";
+import { dictionaries, fill, formatInteger, localePath, type Locale } from "../i18n";
 
 interface Props {
   locale: Locale;
@@ -64,8 +66,21 @@ const canonical = absolute(localePath(locale));
     <link rel="alternate" hreflang="en" href={absolute(localePath("en"))} />
     <link rel="alternate" hreflang="pt-BR" href={absolute(localePath("pt-BR"))} />
     <link rel="alternate" hreflang="x-default" href={absolute(localePath("en"))} />
+    <meta property="og:image" content={absolute("/icon.png")} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="256" />
+    <meta property="og:image:height" content="256" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={t.meta.ogTitle} />
+    <meta name="twitter:description" content={t.meta.ogDescription} />
+    <meta name="twitter:image" content={absolute("/icon.png")} />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/icon-64.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
     <title>{t.meta.title}</title>
+    <meta name="ty-locale" content={t.htmlLang} />
+    <ClientRouter fallback="animate" />
     <script is:inline>document.documentElement.classList.add("js");</script>
   </head>
   <body>
@@ -87,9 +102,16 @@ const canonical = absolute(localePath(locale));
 
         <div class="header-actions">
           <LanguageSwitcher locale={locale} t={t} />
-          <a class="github-link" href={repoUrl} target="_blank" rel="noreferrer">
-            <BrandIcon name="simple-icons:github" size={18} aria-hidden="true" />
-            <span>{t.nav.github}</span>
+          <a
+            class="star-link"
+            href={repoUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={t.nav.starHint}
+          >
+            <Star size={14} aria-hidden="true" />
+            <span>{t.nav.star}</span>
+            <span class="star-count">{formatInteger(locale, starCount)}</span>
           </a>
           <a class="button button-small button-primary" href="#downloads">
             {t.nav.download}
@@ -109,7 +131,17 @@ const canonical = absolute(localePath(locale));
         <a href="#seguranca">{t.nav.security}</a>
         <a href="#performance">{t.nav.performance}</a>
         <a href="#downloads">{t.nav.downloads}</a>
-        <a href={repoUrl} target="_blank" rel="noreferrer">{t.nav.viewOnGithub}</a>
+        <a
+          class="star-link"
+          href={repoUrl}
+          target="_blank"
+          rel="noreferrer"
+          title={t.nav.starHint}
+        >
+          <Star size={14} aria-hidden="true" />
+          <span>{t.nav.star}</span>
+          <span class="star-count">{formatInteger(locale, starCount)}</span>
+        </a>
         <LanguageSwitcher locale={locale} t={t} />
       </nav>
     </header>
@@ -176,9 +208,12 @@ const canonical = absolute(localePath(locale));
               <div class="app-layout">
                 <aside class="app-sidebar">
                   <div class="side-brand">
-                    <div>
-                      <strong>TunnelYard</strong>
-                      <small>{t.hero.app.controlDesk}</small>
+                    <div class="side-brand-copy">
+                      <img src="/icon.svg" alt="" width="28" height="28" />
+                      <div>
+                        <strong>TunnelYard</strong>
+                        <small>{t.hero.app.controlDesk}</small>
+                      </div>
                     </div>
                     <span class="version-pill">v{version}</span>
                   </div>
@@ -521,7 +556,7 @@ const canonical = absolute(localePath(locale));
             <p>{t.cta.body}</p>
             <div class="cta-actions">
               <a class="button button-white button-large" href="#downloads"><Download size={19} /> {fill(t.cta.download, { version })}</a>
-              <a class="button button-ghost-light button-large" href={repoUrl} target="_blank" rel="noreferrer"><BrandIcon name="simple-icons:github" size={19} /> {t.cta.github}</a>
+              <a class="button button-ghost-light button-large" href={repoUrl} target="_blank" rel="noreferrer"><Star size={18} /> {t.cta.github}</a>
             </div>
           </div>
         </div>
@@ -545,72 +580,108 @@ const canonical = absolute(localePath(locale));
     </footer>
 
     <script>
-      const header = document.querySelector<HTMLElement>("[data-header]");
-      const menuButton = document.querySelector<HTMLButtonElement>("[data-menu-button]");
-      const mobileNav = document.querySelector<HTMLElement>("[data-mobile-nav]");
+      import {
+        LOCALE_SCROLL_KEY,
+        decodeLocaleScroll,
+        encodeLocaleScroll,
+      } from "../locale-nav.js";
 
-      const closeMenu = () => {
-        menuButton?.setAttribute("aria-expanded", "false");
-        header?.classList.remove("menu-is-open");
+      const restoreLocaleScroll = () => {
+        const y = decodeLocaleScroll(sessionStorage.getItem(LOCALE_SCROLL_KEY));
+        sessionStorage.removeItem(LOCALE_SCROLL_KEY);
+        if (y === null) return false;
+        window.scrollTo({ top: y, left: 0, behavior: "instant" });
+        return true;
       };
 
-      menuButton?.addEventListener("click", () => {
-        const nextState = menuButton.getAttribute("aria-expanded") !== "true";
-        menuButton.setAttribute("aria-expanded", String(nextState));
-        header?.classList.toggle("menu-is-open", nextState);
+      document.addEventListener("astro:after-swap", () => {
+        const lang = document.querySelector("meta[name='ty-locale']")?.getAttribute("content");
+        if (lang) document.documentElement.lang = lang;
+        document.documentElement.toggleAttribute("data-locale-restored", restoreLocaleScroll());
       });
 
-      mobileNav?.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMenu));
+      let bootedPath = "";
+      const bootPage = () => {
+        if (bootedPath === location.pathname) return;
+        bootedPath = location.pathname;
+        const header = document.querySelector<HTMLElement>("[data-header]");
+        const menuButton = document.querySelector<HTMLButtonElement>("[data-menu-button]");
+        const mobileNav = document.querySelector<HTMLElement>("[data-mobile-nav]");
 
-      const updateHeader = () => header?.classList.toggle("is-scrolled", window.scrollY > 18);
-      updateHeader();
-      window.addEventListener("scroll", updateHeader, { passive: true });
+        const closeMenu = () => {
+          menuButton?.setAttribute("aria-expanded", "false");
+          header?.classList.remove("menu-is-open");
+        };
 
-      const download = document.querySelector<HTMLAnchorElement>("[data-primary-download]");
-      const downloadLabel = document.querySelector<HTMLElement>("[data-download-label]");
-      const userAgent = navigator.userAgent.toLowerCase();
+        menuButton?.addEventListener("click", () => {
+          const nextState = menuButton.getAttribute("aria-expanded") !== "true";
+          menuButton.setAttribute("aria-expanded", String(nextState));
+          header?.classList.toggle("menu-is-open", nextState);
+        });
 
-      if (download && downloadLabel) {
-        // Labels come from data attributes so this stays language-agnostic.
-        if (userAgent.includes("mac")) {
-          download.href = "#download-macos";
-          downloadLabel.textContent = download.dataset.labelMac!;
-        } else if (userAgent.includes("win")) {
-          download.href = "#download-windows";
-          downloadLabel.textContent = download.dataset.labelWindows!;
-        } else if (userAgent.includes("linux")) {
-          download.href = "#download-linux";
-          downloadLabel.textContent = download.dataset.labelLinux!;
+        mobileNav?.querySelectorAll("a").forEach((link) => {
+          if (link.hasAttribute("data-i18n-switch")) return;
+          link.addEventListener("click", closeMenu);
+        });
+
+        document.querySelectorAll<HTMLAnchorElement>("[data-i18n-switch]").forEach((link) => {
+          link.addEventListener("click", () => {
+            sessionStorage.setItem(LOCALE_SCROLL_KEY, encodeLocaleScroll(window.scrollY));
+          });
+        });
+
+        const updateHeader = () => header?.classList.toggle("is-scrolled", window.scrollY > 18);
+        updateHeader();
+        window.addEventListener("scroll", updateHeader, { passive: true });
+
+        const download = document.querySelector<HTMLAnchorElement>("[data-primary-download]");
+        const downloadLabel = document.querySelector<HTMLElement>("[data-download-label]");
+        const userAgent = navigator.userAgent.toLowerCase();
+
+        if (download && downloadLabel) {
+          if (userAgent.includes("mac")) {
+            download.href = "#download-macos";
+            downloadLabel.textContent = download.dataset.labelMac!;
+          } else if (userAgent.includes("win")) {
+            download.href = "#download-windows";
+            downloadLabel.textContent = download.dataset.labelWindows!;
+          } else if (userAgent.includes("linux")) {
+            download.href = "#download-linux";
+            downloadLabel.textContent = download.dataset.labelLinux!;
+          }
         }
-      }
 
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const revealItems = document.querySelectorAll<HTMLElement>(".reveal");
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const revealItems = document.querySelectorAll<HTMLElement>(".reveal");
+        const keepRevealsVisible = document.documentElement.hasAttribute("data-locale-restored");
 
-      if (reduceMotion || !("IntersectionObserver" in window)) {
-        revealItems.forEach((item) => item.classList.add("is-visible"));
-      } else {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                entry.target.classList.add("is-visible");
-                observer.unobserve(entry.target);
-              }
-            });
-          },
-          { threshold: 0.12, rootMargin: "0px 0px -48px" }
-        );
-        revealItems.forEach((item) => observer.observe(item));
-      }
+        if (reduceMotion || keepRevealsVisible || !("IntersectionObserver" in window)) {
+          revealItems.forEach((item) => item.classList.add("is-visible"));
+        } else {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add("is-visible");
+                  observer.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.12, rootMargin: "0px 0px -48px" }
+          );
+          revealItems.forEach((item) => observer.observe(item));
+        }
 
-      const hero = document.querySelector<HTMLElement>(".hero");
-      hero?.addEventListener("pointermove", (event) => {
-        if (reduceMotion) return;
-        const bounds = hero.getBoundingClientRect();
-        hero.style.setProperty("--pointer-x", String(event.clientX - bounds.left) + "px");
-        hero.style.setProperty("--pointer-y", String(event.clientY - bounds.top) + "px");
-      });
+        const hero = document.querySelector<HTMLElement>(".hero");
+        hero?.addEventListener("pointermove", (event) => {
+          if (reduceMotion) return;
+          const bounds = hero.getBoundingClientRect();
+          hero.style.setProperty("--pointer-x", String(event.clientX - bounds.left) + "px");
+          hero.style.setProperty("--pointer-y", String(event.clientY - bounds.top) + "px");
+        });
+      };
+      bootPage();
+      document.addEventListener("astro:page-load", bootPage);
     </script>
   </body>
 </html>

@@ -33,6 +33,8 @@ export const en = {
     downloads: "Downloads",
     github: "GitHub",
     viewOnGithub: "View on GitHub",
+    star: "Star us",
+    starHint: "Star the repo on GitHub if you like TunnelYard",
     download: "Download",
     openMenu: "Open menu",
   },
@@ -240,7 +242,7 @@ export const en = {
     titleLine2: "can take one click.",
     body: "Download TunnelYard, import your profiles and get back to work.",
     download: "Download v{version}",
-    github: "View on GitHub",
+    github: "Star on GitHub",
   },
 
   footer: {

@@ -33,3 +33,7 @@ export const fill = (template: string, values: Record<string, string | number>):
 /** Locale-aware number formatting: 115.4 in English, 115,4 in Portuguese. */
 export const formatNumber = (locale: Locale, value: number, digits = 1): string =>
   value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Whole numbers for things like GitHub stars. */
+export const formatInteger = (locale: Locale, value: number): string =>
+  value.toLocaleString(locale, { maximumFractionDigits: 0 });

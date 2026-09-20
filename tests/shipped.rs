@@ -1328,6 +1328,80 @@ fn app_mark_is_a_portal_with_true_alpha() {
 }
 
 
+#[test]
+fn landing_page_ships_the_portal_mark() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let landing = fs::read_to_string(root.join("site/src/components/Landing.astro")).unwrap();
+    assert!(landing.contains("href=\"/icon.svg\""));
+    assert!(landing.contains("property=\"og:image\""));
+    assert!(landing.contains("content={absolute(\"/icon.png\")}"));
+    assert!(landing.contains("rel=\"apple-touch-icon\""));
+    assert!(landing.contains("href=\"/icon-32.png\""));
+    assert!(landing.contains("class=\"side-brand-copy\""));
+    assert!(
+        landing.matches("src=\"/icon.svg\"").count() >= 6,
+        "header, preview, features, tray, CTA and footer should show the mark"
+    );
+
+    let dist_svg = root.join("site/dist/icon.svg");
+    if dist_svg.exists() {
+        let svg = fs::read_to_string(dist_svg).unwrap();
+        assert!(
+            !svg.contains("M128 358"),
+            "site/dist still ships the old two-arch mark"
+        );
+        assert!(svg.contains("<circle cx=\"256\" cy=\"256\" r=\"156\""));
+    }
+}
+
+#[test]
+fn locale_scroll_payload_roundtrips_and_expires() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let script = root.join("site/src/locale-nav.js");
+    let status = Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            &format!(
+                r#"
+import {{ encodeLocaleScroll, decodeLocaleScroll, LOCALE_SCROLL_TTL_MS }} from '{url}';
+const now = 1_700_000_000_000;
+const raw = encodeLocaleScroll(842.7, now);
+if (decodeLocaleScroll(raw, now) !== 843) throw new Error('roundtrip');
+if (decodeLocaleScroll(raw, now + LOCALE_SCROLL_TTL_MS + 1) !== null) throw new Error('ttl');
+if (decodeLocaleScroll(null, now) !== null) throw new Error('empty');
+if (decodeLocaleScroll('nope', now) !== null) throw new Error('junk');
+"#,
+                url = format!("file://{}", script.canonicalize().unwrap().display())
+            ),
+        ])
+        .status()
+        .expect("node");
+    assert!(status.success(), "locale-nav.js contract failed");
+}
+
+#[test]
+fn landing_language_switch_and_github_star_are_wired() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let landing = fs::read_to_string(root.join("site/src/components/Landing.astro")).unwrap();
+    let switcher =
+        fs::read_to_string(root.join("site/src/components/LanguageSwitcher.astro")).unwrap();
+    let release = fs::read_to_string(root.join("site/src/data/release.ts")).unwrap();
+    let en = fs::read_to_string(root.join("site/src/i18n/en.ts")).unwrap();
+    let pt = fs::read_to_string(root.join("site/src/i18n/pt-BR.ts")).unwrap();
+    assert!(landing.contains("ClientRouter"));
+    assert!(landing.contains("astro:after-swap"));
+    assert!(landing.contains("LOCALE_SCROLL_KEY"));
+    assert!(landing.contains("class=\"star-link\""));
+    assert!(switcher.contains("data-i18n-switch"));
+    assert!(release.contains("stargazers_count"));
+    assert!(en.contains("star: \"Star us\""));
+    assert!(pt.contains("star: \"Dá uma estrela\""));
+    assert!(en.contains("github: \"Star on GitHub\""));
+    assert!(pt.contains("github: \"Dá uma estrela no GitHub\""));
+}
+
+
 fn fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")

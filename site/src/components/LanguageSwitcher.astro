@@ -25,7 +25,13 @@ const options = [
       <span>{option.short}</span>
     </span>
   ) : (
-    <a class="lang-option" href={localePath(option.locale)} hreflang={option.locale} title={option.title}>
+    <a
+      class="lang-option"
+      href={localePath(option.locale)}
+      hreflang={option.locale}
+      title={option.title}
+      data-i18n-switch
+    >
       <Icon name={option.icon} size={18} aria-hidden="true" />
       <span>{option.short}</span>
       <span class="lang-sr">{option.title}</span>
