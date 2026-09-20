@@ -159,17 +159,17 @@ const optionalFiles = files.filter(([, suffix]) =>
   <div class="linux-dock">
     <div class="linux-cta">
       <p class="linux-status" data-distro-status aria-live="polite">{t.downloads.pickHint}</p>
-      <a
-        class="button button-primary button-platform"
-        data-file-download
-        data-label-idle={t.downloads.buttonIdle}
-        data-label-ready={t.downloads.buttonReady}
-        data-file-hint={t.downloads.fileHint}
-        aria-disabled="true"
-        tabindex="-1"
-      ><Download size={17} /> <span>{t.downloads.buttonIdle}</span></a>
       <p class="download-file" data-file-name>{t.downloads.fileHint}</p>
     </div>
+    <a
+      class="button button-primary button-download"
+      data-file-download
+      data-label-idle={t.downloads.buttonIdle}
+      data-label-ready={t.downloads.buttonReady}
+      data-file-hint={t.downloads.fileHint}
+      aria-disabled="true"
+      tabindex="-1"
+    ><Download size={17} /> <span>{t.downloads.buttonIdle}</span></a>
   </div>
 
   <noscript>

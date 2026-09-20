@@ -2591,29 +2591,42 @@
 
   .linux-dock {
     position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
     margin-top: 32px;
     padding-top: 24px;
     border-top: 1px solid var(--line);
   }
 
-  .linux-cta .button-platform {
-    justify-content: space-between;
-    width: 100%;
-    border-color: var(--coral);
-    background: var(--coral);
-    color: white;
+  .linux-cta {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .linux-cta .button-platform:hover {
-    border-color: var(--coral-dark);
-    background: var(--coral-dark);
+  .linux-dock .button-download {
+    flex: none;
+    width: auto;
+    min-width: 11.5rem;
+    justify-content: center;
+    gap: 8px;
+    padding-inline: 22px;
   }
 
   .linux-status {
-    margin-bottom: 10px;
+    margin: 0;
     color: var(--ink);
     font-size: 13px;
     font-weight: 650;
+  }
+
+  .linux-cta .download-file {
+    margin: 0;
   }
 
   .download-note {
@@ -2959,6 +2972,10 @@
 
     .linux-dock {
       margin-top: 24px;
+    }
+
+    .linux-dock .button-download {
+      width: 100%;
     }
 
     .footer-inner {

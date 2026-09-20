@@ -1116,6 +1116,8 @@ fn download_board_maps_distro_and_arch_to_a_linux_package() {
     assert!(css.contains(".linux-board"));
     assert!(css.contains(".distro-tile"));
     assert!(css.contains(".cpu-card"));
+    assert!(css.contains(".button-download"));
+    assert!(css.contains("width: auto"));
     assert!(downloads.contains("data-arch=\"x64\""));
     assert!(downloads.contains("data-family={family.id}"));
 
