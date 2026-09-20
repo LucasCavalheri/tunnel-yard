@@ -1,7 +1,7 @@
 //! Multi-session VPN manager, log markers, and reconnect policy.
 
 use crate::conf::parse_vpn_conf_content;
-use crate::native::{NativeEvent, NativeVpnSession};
+use crate::native::{prevents_reconnect, NativeEvent, NativeVpnSession};
 use crate::platform::{current_platform, linux_helpers};
 use std::collections::HashMap;
 use std::fs;
@@ -201,6 +201,39 @@ pub fn should_native_reconnect(
     reconnect_delay_ms(auto_reconnect, persistent, false)
 }
 
+/// Linux helper/openfortivpn process exit → reconnect.
+/// 126 = pkexec cancelled, 127 = helper/binary missing.
+pub fn linux_exit_reconnect(
+    intentional_stop: bool,
+    exit_code: Option<i32>,
+    can_reconnect: bool,
+    auto_reconnect: bool,
+    persistent: u32,
+) -> Option<u64> {
+    if matches!(exit_code, Some(126) | Some(127)) {
+        return None;
+    }
+    should_native_reconnect(
+        intentional_stop,
+        exit_code.unwrap_or(1),
+        can_reconnect,
+        auto_reconnect,
+        persistent,
+    )
+}
+
+/// Whether `NeedReconnect` may start a new tunnel for this live session.
+/// A missing session is treated as a user disconnect (already dropped).
+pub fn reconnect_gate(status: Option<VpnStatus>, intentional_stop: bool) -> bool {
+    if intentional_stop {
+        return false;
+    }
+    matches!(
+        status,
+        Some(VpnStatus::Disconnected) | Some(VpnStatus::Error)
+    )
+}
+
 /// Outcome of a native supervisor `close` event.
 ///
 /// `helper_stopping` is `NativeVpnSession.stopping` (stop file / status.json
@@ -344,6 +377,30 @@ impl VpnManager {
         self.emit_state();
     }
 
+    /// Start a new tunnel after an unexpected drop. Does not run the user
+    /// disconnect path (no pkexec/stop helper), which would look like a
+    /// manual hang-up and could prompt for elevation.
+    pub fn reconnect(&self, profile_id: &str) {
+        let allowed = {
+            let inner = self.inner.lock().unwrap();
+            match inner.live.get(profile_id) {
+                Some(live) => reconnect_gate(
+                    Some(live.status),
+                    live.intentional_stop.load(Ordering::SeqCst),
+                ),
+                None => false,
+            }
+        };
+        if !allowed {
+            self.emit_log(&format!(
+                "↻ [{profile_id}] Reconexão ignorada (desconexão manual ou túnel ainda ativo)"
+            ));
+            return;
+        }
+        self.inner.lock().unwrap().live.remove(profile_id);
+        self.connect(profile_id);
+    }
+
     pub fn connect(&self, profile_id: &str) {
         let profile = {
             let inner = self.inner.lock().unwrap();
@@ -377,7 +434,7 @@ impl VpnManager {
                     profile: profile.clone(),
                     intentional_stop: intentional_stop.clone(),
                     helper_stop: helper_stop.clone(),
-                    persistent: 0,
+                    persistent: profile.persistent,
                     can_reconnect: Arc::new(AtomicBool::new(true)),
                     status: VpnStatus::Connecting,
                     message: format!("Autenticando {}…", profile.name),
@@ -489,17 +546,26 @@ impl VpnManager {
                 }
             }
             emit_state_from(&mgr_inner, &events);
-            if !cancelled {
-                if let Some(delay) = reconnect_delay_ms(auto, persistent, false) {
-                    let _ = events.send(VpnEvent::Log(format!(
-                        "[{}] ↻ [{id}] Reconexão automática em {}s…",
-                        chrono_stamp(),
-                        delay / 1000
-                    )));
-                    thread::sleep(Duration::from_millis(delay));
-                    if !stop.load(Ordering::SeqCst) {
-                        let _ = events.send(VpnEvent::NeedReconnect(id.clone()));
-                    }
+            let can_reconnect = mgr_inner
+                .lock()
+                .ok()
+                .and_then(|g| {
+                    g.live
+                        .get(&id)
+                        .map(|live| live.can_reconnect.load(Ordering::SeqCst))
+                })
+                .unwrap_or(false);
+            if let Some(delay) =
+                linux_exit_reconnect(was_intentional, code, can_reconnect, auto, persistent)
+            {
+                let _ = events.send(VpnEvent::Log(format!(
+                    "[{}] ↻ [{id}] Reconexão automática em {}s…",
+                    chrono_stamp(),
+                    delay / 1000
+                )));
+                thread::sleep(Duration::from_millis(delay));
+                if !stop.load(Ordering::SeqCst) {
+                    let _ = events.send(VpnEvent::NeedReconnect(id.clone()));
                 }
             }
         });
@@ -861,6 +927,80 @@ fn pump_line(inner: &Arc<Mutex<Inner>>, events: &Sender<VpnEvent>, id: &str, lin
         "[{}] [{id}] {trimmed}",
         chrono_stamp()
     )));
+    {
+        let mut g = inner.lock().unwrap();
+        if let Some(live) = g.live.get_mut(id) {
+            if prevents_reconnect(trimmed, live.profile.has_trusted_cert) {
+                live.can_reconnect.store(false, Ordering::SeqCst);
+            }
+        }
+    }
     interpret_into(inner, id, trimmed);
     emit_state_from(inner, events);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn seed(mgr: &VpnManager, id: &str, status: VpnStatus, stop: bool) {
+        let mut inner = mgr.inner.lock().unwrap();
+        inner.live.insert(
+            id.into(),
+            LiveSession {
+                profile: VpnProfile {
+                    id: id.into(),
+                    name: id.into(),
+                    path: format!("/tmp/{id}.conf"),
+                    host: "vpn.example".into(),
+                    port: 443,
+                    username: "u".into(),
+                    set_dns: true,
+                    set_routes: true,
+                    has_password: false,
+                    has_trusted_cert: false,
+                    persistent: 0,
+                },
+                intentional_stop: Arc::new(AtomicBool::new(stop)),
+                helper_stop: Arc::new(AtomicBool::new(false)),
+                persistent: 0,
+                can_reconnect: Arc::new(AtomicBool::new(true)),
+                status,
+                message: "seed".into(),
+                connected_at: None,
+                child_pid: None,
+            },
+        );
+    }
+
+    #[test]
+    fn reconnect_clears_error_session_without_user_disconnect() {
+        let (mgr, _rx) = VpnManager::subscribe();
+        seed(&mgr, "work", VpnStatus::Error, false);
+        assert!(mgr.get_state().sessions.contains_key("work"));
+        mgr.reconnect("work");
+        assert!(
+            !mgr.get_state().sessions.contains_key("work"),
+            "dead session must be dropped so connect() does not pkexec-stop it"
+        );
+    }
+
+    #[test]
+    fn reconnect_leaves_a_healthy_or_user_stopped_session_alone() {
+        let (mgr, _rx) = VpnManager::subscribe();
+        seed(&mgr, "up", VpnStatus::Connected, false);
+        mgr.reconnect("up");
+        assert_eq!(mgr.get_state().sessions["up"].status, VpnStatus::Connected);
+
+        seed(&mgr, "hand", VpnStatus::Connecting, false);
+        mgr.reconnect("hand");
+        assert_eq!(
+            mgr.get_state().sessions["hand"].status,
+            VpnStatus::Connecting
+        );
+
+        seed(&mgr, "user", VpnStatus::Error, true);
+        mgr.reconnect("user");
+        assert!(mgr.get_state().sessions.contains_key("user"));
+    }
 }

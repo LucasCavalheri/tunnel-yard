@@ -116,6 +116,7 @@ pub struct VpnProfile {
     pub set_routes: bool,
     pub has_password: bool,
     pub has_trusted_cert: bool,
+    pub persistent: u32,
 }
 
 pub fn display_name(file_name: &str) -> String {
@@ -160,6 +161,7 @@ pub fn parse_vpn_conf_content(raw: &str, file_path: &str) -> Option<VpnProfile> 
             .get("trusted-cert")
             .map(|s| !s.is_empty())
             .unwrap_or(false),
+        persistent: parse_persistent(&map),
     })
 }
 

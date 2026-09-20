@@ -31,9 +31,9 @@ pub use desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
 pub use i18n::{catalog_keys, list_locales, translate, AppLocale, MessageKey};
 pub use platform::{binary_candidates, config_directory, engine_for_platform, VpnEngine};
 pub use vpn::{
-    interpret_vpn_log_line, list_vpn_profiles, native_close_decision, reconnect_delay_ms,
-    should_native_reconnect, summarize_vpn_state, NativeCloseDecision, VpnManager, VpnSession,
-    VpnState, VpnStatus,
+    interpret_vpn_log_line, linux_exit_reconnect, list_vpn_profiles, native_close_decision,
+    reconnect_delay_ms, reconnect_gate, should_native_reconnect, summarize_vpn_state,
+    NativeCloseDecision, VpnManager, VpnSession, VpnState, VpnStatus,
 };
 
 pub const APP_NAME: &str = "TunnelYard";

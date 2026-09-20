@@ -1258,6 +1258,7 @@ fn dummy_profile(id: &str) -> VpnProfile {
         set_routes: true,
         has_password: false,
         has_trusted_cert: false,
+        persistent: 0,
     }
 }
 
