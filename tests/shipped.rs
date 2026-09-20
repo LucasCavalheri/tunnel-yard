@@ -1426,7 +1426,7 @@ fn landing_language_switch_and_github_star_are_wired() {
     assert!(switcher.contains("data-i18n-switch"));
     assert!(release.contains("stargazers_count"));
     assert!(en.contains("star: \"Star us\""));
-    assert!(pt.contains("star: \"Dá uma estrela\""));
+    assert!(pt.contains("star: \"Estrelar\""));
     assert!(en.contains("github: \"Star on GitHub\""));
     assert!(pt.contains("github: \"Dá uma estrela no GitHub\""));
 }

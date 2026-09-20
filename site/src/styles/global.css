@@ -403,6 +403,7 @@
 
   .star-link {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 7px;
     padding: 5px 8px 5px 10px;
@@ -413,6 +414,7 @@
     font-size: 12px;
     font-weight: 650;
     letter-spacing: 0.01em;
+    white-space: nowrap;
     transition:
       background-color 180ms ease,
       border-color 180ms ease,

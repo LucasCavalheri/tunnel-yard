@@ -33,7 +33,7 @@ export const ptBR: Dictionary = {
     downloads: "Downloads",
     github: "GitHub",
     viewOnGithub: "Ver no GitHub",
-    star: "Dá uma estrela",
+    star: "Estrelar",
     starHint: "Dá uma estrela no GitHub se curtir o projeto",
     download: "Baixar",
     openMenu: "Abrir menu",
