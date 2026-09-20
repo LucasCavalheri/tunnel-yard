@@ -1,5 +1,51 @@
 # Changelog
 
+## 2.9.0
+
+TunnelYard 2.9.0 is a product release: the desk finally has a real appearance
+system, auto-reconnect that survives a restart, a new portal mark, and a
+website that does not throw you back to the top when you switch language.
+
+### Auto-reconnect
+
+- The Preferences toggle is saved in `settings.json` and restored on launch.
+  New installs default to **on**.
+- An unexpected drop starts a new tunnel without going through the user
+  disconnect path. On Linux that means no pkexec prompt and no 2.5s wait on a
+  process that is already gone.
+- Per-profile `persistent` is honoured on Linux. Authentication failures,
+  rejected cookies, cancelled elevation (126/127) and a server that forbids
+  reconnect-after-drop still disable automatic retry. A manual disconnect never
+  retries.
+
+### Appearance
+
+- Light, dark and system themes actually apply and persist. The title bar has
+  a one-click toggle; Preferences has a three-way picker.
+- Preferences is a grouped settings sheet (appearance, language, connections,
+  maintenance) instead of a thin strip of buttons.
+- Desk chrome uses Hugeicons throughout: tunnels, search, console, profile
+  actions, setup and confirmations.
+- Removed the stray unclickable "Cancelar" chip caused by a tooltip on the
+  editor close button leaking into the title bar.
+
+### App mark
+
+- Replaced the two-arch glyph that read as an "m" with a circular tunnel
+  portal. `public/icon-master.png` is the generated source;
+  `scripts/generate-icon.py` rebuilds PNG, ICO and SVG with true alpha for the
+  dock, tray, installers and website.
+
+### Website
+
+- The landing page uses the portal mark in the header, app preview, tray mock,
+  CTA, favicons and `og:image`.
+- Switching English / Portuguese fades in place and keeps the current scroll
+  position.
+- Header and CTA invite a GitHub star, with the live count from the API.
+- Download package pickers use a styled list instead of the native OS
+  dropdown.
+
 ## 2.8.1
 
 ### Reliable Linux upgrades
