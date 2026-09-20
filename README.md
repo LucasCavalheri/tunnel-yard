@@ -1,97 +1,101 @@
-# 🛡️ TunnelYard
+<p align="center">
+  <img src="public/icon.svg" width="96" height="96" alt="TunnelYard">
+</p>
 
-**A desktop app for managing FortiGate SSL VPN connections on Linux, macOS and Windows.**
+<h1 align="center">TunnelYard</h1>
 
-Linux and macOS use **openfortivpn**. Windows uses **OpenConnect 9.21 + Wintun**, translating the existing openfortivpn `.conf` format. Windows includes dynamic MTU configuration, tunnel health checks and Fortinet split-DNS, tested against a real gateway. macOS and other gateway/authentication policies still need native acceptance testing. See [platform support and validation](docs/platform-support.md).
+<p align="center">
+  <strong>FortiGate SSL VPN, without a root terminal left open forever.</strong><br>
+  Native desktop app for Linux, macOS and Windows.
+</p>
 
-No more babysitting a terminal with `sudo openfortivpn`. Connect one or many tunnels, park the app in the tray, get notified when a link drops, and manage profiles without editing files by hand.
+<p align="center">
+  <a href="https://tunnelyard.lucascavalheri.com.br">Website</a>
+  ·
+  <a href="https://github.com/LucasCavalheri/tunnel-yard/releases/latest">Download</a>
+  ·
+  <a href="docs/platform-support.md">Platform notes</a>
+  ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](./LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)](#-installation)
-[![Packages](https://img.shields.io/badge/packages-GitHub%20binaries%20%7C%20deb%20%7C%20rpm%20%7C%20dmg-orange.svg)](#-installation)
-[![Built with](https://img.shields.io/badge/built%20with-Rust-informational.svg)](#-tech-stack)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
+<p align="center">
+  <a href="https://github.com/LucasCavalheri/tunnel-yard/releases/latest"><img src="https://img.shields.io/github/v/release/LucasCavalheri/tunnel-yard?label=release" alt="Latest release"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-teal.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg" alt="Linux, macOS, Windows">
+  <img src="https://img.shields.io/badge/built%20with-Rust-informational.svg" alt="Built with Rust">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/desk-dark.png" width="720" alt="TunnelYard desk in dark theme">
+</p>
+
+Linux and macOS speak **openfortivpn**. Windows speaks **OpenConnect 9.21 + Wintun**, still using the same `.conf` files. Connect one tunnel or several, hide the window, get a notification when a link drops, and let the app bring it back.
 
 ---
 
-## ✨ Features
+## Highlights
 
-| Feature | What it does |
-|--------|----------------|
-| 🔌 Multi-link connect | Bring up several VPNs at the same time |
-| 📝 Profile editor | Create / edit / delete `.conf` files in the platform's profile directory |
-| 📥 Import `.conf` | Pick an existing openfortivpn config and save it |
-| 🧺 System tray | Close the window — tunnels keep running |
-| 🔔 Notifications | Know immediately when a tunnel goes up or dies |
-| ♻️ Auto-reconnect | Optional recovery after unexpected disconnects |
-| 🚀 Start at login | XDG autostart on Linux; native login items on macOS / Windows |
-| 🌐 pt-BR + EN | Full UI language switch, persisted |
-| 📦 Dependency bootstrap | Detect and install the platform's VPN client |
-| 📜 Live console | Stream VPN client output while connected |
-| 🔐 Administrator authorization | PolicyKit on Linux, native administrator prompt on macOS, UAC on Windows; UI remains unprivileged |
+| | |
+|---|---|
+| **Several tunnels at once** | Each profile is its own session. Bring up work, lab and a client VPN together. |
+| **Light, dark or system** | Appearance follows the OS or stays on the theme you pick. Persisted. |
+| **Auto-reconnect** | On by default. An unexpected drop starts a new tunnel; a manual disconnect does not. |
+| **Unprivileged UI** | The window never runs as root. PolicyKit, the macOS administrator prompt or UAC only appear when a tunnel actually needs them. |
+| **Tray, not a terminal** | Close the window. The tunnels stay up. Quit only when you mean it. |
+| **pt-BR and English** | Full UI language switch, saved next to the theme. |
+| **In-app updates** | Check, download and install the matching package for this machine. |
+
+The desk is native [GPUI Kit](https://gpui-kit.com/), with Hugeicons on the chrome. See [`docs/gpui-kit.md`](docs/gpui-kit.md).
 
 ---
 
-## 🚀 Installation
+## Install
 
-### From GitHub Releases (recommended)
-
-Tagged releases attach native binaries and installable packages built by CI:
+Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yard/releases/latest).
 
 | File | Platform |
 |------|----------|
-| `tunnel-yard-linux-x64` | Linux x86_64 |
-| `tunnel-yard-linux-arm64` | Linux ARM64 |
-| `tunnel-yard-linux-x64.tar.gz` | Linux x86_64 archive (executable) |
-| `tunnel-yard-linux-arm64.tar.gz` | Linux ARM64 archive (executable) |
-| `tunnel-yard_2.8.0_amd64.deb` | Debian/Ubuntu x86_64 |
-| `tunnel-yard_2.8.0_arm64.deb` | Debian/Ubuntu ARM64 |
-| `tunnel-yard-2.8.0-1.x86_64.rpm` | Fedora/RHEL x86_64 |
-| `tunnel-yard-2.8.0-1.aarch64.rpm` | Fedora/RHEL ARM64 |
-| `tunnel-yard-macos` | macOS universal (Intel + Apple Silicon) |
-| `tunnel-yard-macos.dmg` | macOS installer (Intel + Apple Silicon) |
+| `tunnel-yard-linux-x64` / `.tar.gz` | Linux x86_64 |
+| `tunnel-yard-linux-arm64` / `.tar.gz` | Linux ARM64 |
+| `tunnel-yard_2.9.0_amd64.deb` | Debian / Ubuntu x86_64 |
+| `tunnel-yard_2.9.0_arm64.deb` | Debian / Ubuntu ARM64 |
+| `tunnel-yard-2.9.0-1.x86_64.rpm` | Fedora / RHEL x86_64 |
+| `tunnel-yard-2.9.0-1.aarch64.rpm` | Fedora / RHEL ARM64 |
+| `tunnel-yard-macos` / `.dmg` | macOS universal (Intel + Apple Silicon) |
 | `tunnel-yard-windows-x64.exe` | Windows x64 |
 | `tunnel-yard-windows-arm64.exe` | Windows ARM64 (GUI) |
 
 ```bash
+# Linux portable
+tar -xzf tunnel-yard-linux-x64.tar.gz
 chmod +x tunnel-yard-linux-x64
 ./tunnel-yard-linux-x64
+
+# Debian / Ubuntu
+sudo apt install ./tunnel-yard_2.9.0_amd64.deb
+
+# Fedora / RHEL
+sudo dnf install ./tunnel-yard-2.9.0-1.x86_64.rpm
 ```
+
+Packages install the desktop launcher, icons, PolicyKit action and VPN helpers. The standalone `.tar.gz` keeps the executable bit.
 
 On first launch the app can install the platform VPN client (`openfortivpn` on Linux/macOS; official OpenConnect 9.21 + Wintun on Windows x64). Privileged helpers live in `packaging/`.
 
-On Debian/Ubuntu, install the matching package with `sudo apt install ./tunnel-yard_<version>_<arch>.deb`. On Fedora/RHEL, use `sudo dnf install ./tunnel-yard-<version>-1.<arch>.rpm`. The packages install the desktop launcher, icons, PolicyKit action and VPN helpers.
+Linux also writes `~/.local/share/applications/lucas.cavalheri.tunnelyard.desktop` so GNOME can match the Wayland app id to the branded dock icon. Packagers can copy [`packaging/tunnel-yard.desktop`](packaging/tunnel-yard.desktop).
 
-If you prefer the standalone Linux binary, download the matching `.tar.gz`; it preserves the executable permission when extracted:
+Unsigned Windows builds may trip SmartScreen. The macOS `.dmg` is ad-hoc signed, not notarized, so Gatekeeper may want a secondary confirmation from Finder.
 
-```bash
-tar -xzf tunnel-yard-linux-x64.tar.gz
-./tunnel-yard-linux-x64
-```
+### macOS
 
-On Linux, the app creates the per-user launcher
-`~/.local/share/applications/lucas.cavalheri.tunnelyard.desktop`. Its filename
-matches the Wayland app id, so GNOME associates the window with the branded
-dock icon instead of showing a generic gear. Packagers can use
-`packaging/tunnel-yard.desktop` as the system-wide source.
+Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` (or use **Install now** when Homebrew is already there). Connecting asks for administrator authorization. Profiles: `~/Library/Application Support/TunnelYard/profiles`.
 
-Use **1.1.3 or newer on Windows** for the Wintun MTU, tunnel-state, service-check, and HTTPS-only DTLS fixes. Unsigned builds may trigger SmartScreen / Gatekeeper.
+### Windows
 
-Older **1.1.x** tags still have Electron-era installers. The Rust host packages in this release are native packages and are not drop-in upgrades for that Electron build. The macOS `.dmg` is ad-hoc signed but not Apple-notarized, so Gatekeeper may still require opening it from Finder with secondary confirmation.
+On x64, **Install now** downloads the pinned OpenConnect 9.21 installer, checks SHA256, and requests UAC. Wintun is included; WSL and FortiClient are not required. The ARM64 GUI is published, but the pinned OpenConnect installer is x64-only — ARM64 needs a native OpenConnect + Wintun package before connecting. Profiles: `%APPDATA%\TunnelYard\profiles`.
 
-#### macOS
-
-Install [Homebrew](https://brew.sh) if needed, then `brew install openfortivpn` (or use the app's install button when Homebrew already exists). Connecting requests macOS administrator authorization. Profiles live in `~/Library/Application Support/TunnelYard/profiles`.
-
-#### Windows
-
-On x64, **Install now** downloads the pinned official OpenConnect 9.21 installer, checks its SHA256, and requests UAC authorization. Wintun is included; WSL and FortiClient are not required. The ARM64 GUI is available, but the pinned OpenConnect installer is x64-only; ARM64 needs a native OpenConnect + Wintun package installed separately before connecting. Profiles live in `%APPDATA%\TunnelYard\profiles`.
-
-#### Architecture compatibility
-
-The 2.8.0 release publishes native Linux x64/ARM64 binaries, a universal macOS binary containing Intel and Apple Silicon slices, and native Windows x64/ARM64 GUI binaries. The release checker identifies the platform and architecture so the correct download is easy to select. Runtime VPN compatibility still depends on the native client and the gateway's authentication policy; SAML/browser login, every MFA variant, IPv6 tunnels and arbitrary engine options remain outside the verified matrix.
-
-#### Linux
+### Linux
 
 Profiles live in `/etc/openfortivpn`. Connecting uses PolicyKit (`pkexec`). From source:
 
@@ -100,52 +104,38 @@ cargo build --release
 ./target/release/tunnel-yard
 ```
 
-### Atualizações dentro do app
+| Need | Notes |
+|------|--------|
+| Desktop session | GNOME, KDE, and friends |
+| PolicyKit (`pkexec`) | Privileged start/stop and profile writes |
+| `/etc/openfortivpn/` | Profile directory |
+| `openfortivpn` | Optional at install — the app can install it |
+| GPUI native libs | Only when compiling; see [`docs/gpui-kit.md`](docs/gpui-kit.md) |
 
-Quando uma release nova aparece no GitHub, o banner e o item da bandeja
-**Verificar atualizações** oferecem **Baixar e instalar**. Um clique baixa o
-pacote da sua plataforma, pede autorização de administrador se o sistema
-exigir, substitui o app e reinicia o TunnelYard. As notas da release
-continuam disponíveis no mesmo banner.
+If `openfortivpn` is missing, TunnelYard reads `/etc/os-release`, picks `apt`, `dnf`/`yum`, `zypper` or `pacman`, and offers a one-click install via PolicyKit.
 
-### How to publish a release
+### In-app updates
 
-**Automatic (preferred):** bump `version` in `Cargo.toml`, tag, and push. CI runs `cargo test` / `cargo build --release`, creates the native packages and attaches all artifacts.
+When a newer GitHub release exists, the banner and the tray item **Check for updates** offer **Download and install**. One click fetches the artifact for this OS, asks for administrator approval if needed, replaces the app and relaunches.
+
+### Publishing a release
+
+Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-# 1) bump version in Cargo.toml and add a CHANGELOG.md section (e.g. 1.2.1)
-# 2) commit, tag, push
-git tag v1.2.1
+git tag v2.9.0
 git push origin master --follow-tags
 ```
 
-That triggers [`.github/workflows/release.yml`](.github/workflows/release.yml) on tags like `v1.2.1`. The workflow copies the matching `CHANGELOG.md` section into the GitHub release notes.
+CI ([`.github/workflows/release.yml`](.github/workflows/release.yml)) tests, builds native packages and copies that changelog section into the GitHub release notes.
 
-> GitHub always offers **Source code** downloads on the release page for the tagged commit — you don’t upload those yourself.
-
-The release workflow signs the APT repository with the archive key committed at
-[`packaging/tunnel-yard-archive-keyring.asc`](./packaging/tunnel-yard-archive-keyring.asc).
-The matching private key must be configured once as the GitHub Actions secret
-`APT_SIGNING_KEY`; it must never be committed to the repository.
-The key fingerprint is `A9F137BEE74B623131071358FB0EC1D5A01262F0`.
-
-### Linux requirements
-
-| Requirement | Notes |
-|-------------|--------|
-| 🐧 Linux desktop | GNOME, KDE, and friends |
-| 🔑 PolicyKit (`pkexec`) | Used for privileged VPN start/stop and profile writes |
-| 📁 `/etc/openfortivpn/` | Where profiles live (create, import, or drop files manually) |
-| 🛰️ `openfortivpn` | Optional at install time — the app can install it for you |
-| 🖥️ GPUI native libraries | Required only when compiling from source; see the [GPUI Kit notes](docs/gpui-kit.md) |
-
-> **Tip:** On first launch, if `openfortivpn` is not on `PATH`, TunnelYard reads `/etc/os-release`, picks the right package manager (`apt`, `dnf`/`yum`, `zypper`, or `pacman`), and offers a one-click install via PolicyKit.
+The APT repo is signed with [`packaging/tunnel-yard-archive-keyring.asc`](packaging/tunnel-yard-archive-keyring.asc). The matching private key lives only as the Actions secret `APT_SIGNING_KEY` (fingerprint `A9F137BEE74B623131071358FB0EC1D5A01262F0`).
 
 ---
 
-## 🧰 VPN profiles
+## Profiles
 
-Profiles are standard openfortivpn configs:
+Standard openfortivpn configs:
 
 ```text
 /etc/openfortivpn/
@@ -154,9 +144,7 @@ Profiles are standard openfortivpn configs:
   └── lab.conf
 ```
 
-### Create / import in the app
-
-Use **New profile** or **Import .conf**. The form covers the options used in real FortiGate SSL setups:
+**New profile** or **Import .conf** covers the options used in real FortiGate SSL setups:
 
 | Field | Conf key |
 |-------|----------|
@@ -166,8 +154,6 @@ Use **New profile** or **Import .conf**. The form covers the options used in rea
 | DNS / routes | `set-dns`, `set-routes` |
 | Realm | `realm` (optional) |
 | Persistent | `persistent` (seconds, `0` = off) |
-
-Example file:
 
 ```ini
 host = vpn.example.com
@@ -179,45 +165,35 @@ set-dns = 0
 set-routes = 1
 ```
 
-### Privacy notes
+### Privacy
 
-- 🔒 Credentials are stored in plaintext `.conf` files in the platform's profile directory (same model as CLI openfortivpn); native directories have restricted access
-- 👁️ The main list shows host/port/username — not the password
-- 🧾 Harden directory permissions on shared machines (`chmod` / root-only reads as needed)
-- 🚫 Never commit personal `.conf` files or passwords to git
+- Credentials stay in plaintext `.conf` files in the platform profile directory (same model as CLI openfortivpn). Native directories are created with restricted access.
+- The list shows host, port and username — not the password.
+- Harden permissions on shared machines.
+- Never commit personal `.conf` files.
 
 ---
 
-## 🎮 Usage
+## Use
 
-1. Open **TunnelYard**
-2. Create, import, or pick an existing profile
-3. Click **Bring up** / **Conectar** and approve your system's administrator prompt
-4. Optionally enable **Auto-relink**, **Start at login**, and switch **PT / EN**
-5. Close the window or **Hide to tray** — tunnels keep running
-6. Fully quit from **Quit** in the sidebar or the tray menu
+1. Open **TunnelYard**.
+2. Create, import or pick a profile.
+3. Click **Connect** and approve the administrator prompt.
+4. Leave **Auto-reconnect** on unless you want drops to stay down. Optionally start at login and switch PT / EN or the theme.
+5. Close the window or **Hide to tray** — tunnels keep running.
+6. Quit from **Quit** in Preferences or the tray.
 
 Keyboard: `Ctrl+N` new profile, `Ctrl+W` hide to tray, `Ctrl+Q` quit, `Esc` close dialogs.
 
-### Tray menu
+### Tray
 
-- Show window
-- Per-profile connect / disconnect
-- Disconnect all
-- Refresh profiles
-- Quit
+Show window · per-profile connect/disconnect · disconnect all · refresh profiles · check for updates · quit.
 
 ---
 
-## 🛠️ Development
+## Develop
 
-### Prerequisites
-
-- Rust **1.90+** (`rustup`)
-- A Linux desktop, Windows x64, or macOS host
-- Linux: install the native GPUI dependencies listed in [`docs/gpui-kit.md`](docs/gpui-kit.md) (the same binary also supports `--smoke` without a GUI)
-
-### Setup
+Rust **1.90+**. Linux needs the GPUI packages in [`docs/gpui-kit.md`](docs/gpui-kit.md).
 
 ```bash
 git clone https://github.com/LucasCavalheri/tunnel-yard.git
@@ -225,166 +201,66 @@ cd tunnel-yard
 cargo run
 ```
 
-### Useful commands
-
-| Command | Description |
-|---------|-------------|
+| Command | What it does |
+|---------|----------------|
 | `cargo run` | Desktop UI |
 | `cargo run -- --hidden` | Start hidden (tray / login item) |
-| `cargo run -- --smoke` | Print engine/settings/profile probe JSON and exit |
-| `cargo test` | Domain tests (conf, markers, OpenConnect translation, i18n, …) |
-| `cargo build --release` | Optimized `tunnel-yard` binary |
+| `cargo run -- --smoke` | Engine/settings/profile JSON, then exit |
+| `cargo test` | Domain tests |
+| `cargo build --release` | Optimized `tunnel-yard` |
 
-The product is the `tunnel-yard` binary (`cargo run` / `cargo build --release`).
+```text
+tunnel-yard/
+├── src/            # library + desktop binary
+├── packaging/      # elevated helpers + PolicyKit
+├── tests/          # cargo tests + TLS fixtures
+├── site/           # Astro landing page
+├── assets/icons/   # Hugeicons shipped with the desk
+└── public/         # app mark (PNG / ICO / SVG)
+```
 
-The native interface is built with [GPUI Kit](https://gpui-kit.com/): its
-window shell, buttons, inputs, switches, icons, scroll containers and theme
-system underpin the profile desk. See [`docs/gpui-kit.md`](docs/gpui-kit.md)
-for the component mapping and Linux build dependencies.
+On Linux, connect goes through PolicyKit helpers under `/usr/lib/tunnel-yard/` after a package install. Profile writes use `pkexec install` into `/etc/openfortivpn`.
+
+| Path | Role |
+|------|------|
+| `/usr/lib/tunnel-yard/run-vpn.sh` | Starts `openfortivpn` and tracks the PID |
+| `/usr/lib/tunnel-yard/stop-vpn.sh` | Stops the tunnel |
+| `/usr/share/polkit-1/actions/lucas.cavalheri.tunnelyard.policy` | PolicyKit action (`auth_admin_keep`) |
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ```bash
 cargo test
 ./target/debug/tunnel-yard --smoke
 ```
 
-Coverage includes:
-
-- `/etc/os-release` parsing + package-family detection
-- openfortivpn install plan per distro
-- VPN `.conf` parse / serialize (including profile drafts)
-- Log markers for tunnel up / errors
-- OpenConnect argument translation (password never on argv)
-- trusted-cert SHA256 leaf + SPKI pin
-- native supervisor status rejection
-- i18n catalog key parity (`en` ↔ `pt-BR`)
-- XDG autostart `.desktop` snippet
+Coverage includes conf round-trip, log markers, OpenConnect argv without passwords, certificate pins, reconnect policy, native status rejection, i18n parity, autostart builders, Windows bootstrap, tray model, and isolated Debian upgrade/repair.
 
 ---
 
-## 🏗️ Project structure
+## Contributing
 
-```text
-tunnel-yard/
-├── src/                # Rust library + desktop binary
-│   ├── main.rs         # Entry: UI or --smoke
-│   ├── ui.rs           # GPUI Kit window, tray, notifications
-│   ├── vpn.rs          # Multi-session VPN manager
-│   ├── conf.rs         # Create / import / save / delete .conf
-│   ├── openconnect.rs  # Windows .conf → OpenConnect plan
-│   ├── deps.rs         # Distro detect + client install
-│   └── i18n.rs         # en + pt-BR
-├── packaging/          # Elevated helpers + PolicyKit
-├── tests/              # cargo tests + TLS fixtures
-├── REFACTOR.md         # Map + resume checkpoint
-└── Cargo.toml
-```
+Fixes, UI polish, distro support, docs, packaging, tests and translations are welcome.
 
-### Under the hood (Linux)
+1. Fork and branch (`feat/my-idea`).
+2. `cargo test` and, if you have a display, `cargo run -- --smoke`.
+3. Open a PR with a clear *why*. Keep it focused.
 
-1. Profiles are discovered from `/etc/openfortivpn/*.conf`
-2. Connect runs through PolicyKit helpers (`/usr/lib/tunnel-yard/` after package install)
-3. Multiple tunnels are tracked as independent sessions
-4. Profile writes use `pkexec install` into `/etc/openfortivpn`
-5. Status changes drive tray + desktop notifications
+Please include distro / desktop, app version, whether `openfortivpn` is installed, and redacted console output.
 
-Installed helper paths:
-
-| Path | Role |
-|------|------|
-| `/usr/lib/tunnel-yard/run-vpn.sh` | Starts `openfortivpn` and tracks PID |
-| `/usr/lib/tunnel-yard/stop-vpn.sh` | Stops the tunnel gracefully |
-| `/usr/share/polkit-1/actions/lucas.cavalheri.tunnelyard.policy` | PolicyKit action (`auth_admin_keep`) |
+If you find a security issue, report it privately when you can — don't open a public issue with exploit details.
 
 ---
 
-## 🧱 Tech stack
+## License
 
-- 🦀 **Rust + GPUI Kit** — unprivileged native desktop host
-- 🧪 **cargo test** — domain tests that call the shipped functions
-- 🔐 **Native authorization** — PolicyKit, macOS administrator prompt, or Windows UAC
-- 🛠️ **packaging/** — elevated `openfortivpn` / OpenConnect helpers (not the GUI)
+[MIT](./LICENSE).
 
----
-
-## 🤝 Contributing
-
-Contributions are very welcome — bug fixes, UI polish, distro support, docs, packaging, tests, translations.
-
-### Quick start
-
-1. 🍴 Fork the repo
-2. 🌿 Create a branch: `git checkout -b feat/my-idea`
-3. 🧪 Smoke-test with `cargo run -- --smoke` (and `cargo run` if you have a display)
-4. ✅ Ensure `cargo test` passes
-5. 📨 Open a Pull Request with a clear *why*
-
-### Good first issues
-
-- Stronger connection health checks
-- Flatpak / AppImage experiments
-- Extra openfortivpn options in the profile form
-
-### Code style
-
-- Keep changes focused — small, reviewable PRs
-- Match existing Rust patterns in `src/`
-- Don’t commit secrets, VPN passwords, or personal `.conf` files
-- Don’t add drive-by refactors unrelated to your PR
-
-### Reporting bugs
-
-Please include:
-
-- Distro + desktop environment (`cat /etc/os-release`)
-- App version / commit
-- Whether `openfortivpn` is installed (`openfortivpn --version`)
-- Steps to reproduce + relevant console output (**redact credentials**)
-
----
-
-## 🗺️ Roadmap
-
-- [x] pt-BR + EN i18n
-- [x] Create / import / edit profiles
-- [x] Multi-VPN concurrent sessions
-- [x] Start with Linux (autostart)
-- [x] GitHub Actions release pipeline (tag → binaries, `.deb`, `.rpm`, `.dmg`)
-- [ ] Stronger health checks / richer log parsing
-- [ ] Flatpak / AppImage experiments
-
-Have a better idea? Open an issue or PR 💬
-
----
-
-## ⚠️ Security
-
-- Elevated privileges are required to create VPN tunnels and write under `/etc/openfortivpn` — expected
-- Elevation goes through PolicyKit on Linux, the macOS administrator prompt, or Windows UAC
-- Review `/etc/openfortivpn/*.conf` permissions on shared machines
-- Never paste passwords into issues or PRs
-
-If you find a security issue, please report it privately when possible instead of opening a public issue with exploit details.
-
----
-
-## 📄 License
-
-Released under the [MIT License](./LICENSE).
-
----
-
-## 💜 Acknowledgements
-
-- [openfortivpn](https://github.com/adrienverge/openfortivpn) — the VPN engine
-- Everyone who is tired of leaving a root terminal open forever
-
----
+Built on [openfortivpn](https://github.com/adrienverge/openfortivpn) and, on Windows, OpenConnect + Wintun.
 
 <p align="center">
-  <strong>For people who just want the tunnel up. 🛡️✨</strong><br/>
-  <sub>Star the repo if it helps — it keeps the project visible for new contributors.</sub>
+  <strong>For people who just want the tunnel up.</strong><br>
+  <sub>Star the repo if it helps — it keeps the project visible.</sub>
 </p>
