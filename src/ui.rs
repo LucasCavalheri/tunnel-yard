@@ -8,10 +8,11 @@ use gpui_kit::component::{
     input::{Input, InputState},
     scroll::ScrollableElement as _,
     switch::Switch,
-    ActiveTheme, Disableable, Icon, IconName, Root, Selectable, Sizable, StyledExt as _, Theme,
+    ActiveTheme, Disableable, Icon, IconNamed, Root, Selectable, Sizable, StyledExt as _, Theme,
     ThemeMode, TitleBar,
 };
 use gpui_kit::{prelude::*, *};
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -25,7 +26,11 @@ use tunnel_yard::deps::{
 };
 use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
 use tunnel_yard::i18n::translate;
-use tunnel_yard::settings::{load_settings, save_settings, AppSettingsPatch};
+use tunnel_yard::icons::Huge;
+use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
+use tunnel_yard::theme::{
+    resolve_theme_mode, toggle_light_dark, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER,
+};
 use tunnel_yard::updates::{
     perform_update_check, perform_update_install, UpdateApplyResult, UpdateCheckResult, UpdateInfo,
     FIRST_CHECK_DELAY_MS,
@@ -34,21 +39,41 @@ use tunnel_yard::vpn::{
     summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus,
 };
 
-// Industrial, high-contrast palette: the warm yard-orange remains the brand
-// signal while cool graphite surfaces make connection state easier to scan.
-const BRAND: u32 = 0xff6b35;
-const BRAND_HOVER: u32 = 0xff7c4d;
-const BRAND_ACTIVE: u32 = 0xe95522;
-const WORKSPACE_BG: u32 = 0x0f141a;
-const CARD_BG: u32 = 0x151b22;
-const CARD_HOVER: u32 = 0x1a222b;
-const SIDEBAR_BG: u32 = 0x090d12;
-const SIDEBAR_RAISED: u32 = 0x111820;
-const SIDEBAR_BORDER: u32 = 0x26313b;
-const SIDEBAR_TEXT: u32 = 0xf4f7f5;
-const SIDEBAR_MUTED: u32 = 0x96a2ac;
-const CONSOLE_BG: u32 = 0x090d12;
-const SIDEBAR_WIDTH: Pixels = px(244.);
+const SIDEBAR_WIDTH: Pixels = px(256.);
+
+#[derive(Clone, Copy)]
+struct Hi(Huge);
+
+impl IconNamed for Hi {
+    fn path(self) -> SharedString {
+        SharedString::from(self.0.asset_path())
+    }
+}
+
+fn hi(icon: Huge) -> Icon {
+    Icon::new(Hi(icon))
+}
+
+struct AppAssets;
+
+impl AssetSource for AppAssets {
+    fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+        if let Some(bytes) = tunnel_yard::icons::svg_bytes(path) {
+            return Ok(Some(Cow::Borrowed(bytes)));
+        }
+        gpui_kit::assets::Assets.load(path)
+    }
+
+    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
+        let mut items = gpui_kit::assets::Assets.list(path)?;
+        for name in tunnel_yard::icons::paths() {
+            if name.starts_with(path) {
+                items.push(SharedString::from(name));
+            }
+        }
+        Ok(items)
+    }
+}
 
 #[allow(dead_code)]
 fn surfaces_are_shipped() -> bool {
@@ -149,7 +174,7 @@ struct Desk {
     setup_rx: Receiver<SetupMsg>,
     setup_tx: mpsc::Sender<SetupMsg>,
     search: Entity<InputState>,
-    theme_applied: bool,
+    applied_mode: Option<String>,
     preferences_open: bool,
     console_expanded: bool,
 }
@@ -160,13 +185,11 @@ pub fn run(hidden: bool) -> Result<(), String> {
     let _ = tunnel_yard::app_icon::ensure_linux_desktop_entry();
 
     gpui_kit::application()
-        .with_assets(gpui_kit::assets::Assets)
+        .with_assets(AppAssets)
         .run(move |cx| {
             gpui_kit::init(cx);
             let settings = load_settings();
-            // The product UI is intentionally dark: the desktop application and
-            // the interface shown on the website share the same visual spec.
-            let initial_theme = "dark".to_string();
+            let initial_theme = normalize_theme(&settings.theme).to_string();
             let icon = image::load_from_memory(tunnel_yard::app_icon::APP_ICON_PNG)
                 .ok()
                 .map(|image| Arc::new(image.into_rgba8()));
@@ -179,11 +202,20 @@ pub fn run(hidden: bool) -> Result<(), String> {
 
             let locale = settings.locale;
             let dismissed_update = settings.dismissed_update_version;
+            let auto_reconnect = settings.auto_reconnect;
             cx.spawn(async move |cx| {
                 cx.open_window(options, move |window, cx| {
                     apply_theme(&initial_theme, window, cx);
-                    let desk =
-                        cx.new(|cx| Desk::new(locale, initial_theme, dismissed_update, window, cx));
+                    let desk = cx.new(|cx| {
+                        Desk::new(
+                            locale,
+                            initial_theme,
+                            dismissed_update,
+                            auto_reconnect,
+                            window,
+                            cx,
+                        )
+                    });
                     let quitting = desk.read(cx).quitting.clone();
                     window.on_window_should_close(cx, move |window, _| {
                         if *quitting.lock().unwrap() {
@@ -219,10 +251,12 @@ impl Desk {
         locale: String,
         theme: String,
         dismissed_update: Option<String>,
+        auto_reconnect: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let (vpn, events) = VpnManager::subscribe();
+        vpn.set_auto_reconnect(auto_reconnect);
         let vpn = Arc::new(Mutex::new(vpn));
         let quitting = Arc::new(Mutex::new(false));
         let (tray_tx, tray_rx) = mpsc::channel();
@@ -248,7 +282,7 @@ impl Desk {
             profiles: Vec::new(),
             state: VpnState {
                 sessions: Default::default(),
-                auto_reconnect: false,
+                auto_reconnect,
             },
             logs: Vec::new(),
             install_logs: Vec::new(),
@@ -282,7 +316,7 @@ impl Desk {
             setup_rx,
             setup_tx,
             search,
-            theme_applied: false,
+            applied_mode: None,
             preferences_open: false,
             console_expanded: false,
         };
@@ -458,7 +492,9 @@ impl Desk {
                     self.profiles = profiles;
                     self.rebuild_os_tray();
                 }
-                VpnEvent::NeedReconnect(id) => self.vpn.lock().unwrap().connect(&id),
+                VpnEvent::NeedReconnect(id) => {
+                    self.vpn.lock().unwrap().reconnect(&id);
+                }
             }
         }
 
@@ -654,9 +690,30 @@ impl Desk {
         cx.notify();
     }
 
+    fn set_theme(&mut self, theme: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.theme = normalize_theme(theme).into();
+        save_settings(AppSettingsPatch {
+            theme: Some(self.theme.clone()),
+            ..Default::default()
+        });
+        apply_theme(&self.theme, window, cx);
+        self.applied_mode = Some(effective_mode(&self.theme, window).to_string());
+        cx.notify();
+    }
+
+    fn ensure_theme(&mut self, window: &mut Window, cx: &mut App) {
+        let mode = effective_mode(&self.theme, window);
+        if self.applied_mode.as_deref() != Some(mode) {
+            apply_theme(&self.theme, window, cx);
+            self.applied_mode = Some(mode.to_string());
+        }
+    }
+
     fn render_title_bar(&self, cx: &mut Context<Self>) -> TitleBar {
         let parked_title = self.t("notify.parkedTitle");
         let parked_body = self.t("notify.parkedBody");
+        let dark = cx.theme().mode.is_dark();
+        let theme_icon = if dark { Huge::Sun } else { Huge::Moon };
         TitleBar::new()
             .on_close_window(move |_, window, _| {
                 window.minimize_window();
@@ -666,17 +723,42 @@ impl Desk {
                 div()
                     .h_full()
                     .w_full()
+                    .px_2()
                     .flex()
                     .items_center()
-                    .justify_center()
-                    .gap_2()
-                    .child(brand_mark(cx, px(20.)))
                     .child(
                         div()
-                            .text_size(px(12.))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(0xc7cbc7))
-                            .child(tunnel_yard::APP_NAME),
+                            .flex_1()
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .gap_2()
+                            .child(brand_mark(cx, px(18.)))
+                            .child(
+                                div()
+                                    .text_size(px(12.))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(tunnel_yard::APP_NAME),
+                            ),
+                    )
+                    .child(
+                        Button::new("title-theme-toggle")
+                            .ghost()
+                            .compact()
+                            .icon(hi(theme_icon).size(px(15.)))
+                            .tooltip(self.t("theme.toggle"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                let next = toggle_light_dark(
+                                    &this.theme,
+                                    matches!(
+                                        window.appearance(),
+                                        WindowAppearance::Dark | WindowAppearance::VibrantDark
+                                    ),
+                                );
+                                this.set_theme(next, window, cx);
+                            })),
                     ),
             )
     }
@@ -688,7 +770,7 @@ impl Desk {
         let status_color = if any_up {
             cx.theme().success
         } else {
-            rgb(SIDEBAR_MUTED).into()
+            cx.theme().muted_foreground
         };
         let connection_label = self.tv(
             if connection_count == 1 {
@@ -705,8 +787,8 @@ impl Desk {
             .flex_none()
             .v_flex()
             .border_r_1()
-            .border_color(rgb(SIDEBAR_BORDER))
-            .bg(rgb(SIDEBAR_BG))
+            .border_color(cx.theme().sidebar_border)
+            .bg(cx.theme().sidebar)
             .px_4()
             .py_5()
             .gap_4()
@@ -724,13 +806,13 @@ impl Desk {
                                     div()
                                         .text_size(px(16.))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(rgb(SIDEBAR_TEXT))
+                                        .text_color(cx.theme().sidebar_foreground)
                                         .child(tunnel_yard::APP_NAME),
                                 )
                                 .child(
                                     div()
                                         .text_size(px(12.))
-                                        .text_color(rgb(SIDEBAR_MUTED))
+                                        .text_color(cx.theme().muted_foreground)
                                         .child(self.t("brand.subtitle")),
                                 ),
                         ),
@@ -739,12 +821,12 @@ impl Desk {
                         div()
                             .px_2()
                             .py_1()
-                            .rounded(px(6.))
+                            .rounded(px(8.))
                             .border_1()
-                            .border_color(rgb(SIDEBAR_BORDER))
-                            .bg(rgb(SIDEBAR_RAISED))
-                            .text_size(px(12.))
-                            .text_color(rgb(SIDEBAR_MUTED))
+                            .border_color(cx.theme().sidebar_border)
+                            .bg(cx.theme().sidebar_accent)
+                            .text_size(px(11.))
+                            .text_color(cx.theme().muted_foreground)
                             .font_family("monospace")
                             .child(format!("v{}", self.version)),
                     ),
@@ -754,29 +836,31 @@ impl Desk {
                     .h_flex()
                     .gap_3()
                     .p_4()
-                    .rounded(px(12.))
+                    .rounded(px(14.))
                     .border_1()
                     .border_color(if any_up {
-                        cx.theme().success.opacity(0.2)
+                        cx.theme().success.opacity(0.28)
                     } else {
-                        rgb(SIDEBAR_BORDER).into()
+                        cx.theme().sidebar_border
                     })
                     .bg(if any_up {
-                        cx.theme().success.opacity(0.07)
+                        cx.theme().success.opacity(0.08)
                     } else {
-                        rgb(SIDEBAR_RAISED).into()
+                        cx.theme().sidebar_accent
                     })
                     .child(
                         div()
-                            .size(px(38.))
+                            .size(px(40.))
                             .flex_none()
                             .flex()
                             .items_center()
                             .justify_center()
-                            .rounded(px(10.))
-                            .bg(status_color.opacity(0.13))
+                            .rounded(px(12.))
+                            .bg(status_color.opacity(0.14))
                             .text_color(status_color)
-                            .child(Icon::new(IconName::Network).size(px(19.))),
+                            .child(
+                                hi(if any_up { Huge::WifiOn } else { Huge::WifiOff }).size(px(18.)),
+                            ),
                     )
                     .child(
                         div()
@@ -787,17 +871,13 @@ impl Desk {
                                 div()
                                     .text_size(px(14.))
                                     .font_weight(FontWeight::BOLD)
-                                    .text_color(if any_up {
-                                        rgb(0xdce9e2)
-                                    } else {
-                                        rgb(SIDEBAR_TEXT)
-                                    })
+                                    .text_color(cx.theme().sidebar_foreground)
                                     .child(connection_label),
                             )
                             .child(
                                 div()
                                     .text_size(px(12.))
-                                    .text_color(rgb(SIDEBAR_MUTED))
+                                    .text_color(cx.theme().muted_foreground)
                                     .child(if any_up {
                                         self.t("ops.connectionsStable")
                                     } else {
@@ -817,12 +897,12 @@ impl Desk {
                 div()
                     .v_flex()
                     .gap_2()
-                    .child(sidebar_section_label(self.t("ops.quickActions")))
+                    .child(sidebar_section_label(self.t("ops.quickActions"), cx))
                     .child(
                         Button::new("new-profile")
                             .primary()
                             .w_full()
-                            .icon(IconName::Plus)
+                            .icon(hi(Huge::Add))
                             .label(self.t("ops.newProfile"))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_editor(EditorMode::Create, empty_draft(), window, cx)
@@ -832,8 +912,7 @@ impl Desk {
                         Button::new("import-profile")
                             .w_full()
                             .outline()
-                            .text_color(rgb(SIDEBAR_TEXT))
-                            .icon(IconName::FileText)
+                            .icon(hi(Huge::FileImport))
                             .label(self.t("ops.importConf"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.open_import(window, cx)),
@@ -847,8 +926,7 @@ impl Desk {
                         Button::new("open-preferences")
                             .w_full()
                             .ghost()
-                            .text_color(rgb(SIDEBAR_TEXT))
-                            .icon(IconName::Settings2)
+                            .icon(hi(Huge::Settings))
                             .label(self.t("ops.preferences"))
                             .on_click(cx.listener(|this, _, _, _| {
                                 this.preferences_open = true;
@@ -865,7 +943,7 @@ impl Desk {
                             .border_color(cx.theme().success.opacity(0.18))
                             .bg(cx.theme().success.opacity(0.06))
                             .child(
-                                Icon::new(IconName::CircleCheck)
+                                hi(Huge::ShieldCheck)
                                     .size(px(18.))
                                     .text_color(cx.theme().success),
                             )
@@ -877,13 +955,13 @@ impl Desk {
                                         div()
                                             .text_size(px(12.))
                                             .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(rgb(0xcad4ce))
+                                            .text_color(cx.theme().sidebar_foreground)
                                             .child(self.t("ops.protected")),
                                     )
                                     .child(
                                         div()
                                             .text_size(px(12.))
-                                            .text_color(rgb(SIDEBAR_MUTED))
+                                            .text_color(cx.theme().muted_foreground)
                                             .child(self.t("ops.unprivileged")),
                                     ),
                             ),
@@ -899,310 +977,368 @@ impl Desk {
         let any_up = summary.connected_count + summary.connecting_count > 0;
         let auto_reconnect = self.state.auto_reconnect;
         let autostart = self.autostart;
-
         Some(
-            overlay().child(
-                surface(cx)
-                    .w(px(640.))
-                    .max_h(px(600.))
-                    .v_flex()
-                    .overflow_hidden()
-                    .bg(rgb(CARD_BG))
-                    .child(
-                        div()
-                            .h_flex()
-                            .justify_between()
-                            .px_5()
-                            .py_4()
-                            .border_b_1()
-                            .border_color(rgb(SIDEBAR_BORDER))
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap_1()
-                                    .child(
-                                        div()
-                                            .text_size(px(22.))
-                                            .font_weight(FontWeight::BOLD)
-                                            .child(self.t("ops.preferences")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_size(px(14.))
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(self.t("ops.preferencesHint")),
-                                    ),
-                            )
-                            .child(
-                                Button::new("close-preferences-top")
-                                    .ghost()
-                                    .icon(IconName::Close)
-                                    .on_click(
-                                        cx.listener(|this, _, _, _| this.preferences_open = false),
-                                    ),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .id("preferences-scroll")
-                            .flex_1()
-                            .min_h_0()
-                            .overflow_y_scrollbar()
-                            .v_flex()
-                            .gap_5()
-                            .p_5()
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap_3()
-                                    .child(sidebar_section_label(self.t("ops.connectionSettings")))
-                                    .child(
-                                        div()
-                                            .child(
-                                                div()
-                                                    .h_flex()
-                                                    .justify_between()
-                                                    .gap_4()
-                                                    .p_4()
-                                                    .rounded(px(10.))
-                                                    .border_1()
-                                                    .border_color(cx.theme().border)
-                                                    .bg(cx.theme().secondary)
-                                                    .child(
-                                                        div()
-                                                            .v_flex()
-                                                            .gap(px(3.))
-                                                            .child(
-                                                                div()
-                                                                    .text_size(px(14.))
-                                                                    .font_weight(
-                                                                        FontWeight::SEMIBOLD,
-                                                                    )
-                                                                    .child(
-                                                                        self.t("ops.autoRelink"),
-                                                                    ),
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .text_size(px(12.))
-                                                                    .text_color(
-                                                                        cx.theme().muted_foreground,
-                                                                    )
-                                                                    .child(
-                                                                        self.t(
-                                                                            "ops.autoRelinkHint",
-                                                                        ),
-                                                                    ),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        Switch::new("preferences-auto-reconnect")
-                                                            .checked(auto_reconnect)
-                                                            .on_click(cx.listener(
-                                                                |this, next, _, _| {
-                                                                    this.vpn
-                                                                        .lock()
-                                                                        .unwrap()
-                                                                        .set_auto_reconnect(*next);
-                                                                    this.state.auto_reconnect =
-                                                                        *next;
-                                                                },
-                                                            )),
-                                                    ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .mt_2()
-                                                    .h_flex()
-                                                    .justify_between()
-                                                    .gap_4()
-                                                    .p_4()
-                                                    .rounded(px(10.))
-                                                    .border_1()
-                                                    .border_color(cx.theme().border)
-                                                    .bg(cx.theme().secondary)
-                                                    .child(
-                                                        div()
-                                                            .v_flex()
-                                                            .gap(px(3.))
-                                                            .child(
-                                                                div()
-                                                                    .text_size(px(14.))
-                                                                    .font_weight(
-                                                                        FontWeight::SEMIBOLD,
-                                                                    )
-                                                                    .child(
-                                                                        self.t(
-                                                                            "ops.startWithLinux",
-                                                                        ),
-                                                                    ),
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .text_size(px(12.))
-                                                                    .text_color(
-                                                                        cx.theme().muted_foreground,
-                                                                    )
-                                                                    .child(self.t(
-                                                                        "ops.startWithLinuxHint",
-                                                                    )),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        Switch::new("preferences-autostart")
-                                                            .checked(autostart)
-                                                            .tooltip(get_autostart_path())
-                                                            .on_click(cx.listener(
-                                                                |this, next, _, _| {
-                                                                    if set_autostart_enabled(*next)
-                                                                    {
-                                                                        this.autostart =
-                                                                            is_autostart_enabled();
-                                                                    }
-                                                                },
-                                                            )),
-                                                    ),
-                                            ),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap_3()
-                                    .child(sidebar_section_label(self.t("ops.language")))
-                                    .child(
-                                        div()
-                                            .h_flex()
-                                            .gap_2()
-                                            .child(
-                                                Button::new("preferences-locale-pt")
-                                                    .selected(self.locale == "pt-BR")
-                                                    .label("Português")
-                                                    .on_click(cx.listener(
-                                                        |this, _, window, cx| {
-                                                            this.set_locale("pt-BR", window, cx)
-                                                        },
-                                                    )),
-                                            )
-                                            .child(
-                                                Button::new("preferences-locale-en")
-                                                    .selected(self.locale == "en")
-                                                    .label("English")
-                                                    .on_click(cx.listener(
-                                                        |this, _, window, cx| {
-                                                            this.set_locale("en", window, cx)
-                                                        },
-                                                    )),
-                                            ),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap_3()
-                                    .child(sidebar_section_label(self.t("ops.maintenance")))
-                                    .child(self.render_update_feedback(cx))
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .flex_wrap()
-                                            .gap_2()
-                                            .child(
-                                                Button::new("preferences-reload")
-                                                    .icon(IconName::RotateCw)
-                                                    .label(self.t("ops.reloadProfiles"))
-                                                    .on_click(cx.listener(|this, _, _, _| {
-                                                        this.profiles = this
-                                                            .vpn
-                                                            .lock()
-                                                            .unwrap()
-                                                            .refresh_profiles();
-                                                        this.rebuild_os_tray();
-                                                    })),
-                                            )
-                                            .child(
-                                                Button::new("preferences-updates")
-                                                    .icon(IconName::ArrowDown)
-                                                    .loading(
-                                                        self.check_feedback
-                                                            == CheckFeedback::Checking,
-                                                    )
-                                                    .label(match self.check_feedback {
-                                                        CheckFeedback::Checking => {
-                                                            self.t("update.checking")
+            overlay(cx)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _, _, _| this.preferences_open = false),
+                )
+                .child(
+                    surface(cx)
+                        .w(px(680.))
+                        .max_h(px(640.))
+                        .v_flex()
+                        .overflow_hidden()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(
+                            div()
+                                .h_flex()
+                                .items_start()
+                                .justify_between()
+                                .px_6()
+                                .py_5()
+                                .border_b_1()
+                                .border_color(cx.theme().border)
+                                .child(
+                                    div()
+                                        .h_flex()
+                                        .gap_3()
+                                        .child(icon_badge(Huge::Settings, cx.theme().primary, cx))
+                                        .child(
+                                            div()
+                                                .v_flex()
+                                                .gap(px(3.))
+                                                .child(
+                                                    div()
+                                                        .text_size(px(20.))
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .child(self.t("ops.preferences")),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_size(px(13.))
+                                                        .text_color(cx.theme().muted_foreground)
+                                                        .child(self.t("ops.preferencesHint")),
+                                                ),
+                                        ),
+                                )
+                                .child(
+                                    Button::new("close-preferences-top")
+                                        .ghost()
+                                        .icon(hi(Huge::Close))
+                                        .accessibility_label(self.t("form.close"))
+                                        .on_click(cx.listener(|this, _, _, _| {
+                                            this.preferences_open = false
+                                        })),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .id("preferences-scroll")
+                                .flex_1()
+                                .min_h_0()
+                                .overflow_y_scrollbar()
+                                .v_flex()
+                                .gap_6()
+                                .px_6()
+                                .py_5()
+                                .child(self.render_theme_picker(cx))
+                                .child(prefs_section(
+                                    Huge::Language,
+                                    self.t("ops.language"),
+                                    self.t("ops.languageHint"),
+                                    div()
+                                        .h_flex()
+                                        .gap_2()
+                                        .child(
+                                            Button::new("preferences-locale-pt")
+                                                .selected(self.locale == "pt-BR")
+                                                .icon(hi(Huge::Earth))
+                                                .label("Português")
+                                                .on_click(cx.listener(|this, _, window, cx| {
+                                                    this.set_locale("pt-BR", window, cx)
+                                                })),
+                                        )
+                                        .child(
+                                            Button::new("preferences-locale-en")
+                                                .selected(self.locale == "en")
+                                                .icon(hi(Huge::Globe))
+                                                .label("English")
+                                                .on_click(cx.listener(|this, _, window, cx| {
+                                                    this.set_locale("en", window, cx)
+                                                })),
+                                        ),
+                                    cx,
+                                ))
+                                .child(prefs_section(
+                                    Huge::Wifi,
+                                    self.t("ops.connectionSettings"),
+                                    self.t("ops.preferencesHint"),
+                                    div()
+                                        .v_flex()
+                                        .gap_2()
+                                        .child(pref_switch_row(
+                                            Huge::Reload,
+                                            self.t("ops.autoRelink"),
+                                            self.t("ops.autoRelinkHint"),
+                                            Switch::new("preferences-auto-reconnect")
+                                                .checked(auto_reconnect)
+                                                .on_click(cx.listener(|this, next, _, _| {
+                                                    this.vpn
+                                                        .lock()
+                                                        .unwrap()
+                                                        .set_auto_reconnect(*next);
+                                                    this.state.auto_reconnect = *next;
+                                                    save_settings(AppSettingsPatch {
+                                                        auto_reconnect: Some(*next),
+                                                        ..Default::default()
+                                                    });
+                                                })),
+                                            cx,
+                                        ))
+                                        .child(pref_switch_row(
+                                            Huge::Laptop,
+                                            self.t("ops.startWithLinux"),
+                                            self.t("ops.startWithLinuxHint"),
+                                            Switch::new("preferences-autostart")
+                                                .checked(autostart)
+                                                .tooltip(get_autostart_path())
+                                                .on_click(cx.listener(|this, next, _, _| {
+                                                    if set_autostart_enabled(*next) {
+                                                        this.autostart = is_autostart_enabled();
+                                                    }
+                                                })),
+                                            cx,
+                                        )),
+                                    cx,
+                                ))
+                                .child(prefs_section(
+                                    Huge::Rotate,
+                                    self.t("ops.maintenance"),
+                                    String::new(),
+                                    div()
+                                        .v_flex()
+                                        .gap_3()
+                                        .child(self.render_update_feedback(cx))
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .flex_wrap()
+                                                .gap_2()
+                                                .child(
+                                                    Button::new("preferences-reload")
+                                                        .icon(hi(Huge::Reload))
+                                                        .label(self.t("ops.reloadProfiles"))
+                                                        .on_click(cx.listener(|this, _, _, _| {
+                                                            this.profiles = this
+                                                                .vpn
+                                                                .lock()
+                                                                .unwrap()
+                                                                .refresh_profiles();
+                                                            this.rebuild_os_tray();
+                                                        })),
+                                                )
+                                                .child(
+                                                    Button::new("preferences-updates")
+                                                        .icon(hi(Huge::Download))
+                                                        .loading(
+                                                            self.check_feedback
+                                                                == CheckFeedback::Checking,
+                                                        )
+                                                        .label(match self.check_feedback {
+                                                            CheckFeedback::Checking => {
+                                                                self.t("update.checking")
+                                                            }
+                                                            _ => self.t("update.checkNow"),
+                                                        })
+                                                        .on_click(cx.listener(|this, _, _, _| {
+                                                            this.check_feedback =
+                                                                CheckFeedback::Checking;
+                                                            this.spawn_update_check();
+                                                        })),
+                                                )
+                                                .child(
+                                                    Button::new("preferences-disconnect-all")
+                                                        .danger()
+                                                        .outline()
+                                                        .disabled(!any_up)
+                                                        .icon(hi(Huge::WifiOff))
+                                                        .label(self.t("ops.killAll"))
+                                                        .on_click(cx.listener(|this, _, _, _| {
+                                                            this.vpn
+                                                                .lock()
+                                                                .unwrap()
+                                                                .disconnect(None)
+                                                        })),
+                                                ),
+                                        ),
+                                    cx,
+                                )),
+                        )
+                        .child(
+                            div()
+                                .h_flex()
+                                .justify_between()
+                                .gap_2()
+                                .px_6()
+                                .py_4()
+                                .border_t_1()
+                                .border_color(cx.theme().border)
+                                .child(
+                                    div()
+                                        .h_flex()
+                                        .gap_2()
+                                        .child(
+                                            Button::new("preferences-hide")
+                                                .ghost()
+                                                .icon(hi(Huge::Hide))
+                                                .label(self.t("ops.hideToTray"))
+                                                .on_click(cx.listener(|this, _, window, _| {
+                                                    this.preferences_open = false;
+                                                    window.minimize_window();
+                                                })),
+                                        )
+                                        .child(
+                                            Button::new("preferences-quit")
+                                                .danger()
+                                                .outline()
+                                                .icon(hi(Huge::Quit))
+                                                .label(self.t("ops.quit"))
+                                                .on_click(cx.listener(
+                                                    move |this, _, window, cx| {
+                                                        this.preferences_open = false;
+                                                        if any_up {
+                                                            this.confirm_quit = true;
+                                                        } else {
+                                                            this.request_quit(window, cx);
                                                         }
-                                                        _ => self.t("update.checkNow"),
-                                                    })
-                                                    .on_click(cx.listener(|this, _, _, _| {
-                                                        this.check_feedback =
-                                                            CheckFeedback::Checking;
-                                                        this.spawn_update_check();
-                                                    })),
-                                            )
-                                            .child(
-                                                Button::new("preferences-disconnect-all")
-                                                    .danger()
-                                                    .outline()
-                                                    .disabled(!any_up)
-                                                    .icon(IconName::Pause)
-                                                    .label(self.t("ops.killAll"))
-                                                    .on_click(cx.listener(|this, _, _, _| {
-                                                        this.vpn.lock().unwrap().disconnect(None)
-                                                    })),
-                                            ),
-                                    ),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .justify_between()
-                            .gap_2()
-                            .px_5()
-                            .py_4()
-                            .border_t_1()
-                            .border_color(rgb(SIDEBAR_BORDER))
-                            .child(
-                                div()
-                                    .h_flex()
-                                    .gap_2()
-                                    .child(
-                                        Button::new("preferences-hide")
-                                            .ghost()
-                                            .icon(IconName::PanelLeftClose)
-                                            .label(self.t("ops.hideToTray"))
-                                            .on_click(cx.listener(|this, _, window, _| {
-                                                this.preferences_open = false;
-                                                window.minimize_window();
-                                            })),
-                                    )
-                                    .child(
-                                        Button::new("preferences-quit")
-                                            .danger()
-                                            .outline()
-                                            .icon(IconName::Close)
-                                            .label(self.t("ops.quit"))
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.preferences_open = false;
-                                                if any_up {
-                                                    this.confirm_quit = true;
-                                                } else {
-                                                    this.request_quit(window, cx);
-                                                }
-                                            })),
-                                    ),
-                            )
-                            .child(
-                                Button::new("close-preferences")
-                                    .primary()
-                                    .label(self.t("form.done"))
-                                    .on_click(
-                                        cx.listener(|this, _, _, _| this.preferences_open = false),
-                                    ),
-                            ),
-                    ),
-            ),
+                                                    },
+                                                )),
+                                        ),
+                                )
+                                .child(
+                                    Button::new("close-preferences")
+                                        .primary()
+                                        .icon(hi(Huge::Check))
+                                        .label(self.t("form.done"))
+                                        .on_click(cx.listener(|this, _, _, _| {
+                                            this.preferences_open = false
+                                        })),
+                                ),
+                        )
+                        .with_animation(
+                            "prefs-in",
+                            Animation::new(Duration::from_millis(220)),
+                            |this, delta| this.opacity(delta),
+                        ),
+                ),
         )
+    }
+
+    fn render_theme_picker(&self, cx: &mut Context<Self>) -> Div {
+        let selected = self.theme.as_str();
+        prefs_section(
+            Huge::Paint,
+            self.t("theme.appearance"),
+            self.t("theme.appearanceHint"),
+            div()
+                .h_flex()
+                .gap_3()
+                .child(self.theme_choice_card(
+                    "system",
+                    Huge::Laptop,
+                    self.t("theme.shortSystem"),
+                    self.t("theme.autoHint"),
+                    selected == "system",
+                    cx,
+                ))
+                .child(self.theme_choice_card(
+                    "light",
+                    Huge::Sun,
+                    self.t("theme.shortLight"),
+                    self.t("theme.lightHint"),
+                    selected == "light",
+                    cx,
+                ))
+                .child(self.theme_choice_card(
+                    "dark",
+                    Huge::Moon,
+                    self.t("theme.shortDark"),
+                    self.t("theme.darkHint"),
+                    selected == "dark",
+                    cx,
+                )),
+            cx,
+        )
+    }
+
+    fn theme_choice_card(
+        &self,
+        value: &'static str,
+        icon: Huge,
+        title: String,
+        hint: String,
+        selected: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let id = format!("theme-choice-{value}");
+        div()
+            .id(SharedString::from(id.clone()))
+            .flex_1()
+            .v_flex()
+            .gap_2()
+            .items_center()
+            .px_3()
+            .py_4()
+            .rounded(px(14.))
+            .border_1()
+            .border_color(if selected {
+                cx.theme().primary
+            } else {
+                cx.theme().border
+            })
+            .bg(if selected {
+                cx.theme().primary.opacity(0.1)
+            } else {
+                cx.theme().secondary
+            })
+            .cursor_pointer()
+            .hover(|this| this.border_color(cx.theme().primary.opacity(0.7)))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, window, cx| this.set_theme(value, window, cx)),
+            )
+            .child(
+                div()
+                    .size(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(10.))
+                    .bg(if selected {
+                        cx.theme().primary.opacity(0.16)
+                    } else {
+                        cx.theme().muted
+                    })
+                    .text_color(if selected {
+                        cx.theme().primary
+                    } else {
+                        cx.theme().muted_foreground
+                    })
+                    .child(hi(icon).size(px(18.))),
+            )
+            .child(
+                div()
+                    .text_size(px(13.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(title),
+            )
+            .child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(hint),
+            )
     }
 
     fn render_update_feedback(&self, cx: &mut Context<Self>) -> Div {
@@ -1256,7 +1392,7 @@ impl Desk {
             .min_w_0()
             .h_full()
             .v_flex()
-            .bg(rgb(WORKSPACE_BG))
+            .bg(cx.theme().background)
             .children(self.render_update_banner(cx))
             .child(
                 div()
@@ -1305,7 +1441,7 @@ impl Desk {
                             .child(
                                 div().w(px(280.)).flex_none().child(
                                     Input::new(&self.search)
-                                        .prefix(IconName::Search)
+                                        .prefix(hi(Huge::Search))
                                         .cleanable(true),
                                 ),
                             ),
@@ -1315,18 +1451,21 @@ impl Desk {
                             .h_flex()
                             .gap_3()
                             .child(metric_tile(
+                                Huge::Folder,
                                 self.profiles.len().to_string(),
                                 self.t("ops.totalProfiles"),
                                 cx.theme().primary,
                                 cx,
                             ))
                             .child(metric_tile(
+                                Huge::WifiOn,
                                 summary.connected_count.to_string(),
                                 self.t("ops.connectedNow"),
                                 cx.theme().success,
                                 cx,
                             ))
                             .child(metric_tile(
+                                Huge::Wifi,
                                 summary.connecting_count.to_string(),
                                 self.t("ops.connectingNow"),
                                 cx.theme().warning,
@@ -1358,7 +1497,7 @@ impl Desk {
                                 .h_flex()
                                 .gap_2()
                                 .text_color(cx.theme().primary)
-                                .child(Icon::new(IconName::Info))
+                                .child(hi(Huge::Info))
                                 .child(self.tv(
                                     "update.available",
                                     &[
@@ -1375,7 +1514,7 @@ impl Desk {
                                     Button::new("install-update")
                                         .small()
                                         .primary()
-                                        .icon(IconName::ArrowDown)
+                                        .icon(hi(Huge::Download))
                                         .loading(self.update_busy)
                                         .disabled(self.update_busy)
                                         .label(if self.update_busy {
@@ -1392,7 +1531,7 @@ impl Desk {
                                         .small()
                                         .primary()
                                         .outline()
-                                        .icon(IconName::ExternalLink)
+                                        .icon(hi(Huge::ExternalLink))
                                         .label(self.t("update.open"))
                                         .on_click(move |_, _, _| {
                                             let _ = open::that(&info.url);
@@ -1454,7 +1593,7 @@ impl Desk {
                     .rounded(px(14.))
                     .border_1()
                     .border_color(cx.theme().border)
-                    .bg(rgb(CARD_BG))
+                    .bg(cx.theme().secondary)
                     .child(
                         div()
                             .size(px(48.))
@@ -1464,7 +1603,7 @@ impl Desk {
                             .rounded(px(12.))
                             .bg(cx.theme().muted)
                             .text_color(cx.theme().muted_foreground)
-                            .child(Icon::new(IconName::Search).size(px(23.))),
+                            .child(hi(Huge::Search).size(px(23.))),
                     )
                     .child(
                         div()
@@ -1506,7 +1645,7 @@ impl Desk {
             .rounded(px(14.))
             .border_1()
             .border_color(cx.theme().border)
-            .bg(rgb(CARD_BG))
+            .bg(cx.theme().secondary)
             .child(
                 div()
                     .size(px(56.))
@@ -1516,7 +1655,7 @@ impl Desk {
                     .rounded(px(14.))
                     .bg(cx.theme().primary.opacity(0.12))
                     .text_color(cx.theme().primary)
-                    .child(Icon::new(IconName::Network).size(px(28.))),
+                    .child(hi(Huge::Wifi).size(px(28.))),
             )
             .child(
                 div()
@@ -1539,7 +1678,7 @@ impl Desk {
                     .child(
                         Button::new("empty-new")
                             .primary()
-                            .icon(IconName::Plus)
+                            .icon(hi(Huge::Add))
                             .label(self.t("ops.newProfile"))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_editor(EditorMode::Create, empty_draft(), window, cx)
@@ -1547,7 +1686,7 @@ impl Desk {
                     )
                     .child(
                         Button::new("empty-import")
-                            .icon(IconName::FileText)
+                            .icon(hi(Huge::FileImport))
                             .label(self.t("ops.importConf"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.open_import(window, cx)),
@@ -1606,8 +1745,9 @@ impl Desk {
             } else {
                 cx.theme().border
             })
-            .bg(rgb(CARD_BG))
+            .bg(cx.theme().secondary)
             .when(active, |this| this.border_l_2())
+            .hover(|this| this.border_color(status_color.opacity(0.45)))
             .child(
                 div()
                     .h_flex()
@@ -1654,12 +1794,7 @@ impl Desk {
                                             .text_color(status_color)
                                             .text_size(px(12.))
                                             .font_weight(FontWeight::SEMIBOLD)
-                                            .child(
-                                                div()
-                                                    .size(px(5.))
-                                                    .rounded(px(999.))
-                                                    .bg(status_color),
-                                            )
+                                            .child(status_dot(status_color, status))
                                             .child(self.t(status_key)),
                                     ),
                             )
@@ -1700,7 +1835,7 @@ impl Desk {
                         Button::new(format!("edit-{edit_id}"))
                             .small()
                             .ghost()
-                            .icon(IconName::Settings2)
+                            .icon(hi(Huge::Edit))
                             .tooltip(self.t("profiles.edit"))
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 if let Some(draft) = tunnel_yard::read_profile_draft(&edit_id) {
@@ -1710,11 +1845,16 @@ impl Desk {
                     )
                     .child(
                         Button::new(format!("toggle-{profile_id}"))
-                            .w(px(118.))
+                            .w(px(132.))
                             .when(active, |button| button.danger().outline())
                             .when(!active, |button| button.primary())
                             .loading(status == VpnStatus::Connecting)
                             .disabled(status == VpnStatus::Connecting)
+                            .icon(if active {
+                                hi(Huge::WifiOff)
+                            } else {
+                                hi(Huge::Connect)
+                            })
                             .label(if active {
                                 self.t("profiles.killLink")
                             } else {
@@ -1727,8 +1867,9 @@ impl Desk {
             )
     }
 
-    fn render_console(&self, cx: &mut Context<Self>) -> Div {
+    fn render_console(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
+            .id("live-console")
             .flex_none()
             .h(if self.console_expanded {
                 px(176.)
@@ -1736,10 +1877,10 @@ impl Desk {
                 px(48.)
             })
             .v_flex()
-            .rounded(px(12.))
+            .rounded(px(14.))
             .border_1()
-            .border_color(rgb(SIDEBAR_BORDER))
-            .bg(rgb(CONSOLE_BG))
+            .border_color(cx.theme().border)
+            .bg(cx.theme().sidebar)
             .child(
                 div()
                     .h(px(46.))
@@ -1752,10 +1893,8 @@ impl Desk {
                             .gap_3()
                             .text_size(px(14.))
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(rgb(0xc3ccd2))
-                            .child(
-                                Icon::new(IconName::SquareTerminal).text_color(rgb(SIDEBAR_MUTED)),
-                            )
+                            .text_color(cx.theme().foreground)
+                            .child(hi(Huge::Console).text_color(cx.theme().muted_foreground))
                             .child(self.t("console.liveTitle")),
                     )
                     .child(
@@ -1776,9 +1915,9 @@ impl Desk {
                                     .small()
                                     .ghost()
                                     .icon(if self.console_expanded {
-                                        IconName::ChevronDown
+                                        hi(Huge::ArrowDown)
                                     } else {
-                                        IconName::ChevronUp
+                                        hi(Huge::ArrowUp)
                                     })
                                     .label(if self.console_expanded {
                                         self.t("console.hide")
@@ -1799,7 +1938,7 @@ impl Desk {
                         .min_h_0()
                         .overflow_y_scrollbar()
                         .border_t_1()
-                        .border_color(rgb(SIDEBAR_BORDER))
+                        .border_color(cx.theme().border)
                         .px_4()
                         .py_3()
                         .v_flex()
@@ -1808,7 +1947,7 @@ impl Desk {
                         .text_size(px(12.))
                         .children(if self.logs.is_empty() {
                             vec![div()
-                                .text_color(rgb(SIDEBAR_MUTED))
+                                .text_color(cx.theme().muted_foreground)
                                 .child(self.t("console.emptyCompact"))]
                         } else {
                             self.logs
@@ -1829,7 +1968,7 @@ impl Desk {
                                     {
                                         cx.theme().success
                                     } else {
-                                        rgb(SIDEBAR_MUTED).into()
+                                        cx.theme().muted_foreground
                                     };
                                     div().text_color(color).child(line.clone())
                                 })
@@ -1855,7 +1994,7 @@ impl Desk {
                         .rounded(px(14.))
                         .bg(cx.theme().danger.opacity(0.12))
                         .text_color(cx.theme().danger)
-                        .child(Icon::new(IconName::TriangleAlert).size(px(26.))),
+                        .child(hi(Huge::Alert).size(px(26.))),
                 )
                 .child(
                     div()
@@ -1867,7 +2006,7 @@ impl Desk {
                 .child(
                     Button::new("retry-boot")
                         .primary()
-                        .icon(IconName::RotateCw)
+                        .icon(hi(Huge::Rotate))
                         .label(self.t("boot.retry"))
                         .on_click(cx.listener(|this, _, _, _| {
                             this.boot_error = None;
@@ -1902,7 +2041,7 @@ impl Desk {
                                 .rounded(px(15.))
                                 .bg(cx.theme().primary.opacity(0.12))
                                 .text_color(cx.theme().primary)
-                                .child(Icon::new(IconName::ArrowDown).size(px(27.))),
+                                .child(hi(Huge::Download).size(px(27.))),
                         )
                         .child(
                             div()
@@ -1997,7 +2136,7 @@ impl Desk {
                                 .primary()
                                 .disabled(!status.can_auto_install || self.setup_busy)
                                 .loading(self.setup_busy)
-                                .icon(IconName::ArrowDown)
+                                .icon(hi(Huge::Download))
                                 .label(if self.setup_busy {
                                     self.t("setup.working")
                                 } else {
@@ -2019,7 +2158,7 @@ impl Desk {
                         .child(
                             Button::new("recheck-client")
                                 .disabled(self.setup_busy)
-                                .icon(IconName::RotateCw)
+                                .icon(hi(Huge::Rotate))
                                 .label(self.t("setup.recheck"))
                                 .on_click(cx.listener(|this, _, _, _| {
                                     let status = get_dependency_status();
@@ -2047,7 +2186,7 @@ impl Desk {
         let edit_profile_id =
             (editor.mode == EditorMode::Edit).then(|| editor.id.read(cx).value().to_string());
         Some(
-            overlay().child(
+            overlay(cx).child(
                 surface(cx)
                     .w(px(760.))
                     .h(relative(0.9))
@@ -2082,8 +2221,8 @@ impl Desk {
                             .child(
                                 Button::new("close-editor")
                                     .ghost()
-                                    .icon(IconName::Close)
-                                    .tooltip(self.t("form.cancel"))
+                                    .icon(hi(Huge::Close))
+                                    .accessibility_label(self.t("form.close"))
                                     .on_click(cx.listener(|this, _, _, _| {
                                         this.editor = None;
                                         this.editor_error = None;
@@ -2114,6 +2253,7 @@ impl Desk {
                                 )
                             })
                             .child(form_section(
+                                Huge::Server,
                                 self.t("form.sectionConn"),
                                 vec![
                                     field(
@@ -2148,6 +2288,7 @@ impl Desk {
                                 cx,
                             ))
                             .child(form_section(
+                                Huge::Lock,
                                 self.t("form.sectionAuth"),
                                 vec![
                                     field(
@@ -2175,6 +2316,7 @@ impl Desk {
                             ))
                             .child(
                                 form_section(
+                                    Huge::Settings,
                                     self.t("form.sectionOpts"),
                                     vec![
                                         field(
@@ -2274,7 +2416,7 @@ impl Desk {
                                     Button::new("delete-editor-profile")
                                         .danger()
                                         .outline()
-                                        .icon(IconName::Delete)
+                                        .icon(hi(Huge::Delete))
                                         .label(self.t("profiles.delete"))
                                         .on_click(cx.listener(move |this, _, _, _| {
                                             this.editor = None;
@@ -2288,6 +2430,7 @@ impl Desk {
                                     .gap_2()
                                     .child(
                                         Button::new("cancel-editor")
+                                            .ghost()
                                             .label(self.t("form.cancel"))
                                             .on_click(cx.listener(|this, _, _, _| {
                                                 this.editor = None;
@@ -2297,7 +2440,7 @@ impl Desk {
                                     .child(
                                         Button::new("save-editor")
                                             .primary()
-                                            .icon(IconName::Check)
+                                            .icon(hi(Huge::Check))
                                             .label(self.t("form.save"))
                                             .on_click(
                                                 cx.listener(|this, _, _, cx| this.save_editor(cx)),
@@ -2312,7 +2455,7 @@ impl Desk {
     fn render_delete_overlay(&self, cx: &mut Context<Self>) -> Option<Div> {
         let id = self.confirm_delete.clone()?;
         Some(
-            overlay().child(
+            overlay(cx).child(
                 surface(cx)
                     .w(px(430.))
                     .v_flex()
@@ -2327,7 +2470,7 @@ impl Desk {
                             .rounded(px(13.))
                             .bg(cx.theme().danger.opacity(0.12))
                             .text_color(cx.theme().danger)
-                            .child(Icon::new(IconName::Delete).size(px(23.))),
+                            .child(hi(Huge::Delete).size(px(23.))),
                     )
                     .child(
                         div()
@@ -2343,6 +2486,7 @@ impl Desk {
                             .gap_2()
                             .child(
                                 Button::new("cancel-delete")
+                                    .ghost()
                                     .label(self.t("form.cancel"))
                                     .on_click(
                                         cx.listener(|this, _, _, _| this.confirm_delete = None),
@@ -2351,7 +2495,7 @@ impl Desk {
                             .child(
                                 Button::new("confirm-delete")
                                     .danger()
-                                    .icon(IconName::Delete)
+                                    .icon(hi(Huge::Delete))
                                     .label(self.t("profiles.delete"))
                                     .on_click(cx.listener(move |this, _, _, _| {
                                         this.vpn.lock().unwrap().disconnect(Some(&id));
@@ -2376,7 +2520,7 @@ impl Desk {
         }
         let latest = self.update.as_ref()?.latest.clone();
         Some(
-            overlay().child(
+            overlay(cx).child(
                 surface(cx)
                     .w(px(460.))
                     .v_flex()
@@ -2400,6 +2544,7 @@ impl Desk {
                             .gap_2()
                             .child(
                                 Button::new("cancel-update")
+                                    .ghost()
                                     .label(self.t("update.cancel"))
                                     .on_click(cx.listener(|this, _, _, _| {
                                         this.confirm_update = false;
@@ -2408,7 +2553,7 @@ impl Desk {
                             .child(
                                 Button::new("confirm-update")
                                     .primary()
-                                    .icon(IconName::ArrowDown)
+                                    .icon(hi(Huge::Download))
                                     .label(self.t("update.install"))
                                     .on_click(cx.listener(|this, _, _, _| {
                                         this.start_update_install();
@@ -2424,7 +2569,7 @@ impl Desk {
             return None;
         }
         Some(
-            overlay().child(
+            overlay(cx).child(
                 surface(cx)
                     .w(px(430.))
                     .v_flex()
@@ -2448,6 +2593,7 @@ impl Desk {
                             .gap_2()
                             .child(
                                 Button::new("cancel-quit")
+                                    .ghost()
                                     .label(self.t("form.cancel"))
                                     .on_click(
                                         cx.listener(|this, _, _, _| this.confirm_quit = false),
@@ -2470,11 +2616,7 @@ impl Desk {
 
 impl Render for Desk {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.theme_applied {
-            let theme = self.theme.clone();
-            apply_theme(&theme, window, cx);
-            self.theme_applied = true;
-        }
+        self.ensure_theme(window, cx);
         let content = if let Some(error) = self.boot_error.clone() {
             self.render_boot_fault(error, cx)
         } else if !self.deps_ready {
@@ -2605,43 +2747,63 @@ fn profile_mark_color(name: &str) -> u32 {
     COLORS[index]
 }
 
-fn apply_theme(_theme: &str, window: &mut Window, cx: &mut App) {
-    Theme::change(ThemeMode::Dark, Some(window), cx);
+fn effective_mode(preference: &str, window: &Window) -> &'static str {
+    resolve_theme_mode(
+        preference,
+        matches!(
+            window.appearance(),
+            WindowAppearance::Dark | WindowAppearance::VibrantDark
+        ),
+    )
+}
+
+fn apply_theme(preference: &str, window: &mut Window, cx: &mut App) {
+    let mode = effective_mode(preference, window);
+    Theme::change(
+        if mode == "light" {
+            ThemeMode::Light
+        } else {
+            ThemeMode::Dark
+        },
+        Some(window),
+        cx,
+    );
+    let palette = Palette::named(mode);
     let brand = rgb(BRAND).into();
     let brand_hover = rgb(BRAND_HOVER).into();
     let brand_active = rgb(BRAND_ACTIVE).into();
     let white: Hsla = rgb(0xffffff).into();
     let theme = Theme::global_mut(cx);
-    theme.background = rgb(WORKSPACE_BG).into();
-    theme.foreground = rgb(0xf4f7f5).into();
-    theme.border = rgb(SIDEBAR_BORDER).into();
-    theme.secondary = rgb(CARD_BG).into();
-    theme.secondary_hover = rgb(CARD_HOVER).into();
-    theme.secondary_active = rgb(0x202a34).into();
-    theme.muted = rgb(0x1c2530).into();
-    theme.muted_foreground = rgb(SIDEBAR_MUTED).into();
-    theme.input = rgb(0x2a3540).into();
-    theme.popover = rgb(CARD_BG).into();
-    theme.popover_foreground = rgb(0xf4f7f5).into();
-    theme.button = rgb(0x18212a).into();
-    theme.button_hover = rgb(0x212c37).into();
-    theme.button_active = rgb(0x293642).into();
-    theme.button_foreground = rgb(0xe8edef).into();
-    theme.title_bar = rgb(0x0c1117).into();
-    theme.title_bar_border = rgb(SIDEBAR_BORDER).into();
-
-    theme.sidebar = rgb(SIDEBAR_BG).into();
-    theme.sidebar_foreground = rgb(SIDEBAR_TEXT).into();
-    theme.sidebar_border = rgb(SIDEBAR_BORDER).into();
-    theme.sidebar_accent = rgb(SIDEBAR_RAISED).into();
-    theme.sidebar_accent_foreground = rgb(SIDEBAR_TEXT).into();
+    theme.background = rgb(palette.workspace_bg).into();
+    theme.foreground = rgb(palette.foreground).into();
+    theme.border = rgb(palette.sidebar_border).into();
+    theme.secondary = rgb(palette.card_bg).into();
+    theme.secondary_hover = rgb(palette.card_hover).into();
+    theme.secondary_active = rgb(palette.card_active).into();
+    theme.muted = rgb(palette.muted).into();
+    theme.muted_foreground = rgb(palette.sidebar_muted).into();
+    theme.input = rgb(palette.input).into();
+    theme.popover = rgb(palette.card_bg).into();
+    theme.popover_foreground = rgb(palette.foreground).into();
+    theme.button = rgb(palette.button).into();
+    theme.button_hover = rgb(palette.button_hover).into();
+    theme.button_active = rgb(palette.button_active).into();
+    theme.button_foreground = rgb(palette.button_foreground).into();
+    theme.title_bar = rgb(palette.title_bar).into();
+    theme.title_bar_border = rgb(palette.sidebar_border).into();
+    theme.sidebar = rgb(palette.sidebar_bg).into();
+    theme.sidebar_foreground = rgb(palette.sidebar_text).into();
+    theme.sidebar_border = rgb(palette.sidebar_border).into();
+    theme.sidebar_accent = rgb(palette.sidebar_raised).into();
+    theme.sidebar_accent_foreground = rgb(palette.sidebar_text).into();
     theme.sidebar_primary = brand;
     theme.sidebar_primary_foreground = white;
-    theme.success = rgb(0x38c58a).into();
-    theme.success_hover = rgb(0x31ad79).into();
-    theme.success_active = rgb(0x278f64).into();
-    theme.warning = rgb(0xf0ad4e).into();
-    theme.danger = rgb(0xef6a64).into();
+    theme.success = rgb(palette.success).into();
+    theme.success_hover = rgb(palette.success).into();
+    theme.success_active = rgb(palette.success).into();
+    theme.warning = rgb(palette.warning).into();
+    theme.danger = rgb(palette.danger).into();
+    theme.overlay = rgba(palette.overlay).into();
     theme.ring = brand;
     theme.selection = brand.opacity(0.24);
     theme.primary = brand;
@@ -2659,8 +2821,8 @@ fn apply_theme(_theme: &str, window: &mut Window, cx: &mut App) {
     theme.tokens.button_primary_hover = brand_hover.into();
     theme.tokens.button_primary_active = brand_active.into();
     theme.tokens.button_primary_foreground = white.into();
-    theme.radius = px(8.);
-    theme.radius_lg = px(12.);
+    theme.radius = px(10.);
+    theme.radius_lg = px(16.);
     theme.shadow = true;
     Theme::sync_base(cx);
     window.refresh();
@@ -2683,56 +2845,68 @@ fn brand_mark(cx: &App, size: Pixels) -> Div {
 
 fn surface(cx: &App) -> Div {
     div()
-        .rounded(px(14.))
+        .rounded(px(18.))
         .border_1()
         .border_color(cx.theme().border)
-        .bg(rgb(CARD_BG))
+        .bg(cx.theme().popover)
         .shadow_lg()
 }
 
-fn metric_tile(value: String, label: String, tone: Hsla, cx: &App) -> Div {
+fn metric_tile(icon: Huge, value: String, label: String, tone: Hsla, cx: &App) -> Div {
     div()
         .flex_1()
         .min_w_0()
         .h_flex()
+        .items_center()
         .gap_3()
         .px_4()
         .py_3()
-        .rounded(px(10.))
+        .rounded(px(14.))
         .border_1()
         .border_color(cx.theme().border)
-        .bg(rgb(CARD_BG))
-        .child(div().size(px(8.)).rounded(px(999.)).bg(tone))
+        .bg(cx.theme().secondary)
         .child(
             div()
-                .h_flex()
-                .gap_2()
+                .size(px(32.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(10.))
+                .bg(tone.opacity(0.14))
+                .text_color(tone)
+                .child(hi(icon).size(px(16.))),
+        )
+        .child(
+            div()
+                .v_flex()
+                .min_w_0()
                 .child(
                     div()
-                        .text_size(px(17.))
+                        .text_size(px(18.))
                         .font_weight(FontWeight::BOLD)
                         .child(value),
                 )
                 .child(
                     div()
                         .truncate()
-                        .text_size(px(13.))
+                        .text_size(px(12.))
                         .text_color(cx.theme().muted_foreground)
                         .child(label),
                 ),
         )
 }
 
-fn sidebar_section_label(text: String) -> Div {
+fn sidebar_section_label(text: String, cx: &App) -> Div {
     div()
         .px_1()
-        .text_size(px(12.))
+        .text_size(px(11.))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(rgb(SIDEBAR_MUTED))
+        .text_color(cx.theme().muted_foreground)
         .child(text.to_uppercase())
 }
 
-fn centered_page(_cx: &App) -> Div {
+fn centered_page(cx: &App) -> Div {
     div()
         .flex_1()
         .min_h_0()
@@ -2740,10 +2914,10 @@ fn centered_page(_cx: &App) -> Div {
         .items_center()
         .justify_center()
         .p_6()
-        .bg(rgb(WORKSPACE_BG))
+        .bg(cx.theme().background)
 }
 
-fn overlay() -> Div {
+fn overlay(cx: &App) -> Div {
     div()
         .absolute()
         .top_0()
@@ -2754,10 +2928,47 @@ fn overlay() -> Div {
         .items_center()
         .justify_center()
         .p_5()
-        .bg(rgba(0x03070bbb))
+        .bg(cx.theme().overlay)
 }
 
-fn form_section(title: String, fields: Vec<Div>, cx: &App) -> Div {
+fn status_dot(color: Hsla, status: VpnStatus) -> impl IntoElement {
+    let connecting = status == VpnStatus::Connecting;
+    div()
+        .size(px(6.))
+        .rounded(px(999.))
+        .bg(color)
+        .with_animation(
+            if connecting {
+                "status-pulse"
+            } else {
+                "status-still"
+            },
+            Animation::new(Duration::from_millis(1200)).repeat(),
+            move |this, delta| {
+                if connecting {
+                    let wave = (delta * std::f32::consts::PI * 2.).sin() * 0.5 + 0.5;
+                    this.opacity(0.4 + 0.6 * wave)
+                } else {
+                    this
+                }
+            },
+        )
+}
+
+fn icon_badge(icon: Huge, tone: Hsla, _cx: &App) -> Div {
+    div()
+        .size(px(40.))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(12.))
+        .bg(tone.opacity(0.14))
+        .text_color(tone)
+        .child(hi(icon).size(px(18.)))
+}
+
+fn prefs_section(icon: Huge, title: String, hint: String, body: Div, cx: &App) -> Div {
     div()
         .v_flex()
         .gap_3()
@@ -2765,6 +2976,78 @@ fn form_section(title: String, fields: Vec<Div>, cx: &App) -> Div {
             div()
                 .h_flex()
                 .gap_2()
+                .items_center()
+                .child(hi(icon).size(px(16.)).text_color(cx.theme().primary))
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(title.to_uppercase()),
+                ),
+        )
+        .when(!hint.is_empty(), |this| {
+            this.child(
+                div()
+                    .text_size(px(12.))
+                    .text_color(cx.theme().muted_foreground)
+                    .child(hint),
+            )
+        })
+        .child(body)
+}
+
+fn pref_switch_row(icon: Huge, title: String, hint: String, switch: Switch, cx: &App) -> Div {
+    div()
+        .h_flex()
+        .justify_between()
+        .gap_4()
+        .p_4()
+        .rounded(px(14.))
+        .border_1()
+        .border_color(cx.theme().border)
+        .bg(cx.theme().secondary)
+        .child(
+            div()
+                .h_flex()
+                .gap_3()
+                .items_start()
+                .child(
+                    div()
+                        .mt(px(2.))
+                        .text_color(cx.theme().primary)
+                        .child(hi(icon).size(px(16.))),
+                )
+                .child(
+                    div()
+                        .v_flex()
+                        .gap(px(3.))
+                        .child(
+                            div()
+                                .text_size(px(14.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(title),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .text_color(cx.theme().muted_foreground)
+                                .child(hint),
+                        ),
+                ),
+        )
+        .child(switch)
+}
+
+fn form_section(icon: Huge, title: String, fields: Vec<Div>, cx: &App) -> Div {
+    div()
+        .v_flex()
+        .gap_3()
+        .child(
+            div()
+                .h_flex()
+                .gap_2()
+                .items_center()
+                .child(hi(icon).size(px(15.)).text_color(cx.theme().primary))
                 .child(
                     div()
                         .text_size(px(15.))

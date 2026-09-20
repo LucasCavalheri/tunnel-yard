@@ -1174,6 +1174,10 @@ fn helpers_exist_in_tree() {
         "public/icon.ico",
         "public/icon.svg",
         "scripts/generate-icon.py",
+        "assets/icons/wifi-01.svg",
+        "assets/icons/sun-03.svg",
+        "assets/icons/moon-02.svg",
+        "assets/icons/settings-02.svg",
     ] {
         assert!(root.join(name).exists(), "{name}");
     }
@@ -1204,6 +1208,14 @@ fn gpui_kit_components_are_shipped() {
             "missing GPUI Kit component: {component}"
         );
     }
+    assert!(ui.contains("title-theme-toggle"));
+    assert!(ui.contains("theme-choice-"));
+    assert!(ui.contains("render_theme_picker"));
+    assert!(ui.contains("AppAssets"));
+    assert!(
+        !ui.contains(".tooltip(self.t(\"form.cancel\"))"),
+        "overlay close buttons must not leak a Cancelar tooltip into the title bar"
+    );
 }
 
 #[test]
@@ -1233,6 +1245,53 @@ fn app_icon_is_a_real_png_and_argb_pixmap() {
         assert!(tw <= 64 && th <= 64, "tray pixmap {tw}x{th} is too large");
     }
 }
+
+#[test]
+fn hugeicons_are_current_color_svgs_for_every_desk_icon() {
+    use tunnel_yard::icons::{svg_bytes, Huge, FILES, OVERLAY_CANCEL_IDS, TITLE_BAR_ACTION_IDS};
+    assert_eq!(FILES.len(), Huge::all().len());
+    for icon in Huge::all() {
+        let bytes = svg_bytes(icon.asset_path()).expect(icon.asset_path());
+        let svg = std::str::from_utf8(bytes).expect(icon.asset_path());
+        assert!(svg.contains("<svg"), "{}", icon.asset_path());
+        assert!(
+            svg.contains("currentColor"),
+            "{} is not tintable",
+            icon.asset_path()
+        );
+        assert!(
+            !svg.contains("#141B34"),
+            "{} still has the Hugeicons default ink",
+            icon.asset_path()
+        );
+    }
+    for id in OVERLAY_CANCEL_IDS {
+        assert!(
+            !TITLE_BAR_ACTION_IDS.contains(id),
+            "{id} must not be a title-bar action"
+        );
+    }
+}
+
+#[test]
+fn light_and_dark_palettes_diverge_and_keep_brand() {
+    use tunnel_yard::theme::{resolve_theme_mode, toggle_light_dark, Palette, BRAND};
+    let dark = Palette::dark();
+    let light = Palette::light();
+    assert_eq!(BRAND, 0xff6b35);
+    assert!(light.is_light());
+    assert!(!dark.is_light());
+    assert_ne!(dark.workspace_bg, light.workspace_bg);
+    assert!(dark.workspace_bg < 0x202020);
+    assert!(light.workspace_bg > 0xe0e0e0);
+    assert_eq!(resolve_theme_mode("system", true), "dark");
+    assert_eq!(resolve_theme_mode("system", false), "light");
+    assert_eq!(resolve_theme_mode("light", true), "light");
+    assert_eq!(resolve_theme_mode("dark", false), "dark");
+    assert_eq!(toggle_light_dark("dark", true), "light");
+    assert_eq!(toggle_light_dark("system", false), "dark");
+}
+
 
 fn fixture(name: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

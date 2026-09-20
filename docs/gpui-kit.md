@@ -19,8 +19,10 @@ interaction.
 
 The app keeps a small brand layer on top of the kit: orange primary actions,
 compact profile cards, a persistent operations rail and an internal scrolling
-profile editor. Both pt-BR and English product copy continue to come from the
-app's own i18n catalog.
+profile editor. Icons on the desk are Hugeicons (stroke rounded SVGs under
+`assets/icons/`), served beside GPUI Kit's Lucide bundle. Light, dark and
+system appearance are first-class and persisted. Both pt-BR and English
+product copy continue to come from the app's own i18n catalog.
 
 ## Building on Linux
 

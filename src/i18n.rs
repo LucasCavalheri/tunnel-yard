@@ -181,6 +181,7 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("form.save", "Save profile", "Salvar perfil"),
     ("form.saving", "Saving…", "Salvando…"),
     ("form.cancel", "Cancel", "Cancelar"),
+    ("form.close", "Close", "Fechar"),
     ("form.done", "Done", "Concluir"),
     ("update.available", "Update available · {latest} (you have {current})", "Atualização disponível · {latest} (você tem {current})"),
     ("update.aptHint", "Download and install the package for your operating system. Administrator approval may be requested.", "Baixe e instale o pacote do seu sistema. O sistema pode pedir autorização de administrador."),
@@ -203,6 +204,17 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("theme.system", "Follow system theme", "Seguir o tema do sistema"),
     ("theme.light", "Light theme", "Tema claro"),
     ("theme.dark", "Dark theme", "Tema escuro"),
+    ("theme.appearance", "Appearance", "Aparência"),
+    (
+        "theme.appearanceHint",
+        "Light, dark or match the operating system.",
+        "Claro, escuro ou igual ao sistema.",
+    ),
+    ("theme.autoHint", "Match the OS", "Segue o sistema"),
+    ("theme.lightHint", "Warm daylight", "Papel claro"),
+    ("theme.darkHint", "Graphite night", "Grafite noturno"),
+    ("theme.toggle", "Switch theme", "Trocar tema"),
+    ("ops.languageHint", "Interface language.", "Idioma da interface."),
 ];
 
 fn lookup(locale: &str, key: &str) -> Option<&'static str> {
