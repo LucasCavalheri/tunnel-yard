@@ -52,10 +52,10 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 
 | File | Distro family |
 |------|----------|
-| `tunnel-yard_3.0.3_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
-| `tunnel-yard-3.0.3-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
-| `tunnel-yard-3.0.3-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
-| `tunnel-yard-3.0.3-r0-x86_64.apk` | Alpine (needs `gcompat`) |
+| `tunnel-yard_3.0.4_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard-3.0.4-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.4-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
+| `tunnel-yard-3.0.4-r0-x86_64.apk` | Alpine (needs `gcompat`) |
 | `tunnel-yard-linux-x64.tar.gz` | Gentoo, Void, NixOS and anywhere else |
 
 ARM64 files use `arm64` / `aarch64` in the name.
@@ -68,17 +68,17 @@ The script reads `uname` and the package manager, then installs the matching Git
 
 ```bash
 # Debian / Ubuntu / Mint / Pop!_OS / Kali
-sudo apt install ./tunnel-yard_3.0.3_amd64.deb
+sudo apt install ./tunnel-yard_3.0.4_amd64.deb
 
 # Fedora / RHEL / Rocky / Alma
-sudo dnf install ./tunnel-yard-3.0.3-1.x86_64.rpm
+sudo dnf install ./tunnel-yard-3.0.4-1.x86_64.rpm
 
 # Arch / Manjaro
-sudo pacman -U ./tunnel-yard-3.0.3-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tunnel-yard-3.0.4-1-x86_64.pkg.tar.zst
 
 # Alpine
 sudo apk add gcompat
-sudo apk add --allow-untrusted ./tunnel-yard-3.0.3-r0-x86_64.apk
+sudo apk add --allow-untrusted ./tunnel-yard-3.0.4-r0-x86_64.apk
 
 # Portable
 tar -xzf tunnel-yard-linux-x64.tar.gz
@@ -120,7 +120,7 @@ When a newer GitHub release exists, the main window, Preferences and tray item *
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-git tag v3.0.3
+git tag v3.0.4
 git push origin master --follow-tags
 ```
 

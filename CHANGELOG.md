@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 3.0.4
+
+- Added a visible update check, automatic checks after startup and a six-hour
+  refresh interval with retry backoff.
+- Updating from the app or installer now warns about active tunnels,
+  disconnects them safely and relaunches the new binary.
+- Added installer-flow regression coverage and kept release/security checks
+  deterministic for the public CI.
+
 ## 3.0.3
 
 - Centralized language and appearance controls in Preferences, with Brazil and
