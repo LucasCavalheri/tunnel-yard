@@ -37,6 +37,8 @@ jobs:
         run: bash scripts/validate-release.test.sh
       - name: Test release artifact scripts
         run: bash scripts/release-artifacts.test.sh
+      - name: Test Vercel deploy trigger
+        run: bash scripts/deploy-site.test.sh
       - name: Test CI aggregator
         run: bash scripts/ci-gate.test.sh
 

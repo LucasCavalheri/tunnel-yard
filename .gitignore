@@ -20,3 +20,5 @@ release
 .idea
 .vscode
 *.swp
+.vercel
+.env*
