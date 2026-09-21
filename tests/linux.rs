@@ -418,6 +418,47 @@ fn install_sh_plans_native_packages_per_distro() {
 }
 
 #[test]
+#[test]
+fn install_sh_makes_the_package_readable_for_apt() {
+    let script = fs::read_to_string(install_sh()).unwrap();
+    assert!(
+        script.contains("chmod 0755 \"$TMP\""),
+        "apt _apt user needs the temp dir to be 0755"
+    );
+    assert!(
+        script.contains("chmod 0644 \"$FILE\""),
+        "apt _apt user needs the .deb to be 0644"
+    );
+
+    let dir = std::env::temp_dir().join(format!("tunnel-yard-apt-perm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+    let file = dir.join("tunnel-yard.deb");
+    fs::write(&file, b"deb").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let status = Command::new("bash")
+        .arg("-c")
+        .arg("chmod 0755 \"$1\" && chmod 0644 \"$2\"")
+        .arg("apt-readable")
+        .arg(&dir)
+        .arg(&file)
+        .status()
+        .expect("chmod");
+    assert!(status.success());
+    assert_eq!(
+        fs::metadata(&dir).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+    assert_eq!(
+        fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+        0o644
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn install_sh_rejects_foreign_chips() {
     let output = Command::new("bash")
         .arg(install_sh())

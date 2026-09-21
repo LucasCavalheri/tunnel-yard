@@ -184,5 +184,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 FILE="${TMP}/${ASSET}"
 curl -fL --progress-bar -o "$FILE" "$URL"
+# apt fetches local files as user `_apt`. mktemp dirs are 0700, so that
+# user cannot read the .deb and prints a noisy permission note.
+chmod 0755 "$TMP"
+chmod 0644 "$FILE"
 install_asset "$PM" "$FILE" "$ARCH"
 echo "done. launch tunnel-yard from the menu or run: tunnel-yard"
