@@ -27,7 +27,7 @@ output="$(
 
 [[ "$output" == *"HTTP 202"* ]]
 for expected in --request POST https://api.vercel.com/v1/integrations/deploy/test; do
-  rg --fixed-strings --line-regexp -- "$expected" "$ARGS_FILE" >/dev/null
+  grep --fixed-strings --line-regexp -- "$expected" "$ARGS_FILE" >/dev/null
 done
 
 echo "deploy-site tests passed"
