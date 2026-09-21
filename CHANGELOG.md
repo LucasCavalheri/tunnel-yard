@@ -2,10 +2,14 @@
 
 ## Unreleased
 
+## 3.0.3
+
 - Centralized language and appearance controls in Preferences, with Brazil and
   United States flags for the locale choices.
 - CI now aggregates quality, platform, site and security checks behind one
   required `CI` status check, and releases publish checksums with provenance.
+- Rust, npm and GitHub Actions dependencies were updated and validated by the
+  complete CI matrix.
 
 ## 3.0.2
 
