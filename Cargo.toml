@@ -19,7 +19,7 @@ path = "src/main.rs"
 
 [dependencies]
 base64 = "0.22"
-dirs = "6"
+dirs = "7"
 hex = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
 open = "5"
