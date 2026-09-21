@@ -10,7 +10,8 @@
     "dev": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check",
+    "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@iconify-json/simple-icons": "^1.2.95",

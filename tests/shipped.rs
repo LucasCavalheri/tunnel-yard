@@ -899,7 +899,7 @@ fn gpui_kit_components_are_shipped() {
     let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
     let ui = fs::read_to_string(root.join("src/ui.rs")).unwrap();
 
-    assert!(manifest.contains("gpui-kit = \"0.6\""));
+    assert!(manifest.contains("gpui-kit = \"0.6.4\""));
     for component in [
         "Root::new",
         "TitleBar::new",
@@ -1125,6 +1125,7 @@ fn landing_language_switch_and_github_star_are_wired() {
     let switcher =
         fs::read_to_string(root.join("site/src/components/LanguageSwitcher.astro")).unwrap();
     let release = fs::read_to_string(root.join("site/src/data/release.ts")).unwrap();
+    let release_utils = fs::read_to_string(root.join("site/src/data/release-utils.mjs")).unwrap();
     let en = fs::read_to_string(root.join("site/src/i18n/en.ts")).unwrap();
     let pt = fs::read_to_string(root.join("site/src/i18n/pt-BR.ts")).unwrap();
     assert!(landing.contains("ClientRouter"));
@@ -1132,7 +1133,8 @@ fn landing_language_switch_and_github_star_are_wired() {
     assert!(landing.contains("LOCALE_SCROLL_KEY"));
     assert!(landing.contains("class=\"star-link\""));
     assert!(switcher.contains("data-i18n-switch"));
-    assert!(release.contains("stargazers_count"));
+    assert!(release.contains("fetchStarCount"));
+    assert!(release_utils.contains("stargazers_count"));
     assert!(en.contains("star: \"Star us\""));
     assert!(pt.contains("star: \"Estrelar\""));
     assert!(en.contains("github: \"Star on GitHub\""));
