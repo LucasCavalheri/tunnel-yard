@@ -489,6 +489,22 @@ fn unix_replace_after_exit(staged: &Path, dest: &Path) -> Result<UpdateApplyResu
     Ok(UpdateApplyResult { relaunch: None })
 }
 
+fn unix_relaunch_after_exit(dest: &Path) -> Result<UpdateApplyResult, String> {
+    let pid = std::process::id();
+    let script = format!(
+        "while kill -0 {pid} 2>/dev/null; do sleep 0.2; done; exec {dest}",
+        dest = sh_single_quote(&dest.to_string_lossy()),
+    );
+    Command::new("sh")
+        .args(["-c", &script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Could not schedule relaunch: {e}"))?;
+    Ok(UpdateApplyResult { relaunch: None })
+}
+
 fn pkexec_install_package(path: &Path, kind: InstallKind) -> Result<(), String> {
     let file = path.display().to_string();
     let script = match kind {
@@ -527,9 +543,7 @@ pub fn perform_update_install(info: &UpdateInfo) -> Result<UpdateApplyResult, St
         InstallKind::Deb | InstallKind::Rpm => {
             pkexec_install_package(&download_path, kind)?;
             let relaunch = PathBuf::from(format!("/usr/bin/{APP_BIN}"));
-            Ok(UpdateApplyResult {
-                relaunch: Some(if relaunch.exists() { relaunch } else { exe }),
-            })
+            unix_relaunch_after_exit(if relaunch.exists() { &relaunch } else { &exe })
         }
         InstallKind::LinuxPortable => {
             let unpacked = extract_linux_binary(&download_path, &tmp)?;

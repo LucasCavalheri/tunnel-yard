@@ -30,8 +30,8 @@ use tunnel_yard::icons::{Huge, LocaleFlag};
 use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
 use tunnel_yard::theme::{resolve_theme_mode, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER};
 use tunnel_yard::updates::{
-    perform_update_check, perform_update_install, UpdateApplyResult, UpdateCheckResult, UpdateInfo,
-    FIRST_CHECK_DELAY_MS,
+    next_check_delay_ms, perform_update_check, perform_update_install, UpdateApplyResult,
+    UpdateCheckResult, UpdateInfo, FIRST_CHECK_DELAY_MS,
 };
 use tunnel_yard::vpn::{
     summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus,
@@ -177,8 +177,9 @@ struct Desk {
     update_tx: mpsc::Sender<UpdateCheckResult>,
     update_install_rx: Receiver<Result<UpdateApplyResult, String>>,
     update_install_tx: mpsc::Sender<Result<UpdateApplyResult, String>>,
-    started_at: Instant,
-    auto_check_sent: bool,
+    next_update_check_at: Instant,
+    update_check_in_flight: bool,
+    update_check_failures: u32,
     dismissed_update: Option<String>,
     setup_rx: Receiver<SetupMsg>,
     setup_tx: mpsc::Sender<SetupMsg>,
@@ -317,8 +318,9 @@ impl Desk {
             update_tx,
             update_install_rx,
             update_install_tx,
-            started_at: Instant::now(),
-            auto_check_sent: false,
+            next_update_check_at: Instant::now() + Duration::from_millis(FIRST_CHECK_DELAY_MS),
+            update_check_in_flight: false,
+            update_check_failures: 0,
             dismissed_update,
             setup_rx,
             setup_tx,
@@ -376,7 +378,12 @@ impl Desk {
         translate(&self.locale, key, vars)
     }
 
-    fn spawn_update_check(&self) {
+    fn spawn_update_check(&mut self) {
+        if self.update_check_in_flight {
+            return;
+        }
+        self.update_check_in_flight = true;
+        self.check_feedback = CheckFeedback::Checking;
         let tx = self.update_tx.clone();
         let version = self.version.clone();
         std::thread::spawn(move || {
@@ -407,10 +414,7 @@ impl Desk {
     }
 
     fn pump(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.auto_check_sent
-            && self.started_at.elapsed().as_millis() as u64 >= FIRST_CHECK_DELAY_MS
-        {
-            self.auto_check_sent = true;
+        if !self.update_check_in_flight && Instant::now() >= self.next_update_check_at {
             self.spawn_update_check();
         }
         while let Ok(message) = self.setup_rx.try_recv() {
@@ -439,6 +443,15 @@ impl Desk {
             }
         }
         while let Ok(result) = self.update_rx.try_recv() {
+            let failed = matches!(&result, UpdateCheckResult::Error { .. });
+            self.update_check_failures = if failed {
+                self.update_check_failures.saturating_add(1)
+            } else {
+                0
+            };
+            self.next_update_check_at = Instant::now()
+                + Duration::from_millis(next_check_delay_ms(Some(0), self.update_check_failures));
+            self.update_check_in_flight = false;
             match result {
                 UpdateCheckResult::Available(info) => {
                     if self.dismissed_update.as_deref() != Some(info.latest.as_str()) {
@@ -515,7 +528,6 @@ impl Desk {
                     self.rebuild_os_tray();
                 }
                 TrayCmd::CheckUpdates => {
-                    self.check_feedback = CheckFeedback::Checking;
                     self.spawn_update_check();
                 }
                 TrayCmd::DisconnectAll => self.vpn.lock().unwrap().disconnect(None),
@@ -845,6 +857,21 @@ impl Desk {
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.open_import(window, cx)),
                             ),
+                    )
+                    .child(
+                        Button::new("check-updates")
+                            .w_full()
+                            .outline()
+                            .icon(hi(Huge::Download))
+                            .loading(self.update_check_in_flight)
+                            .disabled(self.update_check_in_flight)
+                            .label(match self.check_feedback {
+                                CheckFeedback::Checking => self.t("update.checking"),
+                                _ => self.t("update.checkNow"),
+                            })
+                            .on_click(cx.listener(|this, _, _, _| {
+                                this.spawn_update_check();
+                            })),
                     ),
             )
             .child(
@@ -1075,6 +1102,7 @@ impl Desk {
                                                             self.check_feedback
                                                                 == CheckFeedback::Checking,
                                                         )
+                                                        .disabled(self.update_check_in_flight)
                                                         .label(match self.check_feedback {
                                                             CheckFeedback::Checking => {
                                                                 self.t("update.checking")
@@ -1082,8 +1110,6 @@ impl Desk {
                                                             _ => self.t("update.checkNow"),
                                                         })
                                                         .on_click(cx.listener(|this, _, _, _| {
-                                                            this.check_feedback =
-                                                                CheckFeedback::Checking;
                                                             this.spawn_update_check();
                                                         })),
                                                 )
