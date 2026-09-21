@@ -632,6 +632,37 @@ impl Desk {
         cx.notify();
     }
 
+    fn locale_toggle(&self, id_prefix: &'static str, cx: &mut Context<Self>) -> Div {
+        let (pt_id, en_id) = if id_prefix == "title" {
+            ("title-locale-pt", "title-locale-en")
+        } else {
+            ("sidebar-locale-pt", "sidebar-locale-en")
+        };
+        div()
+            .h_flex()
+            .gap_1()
+            .child(
+                Button::new(pt_id)
+                    .compact()
+                    .ghost()
+                    .selected(self.locale == "pt-BR")
+                    .label("PT")
+                    .tooltip(self.t("ops.language"))
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.set_locale("pt-BR", window, cx)),
+                    ),
+            )
+            .child(
+                Button::new(en_id)
+                    .compact()
+                    .ghost()
+                    .selected(self.locale == "en")
+                    .label("EN")
+                    .tooltip(self.t("ops.language"))
+                    .on_click(cx.listener(|this, _, window, cx| this.set_locale("en", window, cx))),
+            )
+    }
+
     fn set_theme(&mut self, theme: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.theme = normalize_theme(theme).into();
         save_settings(AppSettingsPatch {
@@ -686,21 +717,29 @@ impl Desk {
                             ),
                     )
                     .child(
-                        Button::new("title-theme-toggle")
-                            .ghost()
-                            .compact()
-                            .icon(hi(theme_icon).size(px(15.)))
-                            .tooltip(self.t("theme.toggle"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                let next = toggle_light_dark(
-                                    &this.theme,
-                                    matches!(
-                                        window.appearance(),
-                                        WindowAppearance::Dark | WindowAppearance::VibrantDark
-                                    ),
-                                );
-                                this.set_theme(next, window, cx);
-                            })),
+                        div()
+                            .h_flex()
+                            .items_center()
+                            .gap_1()
+                            .child(self.locale_toggle("title", cx))
+                            .child(
+                                Button::new("title-theme-toggle")
+                                    .ghost()
+                                    .compact()
+                                    .icon(hi(theme_icon).size(px(15.)))
+                                    .tooltip(self.t("theme.toggle"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        let next = toggle_light_dark(
+                                            &this.theme,
+                                            matches!(
+                                                window.appearance(),
+                                                WindowAppearance::Dark
+                                                    | WindowAppearance::VibrantDark
+                                            ),
+                                        );
+                                        this.set_theme(next, window, cx);
+                                    })),
+                            ),
                     ),
             )
     }
@@ -864,6 +903,10 @@ impl Desk {
             .child(
                 div()
                     .mt_auto()
+                    .v_flex()
+                    .gap_2()
+                    .child(sidebar_section_label(self.t("ops.language"), cx))
+                    .child(self.locale_toggle("sidebar", cx))
                     .child(
                         Button::new("open-preferences")
                             .w_full()

@@ -249,13 +249,46 @@ pub fn catalog_keys(_locale: &str) -> Vec<MessageKey> {
 }
 
 pub fn detect_locale() -> &'static str {
-    let loc = std::env::var("LC_ALL")
-        .or_else(|_| std::env::var("LANG"))
-        .unwrap_or_default()
-        .to_lowercase();
-    if loc.starts_with("pt") {
-        "pt-BR"
-    } else {
-        "en"
+    detect_locale_from(&locale_env())
+}
+
+fn locale_env() -> String {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"] {
+        if let Ok(value) = std::env::var(key) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
     }
+    String::new()
+}
+
+/// Portuguese UI only for Brazil and Portugal. Anywhere else starts in English.
+pub fn detect_locale_from(raw: &str) -> &'static str {
+    for token in raw.split([':', ' ']) {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let normalized = token.to_ascii_lowercase();
+        let base = normalized.split('.').next().unwrap_or("");
+        let mut parts = base.split(['_', '-']);
+        let lang = parts.next().unwrap_or("");
+        let region = parts.next().unwrap_or("");
+        if lang == "c" || lang == "posix" {
+            continue;
+        }
+        if lang == "pt" {
+            return if matches!(region, "" | "br" | "pt") {
+                "pt-BR"
+            } else {
+                "en"
+            };
+        }
+        if !lang.is_empty() {
+            return "en";
+        }
+    }
+    "en"
 }

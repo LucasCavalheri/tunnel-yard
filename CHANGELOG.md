@@ -2,8 +2,13 @@
 
 ## Unreleased
 
-- Public installer at `/install.sh`: one curl, the distro's own package.
-- Site section to copy `curl -fsSL https://tunnelyard.lucascavalheri.com.br/install.sh | bash`.
+## 3.0.2
+
+- PT / EN switch in the title bar and the sidebar, plus the existing
+  Preferences row.
+- First launch uses Portuguese only in Brazil and Portugal. Anywhere else
+  starts in English.
+- Public installer at `/install.sh`.
 
 ## 3.0.1
 

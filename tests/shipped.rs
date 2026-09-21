@@ -1083,6 +1083,22 @@ if (decodeLocaleScroll('nope', now) !== null) throw new Error('junk');
 }
 
 #[test]
+fn detect_locale_is_portuguese_only_in_brazil_and_portugal() {
+    assert_eq!(tunnel_yard::detect_locale_from("pt_BR.UTF-8"), "pt-BR");
+    assert_eq!(tunnel_yard::detect_locale_from("pt_PT"), "pt-BR");
+    assert_eq!(tunnel_yard::detect_locale_from("pt"), "pt-BR");
+    assert_eq!(tunnel_yard::detect_locale_from("pt_AO.UTF-8"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("pt_MZ"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("en_US.UTF-8"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("C"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("C.UTF-8"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from(""), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("pt_BR:en_US"), "pt-BR");
+    assert_eq!(tunnel_yard::detect_locale_from("de_DE.UTF-8"), "en");
+    assert_eq!(tunnel_yard::detect_locale_from("fr_FR"), "en");
+}
+
+#[test]
 fn landing_language_switch_and_github_star_are_wired() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let landing = fs::read_to_string(root.join("site/src/components/Landing.astro")).unwrap();
