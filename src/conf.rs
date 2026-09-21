@@ -213,7 +213,7 @@ pub struct VpnProfile {
 
 pub fn display_name(file_name: &str) -> String {
     let base = strip_conf_suffix(file_name);
-    base.split(|c| c == '-' || c == '_')
+    base.split(['-', '_'])
         .filter(|part| !part.is_empty())
         .map(|part| {
             let mut chars = part.chars();

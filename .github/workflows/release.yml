@@ -6,10 +6,30 @@ on:
       - 'v*.*.*'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release metadata
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Match tag, Cargo.toml and CHANGELOG.md
+        run: bash scripts/validate-release.sh . "$GITHUB_REF_NAME"
+
   build:
+    needs: validate
+    name: Build (${{ matrix.target }})
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -22,25 +42,29 @@ jobs:
             artifact: tunnel-yard-linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
       - name: Install GPUI Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
-      - run: cargo test --target "${{ matrix.target }}"
-      - run: cargo build --release --target "${{ matrix.target }}"
+      - name: Run release tests
+        run: cargo test --locked --target "${{ matrix.target }}"
+      - name: Build release binary
+        run: cargo build --locked --release --target "${{ matrix.target }}"
       - name: Stage binary
         shell: bash
         run: |
           mkdir -p dist-release
           binary="target/${{ matrix.target }}/release/tunnel-yard"
           cp "$binary" "dist-release/${{ matrix.artifact }}"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: build-${{ matrix.artifact }}
           if-no-files-found: error
@@ -48,6 +72,9 @@ jobs:
 
   package-linux:
     needs: build
+    name: Package (${{ matrix.package_arch }})
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -60,8 +87,10 @@ jobs:
             artifact: tunnel-yard-linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: build-${{ matrix.artifact }}
           path: build-release
@@ -86,24 +115,45 @@ jobs:
             "$version" \
             "${{ matrix.package_arch }}" \
             dist-release
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: packages-linux-${{ matrix.package_arch }}
           if-no-files-found: error
           path: dist-release/*
 
   publish:
-    needs: [build, package-linux]
+    needs: [validate, build, package-linux]
+    name: Publish GitHub Release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           merge-multiple: true
           path: dist-release
+      - name: Validate release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          version="${tag#v}"
+          version="${version%%+*}"
+          bash scripts/validate-release-artifacts.sh dist-release "$version"
+      - name: Generate SHA256SUMS
+        run: bash scripts/generate-sha256sums.sh dist-release
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@619dbb2e03e0189af0c55118e7d3c5e129e99726 # v2.0.0
+        with:
+          subject-path: dist-release/*
       - name: Create / update GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TAG="${{ github.ref_name }}"
@@ -114,6 +164,8 @@ jobs:
             FLAGS+=(--prerelease=false --latest)
           fi
           VERSION="${TAG#v}"
+          CHANGELOG_VERSION="${VERSION%%-*}"
+          CHANGELOG_VERSION="${CHANGELOG_VERSION%%+*}"
           notes_from_changelog() {
             awk -v ver="$1" '
               BEGIN { p = 0 }
@@ -127,7 +179,7 @@ jobs:
             echo
             SECTION=""
             if [ -f CHANGELOG.md ]; then
-              SECTION="$(notes_from_changelog "$VERSION" | sed -e '/./,$!d')"
+              SECTION="$(notes_from_changelog "$CHANGELOG_VERSION" | sed -e '/./,$!d')"
             fi
             if [ -n "$SECTION" ]; then
               printf '%s\n' "$SECTION"

@@ -912,7 +912,11 @@ fn gpui_kit_components_are_shipped() {
             "missing GPUI Kit component: {component}"
         );
     }
-    assert!(ui.contains("title-theme-toggle"));
+    assert!(!ui.contains("title-theme-toggle"));
+    assert!(!ui.contains("locale_toggle"));
+    assert!(ui.contains("preferences-locale-pt"));
+    assert!(ui.contains("LocaleFlag::Brazil"));
+    assert!(ui.contains("LocaleFlag::UnitedStates"));
     assert!(ui.contains("theme-choice-"));
     assert!(ui.contains("render_theme_picker"));
     assert!(ui.contains("AppAssets"));
@@ -920,6 +924,19 @@ fn gpui_kit_components_are_shipped() {
         !ui.contains(".tooltip(self.t(\"form.cancel\"))"),
         "overlay close buttons must not leak a Cancelar tooltip into the title bar"
     );
+}
+
+#[test]
+fn locale_flags_are_embedded_colored_svgs() {
+    use tunnel_yard::icons::{svg_bytes, LocaleFlag};
+
+    for flag in [LocaleFlag::Brazil, LocaleFlag::UnitedStates] {
+        let svg = std::str::from_utf8(svg_bytes(flag.asset_path()).expect("embedded flag"))
+            .expect("flag SVG is UTF-8");
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.contains("viewBox=\"0 0 48 32\""));
+        assert!(svg.contains("fill=\"#"));
+    }
 }
 
 #[test]
@@ -953,10 +970,13 @@ fn app_icon_is_a_real_png_and_argb_pixmap() {
 #[test]
 fn hugeicons_are_current_color_svgs_for_every_desk_icon() {
     use tunnel_yard::icons::{svg_bytes, Huge, FILES, OVERLAY_CANCEL_IDS, TITLE_BAR_ACTION_IDS};
+    assert!(TITLE_BAR_ACTION_IDS.is_empty());
     assert_eq!(FILES.len(), Huge::all().len());
     for icon in Huge::all() {
-        let bytes = svg_bytes(icon.asset_path()).expect(icon.asset_path());
-        let svg = std::str::from_utf8(bytes).expect(icon.asset_path());
+        let bytes =
+            svg_bytes(icon.asset_path()).unwrap_or_else(|| panic!("missing {}", icon.asset_path()));
+        let svg = std::str::from_utf8(bytes)
+            .unwrap_or_else(|_| panic!("invalid UTF-8 in {}", icon.asset_path()));
         assert!(svg.contains("<svg"), "{}", icon.asset_path());
         assert!(
             svg.contains("currentColor"),

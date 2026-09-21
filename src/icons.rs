@@ -175,6 +175,17 @@ pub const FILES: &[IconFile] = &[
     ),
 ];
 
+pub const FLAG_FILES: &[IconFile] = &[
+    file(
+        "icons/flags/brazil.svg",
+        include_bytes!("../assets/icons/flags/brazil.svg"),
+    ),
+    file(
+        "icons/flags/united-states.svg",
+        include_bytes!("../assets/icons/flags/united-states.svg"),
+    ),
+];
+
 const fn file(path: &'static str, bytes: &'static [u8]) -> IconFile {
     IconFile { path, bytes }
 }
@@ -182,12 +193,28 @@ const fn file(path: &'static str, bytes: &'static [u8]) -> IconFile {
 pub fn svg_bytes(path: &str) -> Option<&'static [u8]> {
     FILES
         .iter()
+        .chain(FLAG_FILES.iter())
         .find(|file| file.path == path)
         .map(|file| file.bytes)
 }
 
 pub fn paths() -> impl Iterator<Item = &'static str> {
-    FILES.iter().map(|file| file.path)
+    FILES.iter().chain(FLAG_FILES.iter()).map(|file| file.path)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocaleFlag {
+    Brazil,
+    UnitedStates,
+}
+
+impl LocaleFlag {
+    pub fn asset_path(self) -> &'static str {
+        match self {
+            Self::Brazil => "icons/flags/brazil.svg",
+            Self::UnitedStates => "icons/flags/united-states.svg",
+        }
+    }
 }
 
 /// Named icons the desk actually draws. `asset_path` is what GPUI loads.
@@ -342,4 +369,4 @@ pub const OVERLAY_CANCEL_IDS: &[&str] = &[
     "close-preferences-top",
 ];
 
-pub const TITLE_BAR_ACTION_IDS: &[&str] = &["title-theme-toggle"];
+pub const TITLE_BAR_ACTION_IDS: &[&str] = &[];

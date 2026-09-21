@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Centralized language and appearance controls in Preferences, with Brazil and
+  United States flags for the locale choices.
+- CI now aggregates quality, platform, site and security checks behind one
+  required `CI` status check, and releases publish checksums with provenance.
+
 ## 3.0.2
 
 - PT / EN switch in the title bar and the sidebar, plus the existing

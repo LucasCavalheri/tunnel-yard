@@ -1,12 +1,47 @@
-name: Platform checks
+name: CI
+
 on:
   pull_request:
   push:
     branches: [master]
+
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: rustfmt
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Install GPUI Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test release validation script
+        run: bash scripts/validate-release.test.sh
+      - name: Test release artifact scripts
+        run: bash scripts/release-artifacts.test.sh
+      - name: Test CI aggregator
+        run: bash scripts/ci-gate.test.sh
+
   test:
+    name: test (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
@@ -17,23 +52,22 @@ jobs:
             target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          components: rustfmt
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
           targets: ${{ matrix.target }}
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
       - name: Install GPUI Linux dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ clang libfontconfig-dev libwayland-dev libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libx11-xcb-dev libssl-dev libzstd-dev vulkan-validationlayers libvulkan1
-      - name: rustfmt
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo fmt --all -- --check
-      - run: cargo test --target "${{ matrix.target }}"
-      - run: cargo build --target "${{ matrix.target }}"
+      - name: Run tests
+        run: cargo test --locked --target "${{ matrix.target }}"
+      - name: Build debug binary
+        run: cargo build --locked --target "${{ matrix.target }}"
       - name: Smoke the shipped binary
         shell: bash
         run: |
@@ -41,17 +75,65 @@ jobs:
           "$binary" --smoke
 
   site:
+    name: site
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          node-version: 22
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.12.0
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - run: npm ci
+      - name: Install site dependencies
+        run: npm ci
         working-directory: site
-      - run: npm run build
+      - name: Build site (includes astro check)
+        run: npm run build
         working-directory: site
-      - run: node scripts/assert-built-styles.mjs dist
+      - name: Assert built styles
+        run: node scripts/assert-built-styles.mjs dist
         working-directory: site
+
+  security:
+    name: security
+    permissions:
+      contents: read
+      checks: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Audit Rust dependencies with RustSec
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ github.token }}
+      - name: Review dependencies introduced by this pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: low
+
+  CI:
+    name: CI
+    if: ${{ always() }}
+    needs: [quality, test, site, security]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Validate required checks
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          SITE_RESULT: ${{ needs.site.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+        run: |
+          bash scripts/ci-gate.sh \
+            "$QUALITY_RESULT" \
+            "$TEST_RESULT" \
+            "$SITE_RESULT" \
+            "$SECURITY_RESULT"

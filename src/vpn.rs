@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -33,13 +34,22 @@ impl VpnStatus {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
+
+impl FromStr for VpnStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "disconnected" => Some(Self::Disconnected),
-            "connecting" => Some(Self::Connecting),
-            "connected" => Some(Self::Connected),
-            "error" => Some(Self::Error),
-            _ => None,
+            "disconnected" => Ok(Self::Disconnected),
+            "connecting" => Ok(Self::Connecting),
+            "connected" => Ok(Self::Connected),
+            "error" => Ok(Self::Error),
+            _ => Err(()),
         }
     }
 }
@@ -126,7 +136,7 @@ pub fn list_vpn_profiles(config_dir: &Path) -> Vec<VpnProfile> {
             parse_vpn_conf_content(&raw, &path.to_string_lossy())
         })
         .collect();
-    profiles.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    profiles.sort_by_key(|profile| profile.name.to_lowercase());
     profiles
 }
 
