@@ -1125,8 +1125,7 @@ fn landing_language_switch_and_github_star_are_wired() {
     let switcher =
         fs::read_to_string(root.join("site/src/components/LanguageSwitcher.astro")).unwrap();
     let release = fs::read_to_string(root.join("site/src/data/release.ts")).unwrap();
-    let release_utils =
-        fs::read_to_string(root.join("site/src/data/release-utils.mjs")).unwrap();
+    let release_utils = fs::read_to_string(root.join("site/src/data/release-utils.mjs")).unwrap();
     let en = fs::read_to_string(root.join("site/src/i18n/en.ts")).unwrap();
     let pt = fs::read_to_string(root.join("site/src/i18n/pt-BR.ts")).unwrap();
     assert!(landing.contains("ClientRouter"));
