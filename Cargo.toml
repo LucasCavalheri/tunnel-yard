@@ -18,7 +18,7 @@ name = "tunnel-yard"
 path = "src/main.rs"
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 dirs = "7"
 hex = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -42,6 +42,6 @@ ksni = { version = "0.3", default-features = false, features = ["blocking", "asy
 zed-font-kit = { version = "0.14.1-zed", features = ["source-fontconfig-dlopen"] }
 
 [dev-dependencies]
-base64 = "0.22"
+base64 = "0.23"
 hex = "0.4"
 sha2 = "0.11"
