@@ -197,3 +197,19 @@ jobs:
               --title "TunnelYard ${TAG}" \
               --notes-file release-notes.md "${FLAGS[@]}"
           fi
+
+  deploy-site:
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && !contains(github.ref_name, '-') }}
+    name: Deploy production site
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trigger Vercel deploy hook
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: bash scripts/deploy-site.sh "$VERCEL_DEPLOY_HOOK_URL"

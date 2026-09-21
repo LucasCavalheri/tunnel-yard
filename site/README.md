@@ -20,8 +20,14 @@ Na Vercel, selecione `site` como **Root Directory**. O framework preset pode
 ficar como Astro, o comando de build é `npm run build` e a pasta de saída é
 `dist`. O CSS da landing vai inline no HTML (`inlineStylesheets: "always"`)
 para um 404 em `/_astro/*.css` não publicar a página sem estilo. O site está
-publicado em <https://tunnelyard.lucascavalheri.com.br/> e a Vercel republica
-a cada push no `master`.
+publicado em <https://tunnelyard.lucascavalheri.com.br/>.
+
+Previews continuam sendo criados para pull requests e outras branches, mas o
+deploy automático de produção no `master` fica desativado em
+[`vercel.json`](./vercel.json). O workflow de release publica primeiro os
+artefatos no GitHub e só então chama o Deploy Hook da Vercel configurado para a
+branch `master`. A URL do hook deve existir no secret de Actions
+`VERCEL_DEPLOY_HOOK_URL`.
 
 ## Idiomas
 
@@ -62,11 +68,11 @@ mobile) e de registrar o rótulo em `nav`.
 
 O build consulta a última release estável do GitHub e usa os URLs dos assets
 publicados. Uma opção ausente ou falha na consulta interrompe o build para evitar
-publicar links inventados. Execute um novo deploy após publicar uma release —
-uma tag sozinha não basta, o site só vê a versão depois que o job `publish`
-termina. O seletor oferece x64/ARM64 em DEB, RPM, pacman, apk e tar.gz. Os botões da
-página levam ao seletor; o botão de cada opção baixa o arquivo escolhido
-diretamente.
+publicar links inventados. O deploy de produção acontece depois que o job
+`publish` termina, para que o site nunca seja compilado antes de a release estar
+disponível. O seletor oferece x64/ARM64 em DEB, RPM, pacman, apk e tar.gz. Os
+botões da página levam ao seletor; o botão de cada opção baixa o arquivo
+escolhido diretamente.
 
 ## Memória
 
