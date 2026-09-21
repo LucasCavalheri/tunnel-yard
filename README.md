@@ -52,10 +52,10 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 
 | File | Distro family |
 |------|----------|
-| `tunnel-yard_3.0.1_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
-| `tunnel-yard-3.0.1-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
-| `tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
-| `tunnel-yard-3.0.1-r0-x86_64.apk` | Alpine (needs `gcompat`) |
+| `tunnel-yard_3.0.3_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard-3.0.3-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.3-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
+| `tunnel-yard-3.0.3-r0-x86_64.apk` | Alpine (needs `gcompat`) |
 | `tunnel-yard-linux-x64.tar.gz` | Gentoo, Void, NixOS and anywhere else |
 
 ARM64 files use `arm64` / `aarch64` in the name.
@@ -64,21 +64,21 @@ ARM64 files use `arm64` / `aarch64` in the name.
 curl -fsSL https://tunnelyard.lucascavalheri.com.br/install.sh | bash
 ```
 
-The script reads `uname` and the package manager, then installs the matching GitHub asset (deb, rpm, pacman, apk, or the portable archive).
+The script reads `uname` and the package manager, then installs the matching GitHub asset (deb, rpm, pacman, apk, or the portable archive). If TunnelYard is already open, it asks for confirmation, disconnects active tunnels, installs the update and relaunches the app.
 
 ```bash
 # Debian / Ubuntu / Mint / Pop!_OS / Kali
-sudo apt install ./tunnel-yard_3.0.1_amd64.deb
+sudo apt install ./tunnel-yard_3.0.3_amd64.deb
 
 # Fedora / RHEL / Rocky / Alma
-sudo dnf install ./tunnel-yard-3.0.1-1.x86_64.rpm
+sudo dnf install ./tunnel-yard-3.0.3-1.x86_64.rpm
 
 # Arch / Manjaro
-sudo pacman -U ./tunnel-yard-3.0.1-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tunnel-yard-3.0.3-1-x86_64.pkg.tar.zst
 
 # Alpine
 sudo apk add gcompat
-sudo apk add --allow-untrusted ./tunnel-yard-3.0.1-r0-x86_64.apk
+sudo apk add --allow-untrusted ./tunnel-yard-3.0.3-r0-x86_64.apk
 
 # Portable
 tar -xzf tunnel-yard-linux-x64.tar.gz
@@ -113,14 +113,14 @@ If `openfortivpn` is missing, TunnelYard reads `/etc/os-release` and offers a on
 
 ### 🔄 In-app updates
 
-When a newer GitHub release exists, the banner and the tray item **Check for updates** offer **Download and install**. One click fetches the artifact for this OS, asks for administrator approval if needed, replaces the app and relaunches.
+When a newer GitHub release exists, the main window, Preferences and tray item **Check for updates** offer **Download and install**. One click fetches the artifact for this OS, asks for administrator approval if needed, replaces the app and relaunches. The app checks once shortly after startup and then every six hours.
 
 ### 🏷️ Publishing a release
 
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-git tag v3.0.1
+git tag v3.0.3
 git push origin master --follow-tags
 ```
 

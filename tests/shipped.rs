@@ -734,8 +734,13 @@ fn linux_notifications_use_notify_send() {
 fn github_update_check_compares_tags_and_parses_release_json() {
     use tunnel_yard::updates::{
         artifact_architecture, artifact_kind, artifact_platform, check_for_app_update,
-        compare_versions, normalize_tag,
+        compare_versions, next_check_delay_ms, normalize_tag, retry_delay_ms, BASE_RETRY_DELAY_MS,
+        CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, MAX_RETRY_DELAY_MS,
     };
+    assert_eq!(next_check_delay_ms(None, 0), FIRST_CHECK_DELAY_MS);
+    assert_eq!(next_check_delay_ms(Some(0), 0), CHECK_INTERVAL_MS);
+    assert_eq!(next_check_delay_ms(Some(0), 1), BASE_RETRY_DELAY_MS);
+    assert_eq!(retry_delay_ms(99), MAX_RETRY_DELAY_MS);
     assert!(compare_versions("1.0.2", "1.0.1") > 0);
     assert!(compare_versions("1.0.1", "1.0.2") < 0);
     assert_eq!(compare_versions("1.0.1", "1.0.1"), 0);
@@ -860,6 +865,16 @@ fn helpers_exist_in_tree() {
     let postinst = fs::read_to_string(root.join("packaging/after-install.sh")).unwrap();
     assert!(!postinst.contains("resources/"));
     assert!(postinst.contains("StartupWMClass=lucas.cavalheri.tunnelyard"));
+}
+
+#[test]
+fn readme_examples_match_the_current_release() {
+    let readme =
+        fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md"))
+            .unwrap();
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(readme.contains(&format!("tunnel-yard_{version}_amd64.deb")));
+    assert!(readme.contains(&format!("git tag v{version}")));
 }
 
 #[test]

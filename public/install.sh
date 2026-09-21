@@ -6,6 +6,13 @@ set -euo pipefail
 
 REPO="LucasCavalheri/tunnel-yard"
 RELEASES="https://github.com/${REPO}/releases"
+APP_BIN="tunnel-yard"
+LEGACY_APP_BIN="my-vpns"
+RUN_DIR="${TUNNEL_YARD_RUN_DIR:-/run}"
+APP_WAS_RUNNING=0
+APP_RESTARTED=0
+INSTALL_SUCCEEDED=0
+RUNNING_APP_PIDS=""
 
 usage() {
   cat <<'EOF'
@@ -134,6 +141,161 @@ run_root() {
   fi
 }
 
+pid_is_alive() {
+  local stat state
+  [[ -r "/proc/$1/stat" ]] || return 1
+  stat="$(<"/proc/$1/stat")"
+  state="${stat##*) }"
+  state="${state%% *}"
+  [[ "$state" != Z ]]
+}
+
+process_name_is() {
+  local name
+  [[ -r "/proc/$1/comm" ]] || return 1
+  name="$(<"/proc/$1/comm")"
+  [[ "$name" == "$2" ]]
+}
+
+running_app_pids() {
+  if [[ -n "${TUNNEL_YARD_RUNNING_PIDS:-}" ]]; then
+    printf '%s\n' "$TUNNEL_YARD_RUNNING_PIDS"
+    return
+  fi
+
+  local uid="$(id -u)"
+  local name
+  for name in "$APP_BIN" "$LEGACY_APP_BIN"; do
+    if command -v pgrep >/dev/null 2>&1; then
+      pgrep -u "$uid" -x "$name" || true
+    else
+      ps -u "$uid" -o pid= -o comm= | awk -v wanted="$name" '$2 == wanted { print $1 }'
+    fi
+  done
+}
+
+active_tunnel_pidfiles() {
+  local file pid
+  shopt -s nullglob
+  for file in "$RUN_DIR"/tunnel-yard-*.pid "$RUN_DIR"/my-vpns-*.pid; do
+    [[ -f "$file" ]] || continue
+    pid="$(<"$file")"
+    if [[ "$pid" =~ ^[0-9]+$ ]] && pid_is_alive "$pid" && process_name_is "$pid" openfortivpn; then
+      printf '%s\n' "$file"
+    fi
+  done
+}
+
+active_tunnel_pids() {
+  local file pid
+  while IFS= read -r file; do
+    pid="$(<"$file")"
+    [[ "$pid" =~ ^[0-9]+$ ]] && printf '%s\n' "$pid"
+  done < <(active_tunnel_pidfiles)
+  # Portable/no-helper installs run openfortivpn as the current user instead
+  # of writing the privileged helper PID file under /run.
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -u "$(id -u)" -x openfortivpn || true
+  fi
+}
+
+active_tunnel_count() {
+  active_tunnel_pids | sort -nu | wc -l | tr -d ' '
+}
+
+confirm_running_app() {
+  local active="$1"
+  local answer
+  if (( active > 0 )); then
+    echo "TunnelYard is running with ${active} active VPN tunnel(s)." >&2
+    echo "Continuing will disconnect them and restart TunnelYard." >&2
+  else
+    echo "TunnelYard is running." >&2
+    echo "Continuing will close and restart the app after the update." >&2
+  fi
+
+  if [[ "${TUNNEL_YARD_AUTO_CONFIRM:-0}" == 1 ]]; then
+    return 0
+  fi
+  if [[ ! -r /dev/tty ]]; then
+    echo "Cannot ask for confirmation because no terminal is available; close TunnelYard and retry." >&2
+    return 1
+  fi
+  read -r -p "Continue? [y/N] " answer < /dev/tty
+  if [[ ! "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo "Installation cancelled." >&2
+    return 1
+  fi
+}
+
+stop_tunnel_pid() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+  if ! kill -INT "$pid" 2>/dev/null; then
+    run_root kill -INT "$pid" 2>/dev/null || true
+  fi
+  for _ in {1..25}; do
+    pid_is_alive "$pid" || return 0
+    sleep 0.2
+  done
+  if ! kill -KILL "$pid" 2>/dev/null; then
+    run_root kill -KILL "$pid" 2>/dev/null || true
+  fi
+}
+
+stop_running_tunnels() {
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && stop_tunnel_pid "$pid"
+  done < <(active_tunnel_pids | sort -nu)
+}
+
+stop_running_app() {
+  local pid
+  for pid in $RUNNING_APP_PIDS; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  for _ in {1..50}; do
+    local alive=0
+    for pid in $RUNNING_APP_PIDS; do
+      if pid_is_alive "$pid"; then
+        alive=1
+        break
+      fi
+    done
+    (( alive == 0 )) && return 0
+    sleep 0.2
+  done
+  for pid in $RUNNING_APP_PIDS; do
+    pid_is_alive "$pid" && kill -KILL "$pid" 2>/dev/null || true
+  done
+}
+
+prepare_running_app() {
+  RUNNING_APP_PIDS="$(running_app_pids)"
+  if [[ -z "$RUNNING_APP_PIDS" ]]; then
+    return 0
+  fi
+  local active="$(active_tunnel_count)"
+  confirm_running_app "$active"
+  APP_WAS_RUNNING=1
+  stop_running_tunnels
+  stop_running_app
+}
+
+relaunch_running_app() {
+  local launcher="${TUNNEL_YARD_LAUNCHER:-}"
+  if [[ -z "$launcher" ]]; then
+    launcher="$(command -v "$APP_BIN" || command -v "$LEGACY_APP_BIN" || true)"
+  fi
+  if [[ -z "$launcher" || ! -x "$launcher" ]]; then
+    echo "Update installed. Launch $APP_BIN manually to finish restarting it." >&2
+    return 0
+  fi
+  nohup "$launcher" >/dev/null 2>&1 </dev/null &
+  APP_RESTARTED=1
+}
+
 install_asset() {
   local pm="$1" file="$2" arch="$3"
   case "$pm" in
@@ -165,6 +327,7 @@ install_asset() {
   esac
 }
 
+main() {
 ARCH="$(detect_arch)"
 PM="$(detect_pm)"
 VERSION="$(latest_version)"
@@ -181,12 +344,28 @@ need curl
 echo "TunnelYard ${VERSION} · ${ARCH} · ${PM}"
 echo "downloading ${ASSET}"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+cleanup() {
+  rm -rf "$TMP"
+  if (( APP_WAS_RUNNING == 1 && INSTALL_SUCCEEDED == 0 && APP_RESTARTED == 0 )); then
+    relaunch_running_app || true
+  fi
+}
+trap cleanup EXIT
 FILE="${TMP}/${ASSET}"
 curl -fL --progress-bar -o "$FILE" "$URL"
 # apt fetches local files as user `_apt`. mktemp dirs are 0700, so that
 # user cannot read the .deb and prints a noisy permission note.
 chmod 0755 "$TMP"
 chmod 0644 "$FILE"
+prepare_running_app
 install_asset "$PM" "$FILE" "$ARCH"
+INSTALL_SUCCEEDED=1
+if (( APP_WAS_RUNNING == 1 )); then
+  relaunch_running_app
+fi
 echo "done. launch tunnel-yard from the menu or run: tunnel-yard"
+}
+
+if [[ "${TUNNEL_YARD_SOURCE_ONLY:-0}" != 1 ]]; then
+  main "$@"
+fi

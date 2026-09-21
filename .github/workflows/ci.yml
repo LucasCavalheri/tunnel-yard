@@ -37,6 +37,8 @@ jobs:
         run: bash scripts/validate-release.test.sh
       - name: Test release artifact scripts
         run: bash scripts/release-artifacts.test.sh
+      - name: Test installer update flow
+        run: bash scripts/install-flow.test.sh
       - name: Test Vercel deploy trigger
         run: bash scripts/deploy-site.test.sh
       - name: Test CI aggregator
@@ -105,16 +107,16 @@ jobs:
     name: security
     permissions:
       contents: read
-      checks: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version 0.22.2
       - name: Audit Rust dependencies with RustSec
-        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ github.token }}
+        run: cargo audit
       - name: Review dependencies introduced by this pull request
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
