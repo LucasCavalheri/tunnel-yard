@@ -45,7 +45,7 @@ pub fn should_quit_on_repeated_close(last_close_ms: Option<u128>, now_ms: u128) 
     last_close_ms
         .map(|t| {
             let dt = now_ms.saturating_sub(t);
-            dt >= CLOSE_REPEAT_MIN_MS && dt < CLOSE_REPEAT_MAX_MS
+            (CLOSE_REPEAT_MIN_MS..CLOSE_REPEAT_MAX_MS).contains(&dt)
         })
         .unwrap_or(false)
 }

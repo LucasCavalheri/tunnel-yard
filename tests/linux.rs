@@ -23,7 +23,7 @@ fn none(_: &str) -> bool {
 }
 
 fn exists_map(paths: &'static [&'static str]) -> impl Fn(&str) -> bool {
-    move |p| paths.iter().any(|known| *known == p)
+    move |p| paths.contains(&p)
 }
 
 #[test]

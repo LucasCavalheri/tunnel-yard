@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <defs>
+    <clipPath id="us-flag-clip"><rect width="48" height="32" rx="6"/></clipPath>
+  </defs>
+  <g clip-path="url(#us-flag-clip)">
+    <rect width="48" height="32" fill="#fff"/>
+    <path fill="#b22234" d="M0 0h48v2.46H0zM0 4.92h48v2.46H0zM0 9.85h48v2.46H0zM0 14.77h48v2.46H0zM0 19.69h48v2.46H0zM0 24.62h48v2.46H0zM0 29.54h48V32H0z"/>
+    <rect width="21" height="17.23" fill="#3c3b6e"/>
+    <g fill="#fff">
+      <circle cx="2.7" cy="2.4" r=".7"/><circle cx="6.9" cy="2.4" r=".7"/><circle cx="11.1" cy="2.4" r=".7"/><circle cx="15.3" cy="2.4" r=".7"/><circle cx="19.2" cy="2.4" r=".7"/>
+      <circle cx="4.8" cy="5.2" r=".7"/><circle cx="9" cy="5.2" r=".7"/><circle cx="13.2" cy="5.2" r=".7"/><circle cx="17.4" cy="5.2" r=".7"/>
+      <circle cx="2.7" cy="8" r=".7"/><circle cx="6.9" cy="8" r=".7"/><circle cx="11.1" cy="8" r=".7"/><circle cx="15.3" cy="8" r=".7"/><circle cx="19.2" cy="8" r=".7"/>
+      <circle cx="4.8" cy="10.8" r=".7"/><circle cx="9" cy="10.8" r=".7"/><circle cx="13.2" cy="10.8" r=".7"/><circle cx="17.4" cy="10.8" r=".7"/>
+      <circle cx="2.7" cy="13.6" r=".7"/><circle cx="6.9" cy="13.6" r=".7"/><circle cx="11.1" cy="13.6" r=".7"/><circle cx="15.3" cy="13.6" r=".7"/><circle cx="19.2" cy="13.6" r=".7"/>
+    </g>
+  </g>
+  <rect x=".5" y=".5" width="47" height="31" rx="5.5" fill="none" stroke="#fff" stroke-opacity=".2"/>
+</svg>

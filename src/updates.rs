@@ -269,7 +269,7 @@ pub const BASE_RETRY_DELAY_MS: u64 = 5 * 60 * 1000;
 pub const MAX_RETRY_DELAY_MS: u64 = 60 * 60 * 1000;
 
 pub fn retry_delay_ms(failures: u32) -> u64 {
-    let n = failures.max(1).min(16);
+    let n = failures.clamp(1, 16);
     (BASE_RETRY_DELAY_MS.saturating_mul(2u64.pow(n - 1))).min(MAX_RETRY_DELAY_MS)
 }
 

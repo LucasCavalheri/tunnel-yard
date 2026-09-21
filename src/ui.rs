@@ -26,11 +26,9 @@ use tunnel_yard::deps::{
 };
 use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
 use tunnel_yard::i18n::translate;
-use tunnel_yard::icons::Huge;
+use tunnel_yard::icons::{Huge, LocaleFlag};
 use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
-use tunnel_yard::theme::{
-    resolve_theme_mode, toggle_light_dark, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER,
-};
+use tunnel_yard::theme::{resolve_theme_mode, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER};
 use tunnel_yard::updates::{
     perform_update_check, perform_update_install, UpdateApplyResult, UpdateCheckResult, UpdateInfo,
     FIRST_CHECK_DELAY_MS,
@@ -52,6 +50,19 @@ impl IconNamed for Hi {
 
 fn hi(icon: Huge) -> Icon {
     Icon::new(Hi(icon))
+}
+
+#[derive(Clone, Copy)]
+struct FlagAsset(LocaleFlag);
+
+impl IconNamed for FlagAsset {
+    fn path(self) -> SharedString {
+        SharedString::from(self.0.asset_path())
+    }
+}
+
+fn flag(icon: LocaleFlag) -> Icon {
+    Icon::new(FlagAsset(icon))
 }
 
 struct AppAssets;
@@ -632,37 +643,6 @@ impl Desk {
         cx.notify();
     }
 
-    fn locale_toggle(&self, id_prefix: &'static str, cx: &mut Context<Self>) -> Div {
-        let (pt_id, en_id) = if id_prefix == "title" {
-            ("title-locale-pt", "title-locale-en")
-        } else {
-            ("sidebar-locale-pt", "sidebar-locale-en")
-        };
-        div()
-            .h_flex()
-            .gap_1()
-            .child(
-                Button::new(pt_id)
-                    .compact()
-                    .ghost()
-                    .selected(self.locale == "pt-BR")
-                    .label("PT")
-                    .tooltip(self.t("ops.language"))
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.set_locale("pt-BR", window, cx)),
-                    ),
-            )
-            .child(
-                Button::new(en_id)
-                    .compact()
-                    .ghost()
-                    .selected(self.locale == "en")
-                    .label("EN")
-                    .tooltip(self.t("ops.language"))
-                    .on_click(cx.listener(|this, _, window, cx| this.set_locale("en", window, cx))),
-            )
-    }
-
     fn set_theme(&mut self, theme: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.theme = normalize_theme(theme).into();
         save_settings(AppSettingsPatch {
@@ -685,62 +665,29 @@ impl Desk {
     fn render_title_bar(&self, cx: &mut Context<Self>) -> TitleBar {
         let parked_title = self.t("notify.parkedTitle");
         let parked_body = self.t("notify.parkedBody");
-        let dark = cx.theme().mode.is_dark();
-        let theme_icon = if dark { Huge::Sun } else { Huge::Moon };
         TitleBar::new()
             .on_close_window(move |_, window, _| {
                 window.minimize_window();
                 notify(&parked_title, &parked_body);
             })
             .child(
-                div()
-                    .h_full()
-                    .w_full()
-                    .px_2()
-                    .flex()
-                    .items_center()
-                    .child(
-                        div()
-                            .flex_1()
-                            .h_full()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .gap_2()
-                            .child(brand_mark(cx, px(18.)))
-                            .child(
-                                div()
-                                    .text_size(px(12.))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(tunnel_yard::APP_NAME),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .gap_1()
-                            .child(self.locale_toggle("title", cx))
-                            .child(
-                                Button::new("title-theme-toggle")
-                                    .ghost()
-                                    .compact()
-                                    .icon(hi(theme_icon).size(px(15.)))
-                                    .tooltip(self.t("theme.toggle"))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        let next = toggle_light_dark(
-                                            &this.theme,
-                                            matches!(
-                                                window.appearance(),
-                                                WindowAppearance::Dark
-                                                    | WindowAppearance::VibrantDark
-                                            ),
-                                        );
-                                        this.set_theme(next, window, cx);
-                                    })),
-                            ),
-                    ),
+                div().h_full().w_full().px_2().flex().items_center().child(
+                    div()
+                        .flex_1()
+                        .h_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .gap_2()
+                        .child(brand_mark(cx, px(18.)))
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(cx.theme().muted_foreground)
+                                .child(tunnel_yard::APP_NAME),
+                        ),
+                ),
             )
     }
 
@@ -905,8 +852,6 @@ impl Desk {
                     .mt_auto()
                     .v_flex()
                     .gap_2()
-                    .child(sidebar_section_label(self.t("ops.language"), cx))
-                    .child(self.locale_toggle("sidebar", cx))
                     .child(
                         Button::new("open-preferences")
                             .w_full()
@@ -1038,7 +983,7 @@ impl Desk {
                                         .child(
                                             Button::new("preferences-locale-pt")
                                                 .selected(self.locale == "pt-BR")
-                                                .icon(hi(Huge::Earth))
+                                                .icon(flag(LocaleFlag::Brazil).size(px(20.)))
                                                 .label("Português")
                                                 .on_click(cx.listener(|this, _, window, cx| {
                                                     this.set_locale("pt-BR", window, cx)
@@ -1047,7 +992,7 @@ impl Desk {
                                         .child(
                                             Button::new("preferences-locale-en")
                                                 .selected(self.locale == "en")
-                                                .icon(hi(Huge::Globe))
+                                                .icon(flag(LocaleFlag::UnitedStates).size(px(20.)))
                                                 .label("English")
                                                 .on_click(cx.listener(|this, _, window, cx| {
                                                     this.set_locale("en", window, cx)

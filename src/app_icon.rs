@@ -98,7 +98,8 @@ fn write_if_changed(path: &Path, bytes: &[u8]) {
 /// StatusNotifier / ksni wants ARGB32 (network byte order): A,R,G,B per pixel.
 pub fn rgba_to_argb(rgba: &[u8]) -> Vec<u8> {
     let mut out = rgba.to_vec();
-    for px in out.chunks_exact_mut(4) {
+    let (pixels, _) = out.as_chunks_mut::<4>();
+    for px in pixels {
         px.rotate_right(1);
     }
     out

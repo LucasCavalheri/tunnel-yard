@@ -14,6 +14,8 @@ use tunnel_yard::vpn::{
     should_native_reconnect, NativeCloseDecision, VpnEvent, VpnManager, VpnStatus,
 };
 
+type ReconnectCase = (bool, Option<i32>, bool, bool, u32, Option<u64>);
+
 fn temp_settings(tag: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "tunnel-yard-reconnect-{tag}-{}",
@@ -200,7 +202,7 @@ fn manager_reconnect_does_not_hang_or_raise_a_dead_tunnel() {
 
 #[test]
 fn unexpected_drop_plan_covers_every_platform_exit() {
-    let cases: &[(bool, Option<i32>, bool, bool, u32, Option<u64>)] = &[
+    let cases: &[ReconnectCase] = &[
         (false, Some(1), true, true, 0, Some(4000)),
         (false, Some(0), true, true, 0, Some(4000)),
         (false, None, true, true, 0, Some(4000)),
