@@ -27,8 +27,12 @@ use tunnel_yard::deps::{
 use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
 use tunnel_yard::i18n::translate;
 use tunnel_yard::icons::{Huge, LocaleFlag};
+use tunnel_yard::modal_layout::preferences_modal_frame;
 use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
-use tunnel_yard::theme::{resolve_theme_mode, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER};
+use tunnel_yard::theme::{
+    resolve_theme_mode, Palette, BRAND, BRAND_ACTIVE, BRAND_HOVER, DARK_BRAND, DARK_BRAND_ACTIVE,
+    DARK_BRAND_HOVER,
+};
 use tunnel_yard::updates::{
     next_check_delay_ms, perform_update_check, perform_update_install, UpdateApplyResult,
     UpdateCheckResult, UpdateInfo, FIRST_CHECK_DELAY_MS,
@@ -941,11 +945,7 @@ impl Desk {
                     cx.listener(|this, _, _, _| this.preferences_open = false),
                 )
                 .child(
-                    surface(cx)
-                        .w(px(680.))
-                        .max_h(px(640.))
-                        .v_flex()
-                        .overflow_hidden()
+                    preferences_modal_frame(surface(cx))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(
                             div()
@@ -1183,7 +1183,7 @@ impl Desk {
                                 ),
                         )
                         .with_animation(
-                            "prefs-in",
+                            "preferences-in",
                             Animation::new(Duration::from_millis(220)),
                             |this, delta| this.opacity(delta),
                         ),
@@ -2403,6 +2403,11 @@ impl Desk {
                                             ),
                                     ),
                             ),
+                    )
+                    .with_animation(
+                        "editor-in",
+                        Animation::new(Duration::from_millis(220)),
+                        |this, delta| this.opacity(delta),
                     ),
             ),
         )
@@ -2465,6 +2470,11 @@ impl Desk {
                                         this.confirm_delete = None;
                                     })),
                             ),
+                    )
+                    .with_animation(
+                        "delete-in",
+                        Animation::new(Duration::from_millis(220)),
+                        |this, delta| this.opacity(delta),
                     ),
             ),
         )
@@ -2515,6 +2525,11 @@ impl Desk {
                                         this.start_update_install();
                                     })),
                             ),
+                    )
+                    .with_animation(
+                        "update-in",
+                        Animation::new(Duration::from_millis(220)),
+                        |this, delta| this.opacity(delta),
                     ),
             ),
         )
@@ -2564,6 +2579,11 @@ impl Desk {
                                         this.request_quit(window, cx);
                                     })),
                             ),
+                    )
+                    .with_animation(
+                        "quit-in",
+                        Animation::new(Duration::from_millis(220)),
+                        |this, delta| this.opacity(delta),
                     ),
             ),
         )
@@ -2725,9 +2745,14 @@ fn apply_theme(preference: &str, window: &mut Window, cx: &mut App) {
         cx,
     );
     let palette = Palette::named(mode);
-    let brand = rgb(BRAND).into();
-    let brand_hover = rgb(BRAND_HOVER).into();
-    let brand_active = rgb(BRAND_ACTIVE).into();
+    let (brand_color, brand_hover_color, brand_active_color) = if mode == "light" {
+        (BRAND, BRAND_HOVER, BRAND_ACTIVE)
+    } else {
+        (DARK_BRAND, DARK_BRAND_HOVER, DARK_BRAND_ACTIVE)
+    };
+    let brand = rgb(brand_color).into();
+    let brand_hover = rgb(brand_hover_color).into();
+    let brand_active = rgb(brand_active_color).into();
     let white: Hsla = rgb(0xffffff).into();
     let theme = Theme::global_mut(cx);
     theme.background = rgb(palette.workspace_bg).into();

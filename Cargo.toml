@@ -45,3 +45,4 @@ zed-font-kit = { version = "0.14.1-zed", features = ["source-fontconfig-dlopen"]
 base64 = "0.23"
 hex = "0.4"
 sha2 = "0.11"
+gpui-kit = { version = "0.6.4", features = ["test-support"] }
