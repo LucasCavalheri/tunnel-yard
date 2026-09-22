@@ -9,6 +9,9 @@ use crate::settings::normalize_theme;
 pub const BRAND: u32 = 0xff6b35;
 pub const BRAND_HOVER: u32 = 0xff7c4d;
 pub const BRAND_ACTIVE: u32 = 0xe95522;
+pub const DARK_BRAND: u32 = 0xf25a2a;
+pub const DARK_BRAND_HOVER: u32 = 0xff6735;
+pub const DARK_BRAND_ACTIVE: u32 = 0xd84418;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Palette {
@@ -39,28 +42,28 @@ pub struct Palette {
 impl Palette {
     pub fn dark() -> Self {
         Self {
-            workspace_bg: 0x0c1017,
-            card_bg: 0x141b24,
-            card_hover: 0x1a232e,
-            card_active: 0x202a36,
-            sidebar_bg: 0x080b10,
-            sidebar_raised: 0x10161e,
-            sidebar_border: 0x24303c,
-            sidebar_text: 0xf3f6f8,
-            sidebar_muted: 0x8b98a4,
-            console_bg: 0x070a0e,
-            title_bar: 0x0a0e14,
-            foreground: 0xf3f6f8,
-            muted: 0x1c2530,
-            input: 0x24303c,
-            button: 0x18212a,
-            button_hover: 0x212c37,
-            button_active: 0x293642,
-            button_foreground: 0xe8edef,
-            success: 0x2ecb8a,
-            warning: 0xf0ad4e,
-            danger: 0xef6a64,
-            overlay: 0x05080ee6,
+            workspace_bg: 0x141616,
+            card_bg: 0x191b1b,
+            card_hover: 0x202323,
+            card_active: 0x282c2b,
+            sidebar_bg: 0x0d0f0f,
+            sidebar_raised: 0x191b1b,
+            sidebar_border: 0x2b2e2d,
+            sidebar_text: 0xf4f5f1,
+            sidebar_muted: 0x939692,
+            console_bg: 0x0c0e0e,
+            title_bar: 0x181a1a,
+            foreground: 0xf4f5f1,
+            muted: 0x282b2a,
+            input: 0x272b29,
+            button: 0x1d201f,
+            button_hover: 0x272b29,
+            button_active: 0x303432,
+            button_foreground: 0xf4f5f1,
+            success: 0x29b47a,
+            warning: 0xe9ad42,
+            danger: 0xf0644d,
+            overlay: 0x0a0b0bcc,
         }
     }
 
@@ -125,5 +128,31 @@ pub fn toggle_light_dark(preference: &str, system_is_dark: bool) -> &'static str
     match resolve_theme_mode(preference, system_is_dark) {
         "light" => "dark",
         _ => "light",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dark_palette_matches_the_website_neutral_brand_surfaces() {
+        let palette = Palette::named("dark");
+
+        assert_eq!(palette.workspace_bg, 0x141616);
+        assert_eq!(palette.card_bg, 0x191b1b);
+        assert_eq!(palette.sidebar_bg, 0x0d0f0f);
+        assert_eq!(palette.success, 0x29b47a);
+        assert_eq!(DARK_BRAND, 0xf25a2a);
+    }
+
+    #[test]
+    fn light_palette_keeps_its_existing_warm_surfaces_and_brand() {
+        let palette = Palette::named("light");
+
+        assert_eq!(palette.workspace_bg, 0xf4f0ea);
+        assert_eq!(palette.card_bg, 0xffffff);
+        assert_eq!(palette.sidebar_bg, 0xebe5dc);
+        assert_eq!(BRAND, 0xff6b35);
     }
 }
