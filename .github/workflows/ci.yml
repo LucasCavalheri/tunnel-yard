@@ -81,6 +81,8 @@ jobs:
   site:
     name: site
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,6 +101,8 @@ jobs:
       - name: Build site (includes astro check)
         run: npm run build
         working-directory: site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Assert built styles
         run: node scripts/assert-built-styles.mjs dist
         working-directory: site

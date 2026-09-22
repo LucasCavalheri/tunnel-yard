@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 3.0.5
+
+- Fixed the Preferences window so its settings remain visible and scroll when
+  needed, and added smooth opening transitions to the app's dialogs.
+- Refined the dark palette to match the website's visual style while preserving
+  the light theme.
+
 ## 3.0.4
 
 - Added a visible update check, automatic checks after startup and a six-hour

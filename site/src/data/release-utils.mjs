@@ -1,4 +1,5 @@
 const defaultRepoApiUrl = "https://api.github.com/repos/LucasCavalheri/tunnel-yard";
+const defaultRepoUrl = "https://github.com/LucasCavalheri/tunnel-yard";
 
 export const validateRelease = (value, repoUrl) => {
   if (!value?.tag_name || !Array.isArray(value.assets) || !value.html_url?.startsWith(`${repoUrl}/releases/`)) {
@@ -12,6 +13,21 @@ export const validateRelease = (value, repoUrl) => {
   }
 
   return value;
+};
+
+export const fetchLatestRelease = async (fetchImpl, token) => {
+  const headers = { Accept: "application/vnd.github+json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchImpl(`${defaultRepoApiUrl}/releases/latest`, {
+    headers,
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    throw new Error(`Não foi possível confirmar os downloads: GitHub HTTP ${response.status}. Tente o build novamente.`);
+  }
+
+  return validateRelease(await response.json(), defaultRepoUrl);
 };
 
 const parseStarCount = (value) => {
