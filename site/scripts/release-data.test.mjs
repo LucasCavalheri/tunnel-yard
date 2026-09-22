@@ -21,8 +21,8 @@ test("release validation still rejects an untrusted download URL", () => {
     () =>
       validateRelease(
         {
-          tag_name: "v3.0.4",
-          html_url: `${repoUrl}/releases/tag/v3.0.4`,
+          tag_name: "v3.0.5",
+          html_url: `${repoUrl}/releases/tag/v3.0.5`,
           assets: [{ name: "installer", browser_download_url: "https://example.com/installer" }],
         },
         repoUrl,
