@@ -381,6 +381,74 @@ PRETTY_NAME="Ubuntu 26.04 LTS"
 }
 
 #[test]
+fn backend_messages_follow_the_ui_language() {
+    use tunnel_yard::i18n::with_locale;
+    use tunnel_yard::vpn::summarize_vpn_state;
+    let idle = tunnel_yard::vpn::VpnState {
+        sessions: Default::default(),
+        auto_reconnect: true,
+    };
+    assert_eq!(
+        with_locale("en", || summarize_vpn_state(&idle).message),
+        "No tunnel connected"
+    );
+    assert_eq!(
+        with_locale("pt-BR", || summarize_vpn_state(&idle).message),
+        "Nenhum túnel conectado"
+    );
+    let dir = std::env::temp_dir().join(format!("ty-i18n-{}", std::process::id()));
+    let en = with_locale("en", || {
+        tunnel_yard::conf::conf_path_for_id_in("Bad Id", &dir)
+    });
+    let pt = with_locale("pt-BR", || {
+        tunnel_yard::conf::conf_path_for_id_in("Bad Id", &dir)
+    });
+    assert!(en.unwrap_err().starts_with("Invalid profile ID."));
+    assert!(pt.unwrap_err().starts_with("ID de perfil inválido."));
+    assert_eq!(
+        tunnel_yard::i18n::current_locale(),
+        "en",
+        "the global default is English"
+    );
+}
+
+#[test]
+fn app_copy_is_plain_and_complete() {
+    // Old jargon that confused people. Plain words only, in both languages.
+    let jargon = [
+        "bring up",
+        "park in",
+        "relink",
+        "control desk",
+        "handshake",
+        "kill link",
+        "mesa",
+        "boot",
+        "trabalhando",
+        "papel claro",
+        "grafite",
+        "no-user",
+    ];
+    for key in catalog_keys("en") {
+        for locale in ["en", "pt-BR"] {
+            let text = translate(locale, key, &[]);
+            assert!(!text.is_empty(), "{key} is empty in {locale}");
+            assert!(
+                !text.contains('—'),
+                "{key} uses an em dash in {locale}: {text}"
+            );
+            let lower = text.to_lowercase();
+            for word in jargon {
+                assert!(
+                    !lower.contains(word),
+                    "{key} says {word:?} in {locale}: {text}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn i18n_key_parity_and_interpolation() {
     let mut en = catalog_keys("en");
     let mut pt = catalog_keys("pt-BR");
@@ -391,17 +459,17 @@ fn i18n_key_parity_and_interpolation() {
         translate(
             "en",
             "ops.deskSummary",
-            &[("up", "2".into()), ("handshake", "1".into())]
+            &[("up", "2".into()), ("connecting", "1".into())]
         ),
-        "2 connected · 1 starting"
+        "2 connected · 1 connecting"
     );
     assert_eq!(
         translate(
             "pt-BR",
             "ops.deskSummary",
-            &[("up", "2".into()), ("handshake", "1".into())]
+            &[("up", "2".into()), ("connecting", "1".into())]
         ),
-        "2 conectadas · 1 iniciando"
+        "2 conectados · 1 conectando"
     );
     for key in TRAY_MENU_KEYS
         .iter()
@@ -658,7 +726,7 @@ fn tray_menu_has_required_actions_on_every_platform_model() {
         .any(|(id, l, checked)| { *id == "work" && *checked && *l == "work  ·  Connected" }));
     assert!(labels
         .iter()
-        .any(|(id, l, checked)| { *id == "home" && !*checked && *l == "home  ·  Idle" }));
+        .any(|(id, l, checked)| { *id == "home" && !*checked && *l == "home  ·  Disconnected" }));
     let both_up = {
         let mut sessions = std::collections::HashMap::new();
         for id in ["work", "home"] {
@@ -701,7 +769,10 @@ fn tray_menu_has_required_actions_on_every_platform_model() {
         tray_profile_label("pt-BR", "Mkraft", Some(VpnStatus::Connected)),
         "Mkraft  ·  Conectado"
     );
-    assert_eq!(tray_profile_label("en", "Mkraft", None), "Mkraft  ·  Idle");
+    assert_eq!(
+        tray_profile_label("en", "Mkraft", None),
+        "Mkraft  ·  Disconnected"
+    );
     let empty = tray_action_ids(&build_tray_menu(
         "pt-BR",
         &[],
@@ -1150,10 +1221,10 @@ fn landing_language_switch_and_github_star_are_wired() {
     assert!(switcher.contains("data-i18n-switch"));
     assert!(release.contains("fetchStarCount"));
     assert!(release_utils.contains("stargazers_count"));
-    assert!(en.contains("star: \"Star us\""));
-    assert!(pt.contains("star: \"Estrelar\""));
+    assert!(en.contains("star: \"Star\""));
+    assert!(pt.contains("star: \"Dar estrela\""));
     assert!(en.contains("github: \"Star on GitHub\""));
-    assert!(pt.contains("github: \"Dá uma estrela no GitHub\""));
+    assert!(pt.contains("github: \"Dar estrela no GitHub\""));
 }
 
 #[test]
