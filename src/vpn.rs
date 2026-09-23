@@ -1,6 +1,7 @@
 //! Multi-session VPN manager, log markers, and reconnect policy.
 
 use crate::conf::parse_vpn_conf_content;
+use crate::i18n::tr;
 use crate::platform::linux_helpers;
 use std::collections::HashMap;
 use std::fs;
@@ -164,9 +165,15 @@ pub fn summarize_vpn_state(state: &VpnState) -> VpnSummary {
         VpnStatus::Disconnected
     };
     let message = if connected_count + connecting_count == 0 {
-        "Nenhuma VPN ativa".into()
+        tr("ops.noneConnected", &[])
     } else {
-        format!("{connected_count} up · {connecting_count} handshake")
+        tr(
+            "ops.deskSummary",
+            &[
+                ("up", connected_count.to_string()),
+                ("connecting", connecting_count.to_string()),
+            ],
+        )
     };
     VpnSummary {
         connected_count,
@@ -422,8 +429,9 @@ impl VpnManager {
             }
         };
         if !allowed {
-            self.emit_log(&format!(
-                "↻ [{profile_id}] Reconexão ignorada (desconexão manual ou túnel ainda ativo)"
+            self.emit_log(&tr(
+                "log.reconnectSkipped",
+                &[("id", profile_id.to_string())],
             ));
             return;
         }
@@ -437,7 +445,7 @@ impl VpnManager {
             inner.profiles.iter().find(|p| p.id == profile_id).cloned()
         };
         let Some(profile) = profile else {
-            self.emit_log(&format!("✗ Perfil \"{profile_id}\" não encontrado"));
+            self.emit_log(&tr("log.profileMissing", &[("id", profile_id.to_string())]));
             return;
         };
         {
@@ -446,7 +454,7 @@ impl VpnManager {
                 if existing.status == VpnStatus::Connected
                     || existing.status == VpnStatus::Connecting
                 {
-                    self.emit_log(&format!("→ {} já está ativa", profile.name));
+                    self.emit_log(&tr("log.alreadyUp", &[("name", profile.name.clone())]));
                     return;
                 }
             }
@@ -467,18 +475,22 @@ impl VpnManager {
                     persistent: profile.persistent,
                     can_reconnect: Arc::new(AtomicBool::new(true)),
                     status: VpnStatus::Connecting,
-                    message: format!("Autenticando {}…", profile.name),
+                    message: tr("vpn.connectingTo", &[("name", profile.name.clone())]),
                     connected_at: None,
                     child_pid: None,
                 },
             );
         }
         self.emit_state();
-        self.emit_log(&format!(
-            "→ Conectando {} ({}:{})",
-            profile.name, profile.host, profile.port
+        self.emit_log(&tr(
+            "log.connecting",
+            &[
+                ("name", profile.name.clone()),
+                ("host", profile.host.clone()),
+                ("port", profile.port.to_string()),
+            ],
         ));
-        self.emit_log(&format!("→ Config: {}", profile.path));
+        self.emit_log(&tr("log.config", &[("path", profile.path.clone())]));
 
         self.connect_linux(profile, intentional_stop);
     }
@@ -486,7 +498,7 @@ impl VpnManager {
     fn connect_linux(&self, profile: VpnProfile, stop: Arc<AtomicBool>) {
         let helpers = linux_helpers();
         let args: Vec<String> = if let Some((run, _)) = &helpers {
-            self.emit_log(&format!("→ Helper PolicyKit · {}", profile.id));
+            self.emit_log(&tr("log.policykit", &[("id", profile.id.clone())]));
             vec![run.to_string_lossy().into_owned(), profile.path.clone()]
         } else {
             vec!["openfortivpn".into(), "-c".into(), profile.path.clone()]
@@ -514,8 +526,12 @@ impl VpnManager {
                         }
                     }
                     let _ = events.send(VpnEvent::Log(format!(
-                        "[{}] ✗ [{id}] Erro ao iniciar: {err}",
-                        chrono_stamp()
+                        "[{}] {}",
+                        chrono_stamp(),
+                        tr(
+                            "log.startFailed",
+                            &[("id", id.clone()), ("error", err.to_string())]
+                        )
                     )));
                     emit_state_from(&mgr_inner, &events);
                     return;
@@ -533,11 +549,16 @@ impl VpnManager {
             let status = child.wait();
             let was_intentional = stop.load(Ordering::SeqCst);
             let code = status.as_ref().ok().and_then(|s| s.code());
+            let code_text = code
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| tr("vpn.unknownCode", &[]));
             let _ = events.send(VpnEvent::Log(format!(
-                "[{}] ← [{id}] Processo finalizado (código {})",
+                "[{}] {}",
                 chrono_stamp(),
-                code.map(|c| c.to_string())
-                    .unwrap_or_else(|| "desconhecido".into())
+                tr(
+                    "log.exited",
+                    &[("id", id.clone()), ("code", code_text.clone())]
+                )
             )));
             if was_intentional {
                 if let Ok(mut inner) = mgr_inner.lock() {
@@ -555,13 +576,9 @@ impl VpnManager {
                 if let Some(live) = inner.live.get_mut(&id) {
                     live.status = VpnStatus::Error;
                     live.message = if cancelled {
-                        "Autenticação cancelada".into()
+                        tr("vpn.authCancelled", &[])
                     } else {
-                        format!(
-                            "Conexão encerrada (código {})",
-                            code.map(|c| c.to_string())
-                                .unwrap_or_else(|| "desconhecido".into())
-                        )
+                        tr("vpn.closedCode", &[("code", code_text.clone())])
                     };
                     live.connected_at = None;
                     live.child_pid = None;
@@ -584,9 +601,12 @@ impl VpnManager {
                 linux_exit_reconnect(was_intentional, code, can_reconnect, auto, persistent)
             {
                 let _ = events.send(VpnEvent::Log(format!(
-                    "[{}] ↻ [{id}] Reconexão automática em {}s…",
+                    "[{}] {}",
                     chrono_stamp(),
-                    delay / 1000
+                    tr(
+                        "log.reconnectIn",
+                        &[("id", id.clone()), ("seconds", (delay / 1000).to_string())]
+                    )
                 )));
                 thread::sleep(Duration::from_millis(delay));
                 if !stop.load(Ordering::SeqCst) {
@@ -618,11 +638,11 @@ impl VpnManager {
             live.intentional_stop.store(true, Ordering::SeqCst);
             live.helper_stop.store(true, Ordering::SeqCst);
             live.status = VpnStatus::Connecting;
-            live.message = "Encerrando túnel…".into();
+            live.message = tr("vpn.disconnecting", &[]);
             path = live.profile.path.clone();
             pid = live.child_pid;
         }
-        self.emit_log(&format!("→ [{profile_id}] Solicitando desconexão…"));
+        self.emit_log(&tr("log.disconnecting", &[("id", profile_id.to_string())]));
         self.emit_state();
         stop_vpn(&path);
         if let Some(pid) = pid {
@@ -635,7 +655,7 @@ impl VpnManager {
                 .status();
         }
         self.inner.lock().unwrap().live.remove(profile_id);
-        self.emit_log(&format!("← [{profile_id}] Desconectado"));
+        self.emit_log(&tr("log.disconnected", &[("id", profile_id.to_string())]));
         self.emit_state();
     }
 }
@@ -676,7 +696,7 @@ fn interpret_into(inner: &Arc<Mutex<Inner>>, profile_id: &str, line: &str) {
         }
         Some("connected") => {
             live.status = VpnStatus::Connected;
-            live.message = "Túnel ativo".into();
+            live.message = tr("vpn.tunnelUp", &[]);
             live.connected_at = Some(now_ms());
         }
         Some("error")
