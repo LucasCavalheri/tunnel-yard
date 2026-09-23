@@ -25,7 +25,7 @@ use tunnel_yard::deps::{
     get_dependency_status, install_vpn_client, DependencyStatus, InstallResult,
 };
 use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
-use tunnel_yard::i18n::translate;
+use tunnel_yard::i18n::{current_locale, set_current_locale, translate};
 use tunnel_yard::icons::{Huge, LocaleFlag};
 use tunnel_yard::modal_layout::preferences_modal_frame;
 use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
@@ -269,6 +269,8 @@ impl Desk {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        // The backend writes status and console lines in the UI language.
+        set_current_locale(&locale);
         let (vpn, events) = VpnManager::subscribe();
         vpn.set_auto_reconnect(auto_reconnect);
         let vpn = Arc::new(Mutex::new(vpn));
@@ -278,9 +280,9 @@ impl Desk {
         let (update_install_tx, update_install_rx) = mpsc::channel();
         let (setup_tx, setup_rx) = mpsc::channel();
         #[cfg(target_os = "linux")]
-        let linux_tray = spawn_tray(vpn.clone(), locale.clone(), tray_tx, quitting.clone());
+        let linux_tray = spawn_tray(vpn.clone(), tray_tx, quitting.clone());
         #[cfg(not(target_os = "linux"))]
-        spawn_tray(vpn.clone(), locale.clone(), tray_tx, quitting.clone());
+        spawn_tray(vpn.clone(), tray_tx, quitting.clone());
 
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(translate(&locale, "ops.search", &[]))
@@ -339,7 +341,7 @@ impl Desk {
                 desk.deps_ready = status.client_installed;
                 desk.deps = Some(status);
             }
-            Err(_) => desk.boot_error = Some("Failed to probe VPN client.".into()),
+            Err(_) => desk.boot_error = Some(desk.t("boot.probeFailed")),
         }
         if desk.deps_ready {
             desk.profiles = desk.vpn.lock().unwrap().get_profiles();
@@ -649,6 +651,9 @@ impl Desk {
 
     fn set_locale(&mut self, locale: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.locale = locale.into();
+        set_current_locale(locale);
+        // The tray menu is rebuilt so it switches language with the window.
+        self.rebuild_os_tray();
         save_settings(AppSettingsPatch {
             locale: Some(locale.into()),
             ..Default::default()
@@ -1030,7 +1035,7 @@ impl Desk {
                                 .child(prefs_section(
                                     Huge::Wifi,
                                     self.t("ops.connectionSettings"),
-                                    self.t("ops.preferencesHint"),
+                                    self.t("ops.connectionSettingsHint"),
                                     div()
                                         .v_flex()
                                         .gap_2()
@@ -3144,28 +3149,21 @@ fn linux_tray_pixmaps() -> Vec<ksni::Icon> {
 #[cfg(target_os = "linux")]
 fn spawn_tray(
     vpn: Arc<Mutex<VpnManager>>,
-    locale: String,
     tx: mpsc::Sender<TrayCmd>,
     _quitting: Arc<Mutex<bool>>,
 ) -> Option<ksni::blocking::Handle<AppTray>> {
     use ksni::blocking::TrayMethods;
-    AppTray { vpn, locale, tx }.spawn().ok()
+    AppTray { vpn, tx }.spawn().ok()
 }
 
 #[cfg(not(target_os = "linux"))]
-fn spawn_tray(
-    vpn: Arc<Mutex<VpnManager>>,
-    locale: String,
-    tx: mpsc::Sender<TrayCmd>,
-    _quitting: Arc<Mutex<bool>>,
-) {
-    let _ = (vpn, locale, tx);
+fn spawn_tray(vpn: Arc<Mutex<VpnManager>>, tx: mpsc::Sender<TrayCmd>, _quitting: Arc<Mutex<bool>>) {
+    let _ = (vpn, tx);
 }
 
 #[cfg(target_os = "linux")]
 struct AppTray {
     vpn: Arc<Mutex<VpnManager>>,
-    locale: String,
     tx: mpsc::Sender<TrayCmd>,
 }
 
@@ -3227,7 +3225,8 @@ impl ksni::Tray for AppTray {
             return Vec::new();
         };
         let mut items = Vec::new();
-        for entry in build_tray_menu(&self.locale, &profiles, &state) {
+        // Follow the language picked in the window, not the one the tray started with.
+        for entry in build_tray_menu(current_locale(), &profiles, &state) {
             match entry {
                 TrayEntry::Separator => items.push(MenuItem::Separator),
                 TrayEntry::Action { id, label } => {
