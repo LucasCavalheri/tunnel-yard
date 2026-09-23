@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 3.0.6
+
+- Rewrote every message in the app and on the website, in English and Portuguese,
+  with plain words: "Connect" instead of "Bring up", "Hide to tray" instead of
+  "Park in tray", and no more half-translated labels.
+- Status lines, console messages, profile errors and update errors now follow
+  the language you pick. Some were stuck in Portuguese and others in English.
+- The tray menu switches language together with the window.
+- The Connections section in Preferences shows its own description.
+
 ## 3.0.5
 
 - Fixed the Preferences window so its settings remain visible and scroll when
