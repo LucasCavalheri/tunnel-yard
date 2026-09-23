@@ -1,5 +1,6 @@
 //! Distro detection, install plan, and VPN client dependency status.
 
+use crate::i18n::tr;
 use crate::platform::{
     config_directory_current, current_platform, engine_for_platform, find_vpn_binary, node_platform,
 };
@@ -473,7 +474,7 @@ pub fn install_vpn_client(mut on_log: impl FnMut(&str)) -> InstallResult {
         return InstallResult {
             ok: true,
             code: Some(0),
-            output: "Já instalado".into(),
+            output: tr("setup.alreadyInstalled", &[]),
             status: before,
         };
     }
@@ -482,13 +483,22 @@ pub fn install_vpn_client(mut on_log: impl FnMut(&str)) -> InstallResult {
         return InstallResult {
             ok: false,
             code: Some(1),
-            output: "Distro não suportada para instalação automática. Instale o openfortivpn manualmente.".into(),
+            output: tr("setup.noAutoInstall", &[]),
             status: before,
         };
     };
-    on_log(&format!("Distro detectada: {}", before.distro.pretty));
-    on_log(&format!("Família de pacotes: {}", before.distro.family));
-    on_log(&format!("Comando: pkexec {}", args.join(" ")));
+    on_log(&tr(
+        "setup.logDistro",
+        &[("distro", before.distro.pretty.clone())],
+    ));
+    on_log(&tr(
+        "setup.logFamily",
+        &[("family", before.distro.family.clone())],
+    ));
+    on_log(&tr(
+        "setup.logCommand",
+        &[("command", format!("pkexec {}", args.join(" ")))],
+    ));
     let (code, output) = run_pkexec(&args);
     if !output.is_empty() {
         for line in output.lines() {
@@ -502,15 +512,15 @@ pub fn install_vpn_client(mut on_log: impl FnMut(&str)) -> InstallResult {
         return InstallResult {
             ok: false,
             code,
-            output: "Autenticação cancelada ou pkexec indisponível.".into(),
+            output: tr("setup.authCancelled", &[]),
             status,
         };
     }
     let output = if output.is_empty() {
         if status.client_installed {
-            "Instalação concluída".into()
+            tr("setup.done", &[])
         } else {
-            "Falha ao instalar openfortivpn".into()
+            tr("setup.installFailed", &[])
         }
     } else {
         output

@@ -42,7 +42,7 @@ TunnelYard 3 is Linux-only. It speaks **openfortivpn**, stores profiles in `/etc
 | 🌐 **pt-BR and English** | Full UI language switch, saved next to the theme. |
 | 📦 **In-app updates** | Check, download and install the matching package for this machine. |
 
-The desk is native [GPUI Kit](https://gpui-kit.com/), with Hugeicons on the chrome. See [`docs/gpui-kit.md`](docs/gpui-kit.md).
+The interface is native [GPUI Kit](https://gpui-kit.com/), with Hugeicons for the icons. See [`docs/gpui-kit.md`](docs/gpui-kit.md).
 
 ---
 
@@ -52,10 +52,10 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 
 | File | Distro family |
 |------|----------|
-| `tunnel-yard_3.0.5_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
-| `tunnel-yard-3.0.5-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
-| `tunnel-yard-3.0.5-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
-| `tunnel-yard-3.0.5-r0-x86_64.apk` | Alpine (needs `gcompat`) |
+| `tunnel-yard_3.0.6_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard-3.0.6-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.6-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
+| `tunnel-yard-3.0.6-r0-x86_64.apk` | Alpine (needs `gcompat`) |
 | `tunnel-yard-linux-x64.tar.gz` | Gentoo, Void, NixOS and anywhere else |
 
 ARM64 files use `arm64` / `aarch64` in the name.
@@ -68,17 +68,17 @@ The script reads `uname` and the package manager, then installs the matching Git
 
 ```bash
 # Debian / Ubuntu / Mint / Pop!_OS / Kali
-sudo apt install ./tunnel-yard_3.0.5_amd64.deb
+sudo apt install ./tunnel-yard_3.0.6_amd64.deb
 
 # Fedora / RHEL / Rocky / Alma
-sudo dnf install ./tunnel-yard-3.0.5-1.x86_64.rpm
+sudo dnf install ./tunnel-yard-3.0.6-1.x86_64.rpm
 
 # Arch / Manjaro
-sudo pacman -U ./tunnel-yard-3.0.5-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tunnel-yard-3.0.6-1-x86_64.pkg.tar.zst
 
 # Alpine
 sudo apk add gcompat
-sudo apk add --allow-untrusted ./tunnel-yard-3.0.5-r0-x86_64.apk
+sudo apk add --allow-untrusted ./tunnel-yard-3.0.6-r0-x86_64.apk
 
 # Portable
 tar -xzf tunnel-yard-linux-x64.tar.gz
@@ -120,7 +120,7 @@ When a newer GitHub release exists, the main window, Preferences and tray item *
 Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
 
 ```bash
-git tag v3.0.5
+git tag v3.0.6
 git push origin master --follow-tags
 ```
 
@@ -212,7 +212,7 @@ tunnel-yard/
 ├── packaging/      # elevated helpers + PolicyKit
 ├── tests/          # cargo tests + packaging fixtures
 ├── site/           # Astro landing page
-├── assets/icons/   # Hugeicons shipped with the desk
+├── assets/icons/   # Hugeicons shipped with the app
 └── public/         # app mark (PNG / ICO / SVG)
 ```
 

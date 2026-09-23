@@ -22,9 +22,9 @@ test("release fetch authenticates with the optional build token", async () => {
     request = { url, options };
     return new Response(
       JSON.stringify({
-        tag_name: "v3.0.5",
-        html_url: `${repoUrl}/releases/tag/v3.0.5`,
-        assets: [{ name: "installer", browser_download_url: `${repoUrl}/releases/download/v3.0.5/installer` }],
+        tag_name: "v3.0.6",
+        html_url: `${repoUrl}/releases/tag/v3.0.6`,
+        assets: [{ name: "installer", browser_download_url: `${repoUrl}/releases/download/v3.0.6/installer` }],
       }),
       { status: 200 },
     );
@@ -32,7 +32,7 @@ test("release fetch authenticates with the optional build token", async () => {
 
   assert.equal(request.url, "https://api.github.com/repos/LucasCavalheri/tunnel-yard/releases/latest");
   assert.equal(request.options.headers.Authorization, "Bearer read-only-build-token");
-  assert.equal(release.tag_name, "v3.0.5");
+  assert.equal(release.tag_name, "v3.0.6");
 });
 
 test("release fetch still reports rate limit errors", async () => {
@@ -47,8 +47,8 @@ test("release validation still rejects an untrusted download URL", () => {
     () =>
       validateRelease(
         {
-          tag_name: "v3.0.5",
-          html_url: `${repoUrl}/releases/tag/v3.0.5`,
+          tag_name: "v3.0.6",
+          html_url: `${repoUrl}/releases/tag/v3.0.6`,
           assets: [{ name: "installer", browser_download_url: "https://example.com/installer" }],
         },
         repoUrl,
