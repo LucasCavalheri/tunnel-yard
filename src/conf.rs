@@ -1,5 +1,6 @@
 //! openfortivpn `.conf` parse/serialize, profile ids, and file CRUD.
 
+use crate::i18n::tr;
 use crate::platform::config_directory_current;
 use std::collections::HashMap;
 use std::fs;
@@ -62,7 +63,7 @@ pub fn profile_health_check(raw: &str) -> Result<HealthCheck, String> {
         .filter(|p| *p >= 1);
     let ipv4_ok = host.parse::<Ipv4Addr>().is_ok();
     if !ipv4_ok || port.is_none() {
-        return Err("VPN health check requires an IPv4 address and a TCP port (1–65535).".into());
+        return Err(tr("conf.healthNeedsBoth", &[]));
     }
     Ok(HealthCheck {
         health_host: Some(host),
@@ -132,7 +133,7 @@ pub fn conf_entries(raw: &str) -> Result<Vec<(String, String)>, String> {
                     text[eq + 1..].trim().to_string(),
                 ));
             }
-            _ => return Err("Invalid .conf line (expected key = value).".into()),
+            _ => return Err(tr("conf.badLine", &[])),
         }
     }
     Ok(out)
@@ -365,7 +366,7 @@ pub fn parse_vpn_draft(
 
 fn reject_multiline(value: &str) -> Result<(), String> {
     if value.contains('\r') || value.contains('\n') || value.contains('\0') {
-        Err("Profile fields must be single-line text.".into())
+        Err(tr("conf.multiline", &[]))
     } else {
         Ok(())
     }
@@ -413,7 +414,7 @@ pub fn serialize_vpn_draft(draft: &VpnProfileDraft) -> Result<String, String> {
             || value.contains('\n')
             || value.contains('\0')
         {
-            return Err("Invalid extra profile option.".into());
+            return Err(tr("conf.badExtra", &[]));
         }
         if matches!(
             key.as_str(),
@@ -427,14 +428,14 @@ pub fn serialize_vpn_draft(draft: &VpnProfileDraft) -> Result<String, String> {
                 | "realm"
                 | "persistent"
         ) {
-            return Err(format!("Duplicate profile option: {key}"));
+            return Err(tr("conf.duplicate", &[("key", key.clone())]));
         }
         lines.push(format!("{key} = {value}"));
     }
     if draft.health_host.is_some() || draft.health_port.is_some() {
         let host = draft.health_host.clone().unwrap_or_default();
         if host.chars().any(|c| c.is_whitespace()) || host.contains('\0') {
-            return Err("Invalid VPN health-check address.".into());
+            return Err(tr("conf.badHealth", &[]));
         }
         let metadata = format!(
             "# tunnel-yard-health-host = {}\n# tunnel-yard-health-port = {}",
@@ -469,7 +470,7 @@ fn is_extra_key(key: &str) -> bool {
 
 pub fn conf_path_for_id_in(id: &str, dir: &Path) -> Result<PathBuf, String> {
     if !is_valid_profile_id(id) {
-        return Err("Invalid profile id.".into());
+        return Err(tr("conf.badId", &[]));
     }
     Ok(dir.join(format!("{id}.conf")))
 }
@@ -488,7 +489,7 @@ pub fn draft_from_imported_file(file_path: &Path) -> (bool, String, Option<VpnPr
     match fs::read_to_string(file_path) {
         Ok(raw) => match parse_vpn_draft(&raw, &file_path.to_string_lossy()) {
             Ok(Some(draft)) => (true, "Parsed".into(), Some(draft)),
-            Ok(None) => (false, "Could not parse conf (host missing?).".into(), None),
+            Ok(None) => (false, tr("conf.parseFailed", &[]), None),
             Err(err) => (false, err, None),
         },
         Err(err) => (false, err.to_string(), None),
@@ -536,14 +537,14 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
     if !is_valid_profile_id(&id) {
         return ProfileWriteResult {
             ok: false,
-            message: "Invalid profile id. Use letters, numbers, - or _.".into(),
+            message: tr("conf.badId", &[]),
             profile: None,
         };
     }
     if draft.host.trim().is_empty() {
         return ProfileWriteResult {
             ok: false,
-            message: "Host is required.".into(),
+            message: tr("conf.hostRequired", &[]),
             profile: None,
         };
     }
@@ -560,7 +561,7 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
     if !overwrite && dest.exists() {
         return ProfileWriteResult {
             ok: false,
-            message: format!("Profile \"{id}\" already exists."),
+            message: tr("conf.exists", &[("id", id.clone())]),
             profile: None,
         };
     }
@@ -601,9 +602,9 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
     let _ = fs::remove_file(&tmp);
     if code != Some(0) {
         let message = if code == Some(126) || code == Some(127) {
-            "Authentication cancelled.".into()
+            tr("conf.authCancelled", &[])
         } else if output.is_empty() {
-            format!("Failed to write {dest_str}")
+            tr("conf.writeFailed", &[("path", dest_str.clone())])
         } else {
             output
         };
@@ -616,12 +617,12 @@ pub fn save_profile_draft(draft: &VpnProfileDraft, overwrite: bool) -> ProfileWr
     match parse_vpn_conf_content(&content, &dest_str) {
         Some(profile) => ProfileWriteResult {
             ok: true,
-            message: format!("Saved {dest_str}"),
+            message: tr("conf.saved", &[("path", dest_str.clone())]),
             profile: Some(profile),
         },
         None => ProfileWriteResult {
             ok: false,
-            message: "Saved, but failed to re-parse profile.".into(),
+            message: tr("conf.savedUnreadable", &[]),
             profile: None,
         },
     }
@@ -636,7 +637,7 @@ pub fn delete_profile_file(id: &str) -> ProfileWriteResult {
     if !is_valid_profile_id(&safe) {
         return ProfileWriteResult {
             ok: false,
-            message: "Invalid profile id.".into(),
+            message: tr("conf.badId", &[]),
             profile: None,
         };
     }
@@ -653,7 +654,7 @@ pub fn delete_profile_file(id: &str) -> ProfileWriteResult {
     if !dest.exists() {
         return ProfileWriteResult {
             ok: false,
-            message: "Profile file not found.".into(),
+            message: tr("conf.notFound", &[]),
             profile: None,
         };
     }
@@ -661,9 +662,9 @@ pub fn delete_profile_file(id: &str) -> ProfileWriteResult {
     let (code, output) = run_pkexec(&["rm", "-f", &dest_str], None);
     if code != Some(0) {
         let message = if code == Some(126) || code == Some(127) {
-            "Authentication cancelled.".into()
+            tr("conf.authCancelled", &[])
         } else if output.is_empty() {
-            format!("Failed to delete {dest_str}")
+            tr("conf.deleteFailed", &[("path", dest_str.clone())])
         } else {
             output
         };
@@ -675,7 +676,7 @@ pub fn delete_profile_file(id: &str) -> ProfileWriteResult {
     }
     ProfileWriteResult {
         ok: true,
-        message: format!("Deleted {dest_str}"),
+        message: tr("conf.deleted", &[("path", dest_str.clone())]),
         profile: None,
     }
 }

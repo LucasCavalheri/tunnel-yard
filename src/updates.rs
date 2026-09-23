@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use crate::arch::current_arch;
+use crate::i18n::tr;
 use crate::platform::current_platform;
 use crate::{APP_BIN, GITHUB_OWNER, GITHUB_REPO};
 
@@ -352,14 +353,15 @@ pub fn select_install_artifact(info: &UpdateInfo, kind: InstallKind) -> Option<&
 }
 
 pub fn sha256_file(path: &Path) -> Result<String, String> {
-    let file = File::open(path).map_err(|e| format!("Could not read update file: {e}"))?;
+    let file =
+        File::open(path).map_err(|e| tr("update.readFailed", &[("error", e.to_string())]))?;
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = reader
             .read(&mut buf)
-            .map_err(|e| format!("Could not hash update file: {e}"))?;
+            .map_err(|e| tr("update.readFailed", &[("error", e.to_string())]))?;
         if n == 0 {
             break;
         }
@@ -371,7 +373,7 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
 pub fn verify_sha256_file(path: &Path, expected: &str) -> Result<(), String> {
     let got = sha256_file(path)?;
     if got != expected.to_ascii_lowercase() {
-        return Err("Update checksum mismatch. Refusing to install it.".into());
+        return Err(tr("update.checksum", &[]));
     }
     Ok(())
 }
@@ -384,25 +386,29 @@ pub fn download_https_file(url: &str, dest: &Path) -> Result<(), String> {
         .set("User-Agent", APP_BIN)
         .timeout(Duration::from_secs(180))
         .call()
-        .map_err(|e| format!("Download failed ({e})."))?;
+        .map_err(|e| tr("update.downloadFailed", &[("error", e.to_string())]))?;
     if resp.status() != 200 {
-        return Err(format!("Download failed (HTTP {}).", resp.status()));
+        return Err(tr(
+            "update.downloadFailed",
+            &[("error", format!("HTTP {}", resp.status()))],
+        ));
     }
     let mut reader = resp.into_reader();
-    let mut file = File::create(dest).map_err(|e| format!("Could not save update: {e}"))?;
+    let mut file =
+        File::create(dest).map_err(|e| tr("update.saveFailed", &[("error", e.to_string())]))?;
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = reader
             .read(&mut buf)
-            .map_err(|e| format!("Download failed ({e})."))?;
+            .map_err(|e| tr("update.downloadFailed", &[("error", e.to_string())]))?;
         if n == 0 {
             break;
         }
         file.write_all(&buf[..n])
-            .map_err(|e| format!("Could not save update: {e}"))?;
+            .map_err(|e| tr("update.saveFailed", &[("error", e.to_string())]))?;
     }
     file.flush()
-        .map_err(|e| format!("Could not save update: {e}"))?;
+        .map_err(|e| tr("update.saveFailed", &[("error", e.to_string())]))?;
     Ok(())
 }
 
@@ -413,15 +419,15 @@ fn elevation_declined(code: Option<i32>) -> bool {
 fn run_status(cmd: &mut Command) -> Result<(), String> {
     let status = cmd
         .status()
-        .map_err(|e| format!("Could not start installer: {e}"))?;
+        .map_err(|e| tr("update.startFailed", &[("error", e.to_string())]))?;
     if status.success() {
         Ok(())
     } else if elevation_declined(status.code()) {
         Err("elevation-declined".into())
     } else {
-        Err(format!(
-            "Installer exited with status {}.",
-            status.code().unwrap_or(1)
+        Err(tr(
+            "update.installerExit",
+            &[("code", status.code().unwrap_or(1).to_string())],
         ))
     }
 }
@@ -463,7 +469,7 @@ fn extract_linux_binary(archive: &Path, dest_dir: &Path) -> Result<PathBuf, Stri
                 }
             }
         }
-        found.ok_or_else(|| "The Linux archive did not contain a binary.".into())
+        found.ok_or_else(|| tr("update.noBinary", &[]))
     } else {
         let dest = dest_dir.join(APP_BIN);
         fs::copy(archive, &dest).map_err(|e| e.to_string())?;
@@ -485,7 +491,7 @@ fn unix_replace_after_exit(staged: &Path, dest: &Path) -> Result<UpdateApplyResu
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("Could not schedule relaunch: {e}"))?;
+        .map_err(|e| tr("update.relaunchFailed", &[("error", e.to_string())]))?;
     Ok(UpdateApplyResult { relaunch: None })
 }
 
@@ -501,7 +507,7 @@ fn unix_relaunch_after_exit(dest: &Path) -> Result<UpdateApplyResult, String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("Could not schedule relaunch: {e}"))?;
+        .map_err(|e| tr("update.relaunchFailed", &[("error", e.to_string())]))?;
     Ok(UpdateApplyResult { relaunch: None })
 }
 
@@ -516,7 +522,7 @@ fn pkexec_install_package(path: &Path, kind: InstallKind) -> Result<(), String> 
             "set -e; if command -v dnf >/dev/null; then dnf install -y {q}; elif command -v yum >/dev/null; then yum install -y {q}; elif command -v zypper >/dev/null; then zypper --non-interactive install {q}; else rpm -Uvh {q}; fi",
             q = sh_single_quote(&file)
         ),
-        _ => return Err("Not a Linux package install.".into()),
+        _ => return Err(tr("update.notPackage", &[])),
     };
     run_status(
         Command::new("pkexec")
@@ -528,9 +534,8 @@ fn pkexec_install_package(path: &Path, kind: InstallKind) -> Result<(), String> 
 /// Download the matching GitHub artifact and replace this installation.
 pub fn perform_update_install(info: &UpdateInfo) -> Result<UpdateApplyResult, String> {
     let kind = detect_install_kind();
-    let artifact = select_install_artifact(info, kind).ok_or_else(|| {
-        "No compatible TunnelYard package was published for this operating system.".to_string()
-    })?;
+    let artifact =
+        select_install_artifact(info, kind).ok_or_else(|| tr("update.noArtifact", &[]))?;
     let tmp = std::env::temp_dir().join(format!("{APP_BIN}-update-{}", std::process::id()));
     fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
     let download_path = tmp.join(&artifact.name);
@@ -538,7 +543,8 @@ pub fn perform_update_install(info: &UpdateInfo) -> Result<UpdateApplyResult, St
     if let Some(digest) = &artifact.digest {
         verify_sha256_file(&download_path, digest)?;
     }
-    let exe = std::env::current_exe().map_err(|e| format!("Could not locate this binary: {e}"))?;
+    let exe = std::env::current_exe()
+        .map_err(|e| tr("update.locateFailed", &[("error", e.to_string())]))?;
     let result = match kind {
         InstallKind::Deb | InstallKind::Rpm => {
             pkexec_install_package(&download_path, kind)?;
