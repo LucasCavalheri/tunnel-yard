@@ -9,6 +9,7 @@ pub mod app_icon;
 pub mod arch;
 pub mod autostart;
 pub mod conf;
+pub mod demo;
 pub mod deps;
 pub mod desktop;
 pub mod i18n;
@@ -39,7 +40,8 @@ pub use platform::{binary_candidates, config_directory, engine_for_platform, Vpn
 pub use vpn::{
     interpret_vpn_log_line, linux_exit_reconnect, list_vpn_profiles, native_close_decision,
     prevents_reconnect, reconnect_delay_ms, reconnect_gate, should_native_reconnect,
-    summarize_vpn_state, NativeCloseDecision, VpnManager, VpnSession, VpnState, VpnStatus,
+    summarize_vpn_state, workspace_summary, NativeCloseDecision, VpnManager, VpnSession, VpnState,
+    VpnStatus,
 };
 
 pub const APP_NAME: &str = "TunnelYard";

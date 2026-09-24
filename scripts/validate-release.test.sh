@@ -11,8 +11,8 @@ expect_failure() {
   fi
 }
 
-bash "$SCRIPT" "$ROOT_DIR" v3.0.7
-bash "$SCRIPT" "$ROOT_DIR" v3.0.7-rc.1
+bash "$SCRIPT" "$ROOT_DIR" v3.0.8
+bash "$SCRIPT" "$ROOT_DIR" v3.0.8-rc.1
 expect_failure "$ROOT_DIR" 3.0.3
 expect_failure "$ROOT_DIR" v3.0.5
 
@@ -20,7 +20,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TMP_DIR"' EXIT
 cp "$ROOT_DIR/Cargo.toml" "$TMP_DIR/Cargo.toml"
 cp "$ROOT_DIR/CHANGELOG.md" "$TMP_DIR/CHANGELOG.md"
-sed -i 's/^version = "3\.0\.7"$/version = "3.0.6"/' "$TMP_DIR/Cargo.toml"
-expect_failure "$TMP_DIR" v3.0.7
+sed -i 's/^version = "3\.0\.8"$/version = "3.0.7"/' "$TMP_DIR/Cargo.toml"
+expect_failure "$TMP_DIR" v3.0.8
 
 echo "validate-release tests passed"

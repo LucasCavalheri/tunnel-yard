@@ -1541,3 +1541,16 @@ fn assert_debian_installation_complete(root: &std::path::Path) {
         assert!(root.join(relative).is_file(), "missing {relative}");
     }
 }
+
+#[test]
+fn landing_preview_only_shows_made_up_hosts() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let landing = fs::read_to_string(root.join("site/src/components/Landing.astro")).unwrap();
+    for leaked in ["acme.com", "north.dev", ".internal"] {
+        assert!(
+            !landing.contains(leaked),
+            "the preview names a real domain: {leaked}"
+        );
+    }
+    assert!(landing.contains("vpn.acme.example"));
+}

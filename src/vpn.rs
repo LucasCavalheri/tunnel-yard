@@ -141,6 +141,21 @@ pub fn list_vpn_profiles(config_dir: &Path) -> Vec<VpnProfile> {
     profiles
 }
 
+/// The line under "Your tunnels": how many profiles exist and how many are really up.
+/// A tunnel that is still connecting does not count as connected.
+pub fn workspace_summary(total_profiles: usize, state: &VpnState) -> String {
+    tr(
+        "ops.workspaceSummary",
+        &[
+            ("total", total_profiles.to_string()),
+            (
+                "active",
+                summarize_vpn_state(state).connected_count.to_string(),
+            ),
+        ],
+    )
+}
+
 pub fn summarize_vpn_state(state: &VpnState) -> VpnSummary {
     let sessions: Vec<_> = state.sessions.values().collect();
     let connected_count = sessions
