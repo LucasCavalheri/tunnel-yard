@@ -32,6 +32,7 @@ import { ClientRouter } from "astro:transitions";
 import Downloads from "./Downloads.astro";
 import InstallCommand from "./InstallCommand.astro";
 import LanguageSwitcher from "./LanguageSwitcher.astro";
+import MemoryLab from "./MemoryLab.astro";
 import { release, repoUrl, starCount } from "../data/release";
 import { dictionaries, fill, formatInteger, localePath, type Locale } from "../i18n";
 
@@ -95,6 +96,7 @@ const canonical = absolute(localePath(locale));
           <a href="#produto">{t.nav.product}</a>
           <a href="#recursos">{t.nav.features}</a>
           <a href="#seguranca">{t.nav.security}</a>
+          <a href="#performance">{t.nav.performance}</a>
           <a href="#downloads">{t.nav.downloads}</a>
         </nav>
 
@@ -127,6 +129,7 @@ const canonical = absolute(localePath(locale));
         <a href="#produto">{t.nav.product}</a>
         <a href="#recursos">{t.nav.features}</a>
         <a href="#seguranca">{t.nav.security}</a>
+        <a href="#performance">{t.nav.performance}</a>
         <a href="#downloads">{t.nav.downloads}</a>
         <a
           class="star-link"
@@ -236,7 +239,7 @@ const canonical = absolute(localePath(locale));
                   <article class="profile-row">
                     <div class="profile-mark mark-blue">ST</div>
                     <div class="profile-info">
-                      <div class="profile-name"><strong>{t.hero.app.staging}</strong></div>
+                      <div class="profile-name"><strong>{t.hero.app.staging}</strong><span class="status idle"><i></i>{t.hero.app.idle}</span></div>
                       <p>vpn.staging.internal:443 · deploy</p>
                     </div>
                     <span class="mock-icon"><FilePenLine size={12} aria-hidden="true" /></span>
@@ -462,6 +465,8 @@ const canonical = absolute(localePath(locale));
           </div>
         </div>
       </section>
+
+      <MemoryLab locale={locale} t={t} />
 
       <InstallCommand t={t} />
 

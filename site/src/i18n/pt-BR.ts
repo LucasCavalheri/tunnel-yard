@@ -31,6 +31,7 @@ export const ptBR: Dictionary = {
     product: "Produto",
     features: "Recursos",
     security: "Segurança",
+    performance: "Desempenho",
     downloads: "Downloads",
     github: "GitHub",
     viewOnGithub: "Ver no GitHub",
@@ -153,6 +154,43 @@ export const ptBR: Dictionary = {
     stepTwoBody: "O PolicyKit pede a permissão e um helper pequeno inicia o openfortivpn.",
     stepThreeTitle: "O túnel roda sozinho",
     stepThreeBody: "Cada túnel é um processo separado, então se um falhar os outros continuam no ar.",
+  },
+
+  performance: {
+    eyebrow: "Notas de desempenho",
+    titleLine1: "Cada MiB,",
+    titleLine2: "anotado.",
+    intro: "Uma medição numa máquina só, contada por inteiro, inclusive o que ela não prova.",
+    conditions: "Linux x64 · build de debug v{measuredVersion} · {date}",
+
+    headlineLabel: "App com 2 túneis conectados",
+    headlineNote: "Média de memória residente",
+    headlineUnit: "RSS · 60 amostras, uma por segundo",
+
+    splitTitle: "Onde a memória fica",
+    interfaceLabel: "Interface",
+    interfaceNote: "A janela do TunnelYard (Rust e GPUI)",
+    enginesLabel: "Processos da VPN",
+    enginesNote: "Dois openfortivpn e dois pppd",
+
+    stabilityTitle: "Variação no minuto",
+    stabilityValue: "{drift} MiB",
+    stabilityBody:
+      "A variação total nas 60 amostras. A memória ficou parada o tempo todo, então um gráfico seria só uma linha reta.",
+
+    caveatLabel: "UMA MÁQUINA SÓ",
+    caveat:
+      "Um computador, um build de desenvolvimento, um minuto. Não é benchmark e não é promessa sobre a sua máquina.",
+
+    methodLead: "Os números vêm com contexto.",
+    methodLeadStrong: "O método também.",
+    methodSummary: "Como medimos",
+    methodOne:
+      "Ubuntu 26.04.1 LTS, x86_64, build de desenvolvimento {measuredVersion}, medido em {date}: 60 leituras de VmRSS em /proc/PID/status, com um segundo de intervalo. Interface é a janela do app. Processos da VPN é a soma de dois openfortivpn e dois pppd.",
+    methodTwo:
+      "Também medimos o app recém-aberto, sem túneis, em {idle} MiB. Deixamos esse número fora da comparação de propósito: era outro processo, rodando por outro tempo, com outra tela aberta. A diferença entre os dois não diz nada sobre quanto custa conectar.",
+    methodThree:
+      "Somar valores de RSS pode contar memória compartilhada mais de uma vez. GPU, kernel, shells e serviços do desktop ficaram de fora. Nenhuma senha foi lida e as conexões que já existiam não foram tocadas. Outras máquinas e builds de release vão dar números diferentes.",
   },
 
   downloads: {

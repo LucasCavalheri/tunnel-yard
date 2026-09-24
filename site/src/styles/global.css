@@ -731,8 +731,7 @@
   .profile-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin: 0 -10px;
+    gap: 6px;
   }
 
   .profile-row {
@@ -740,11 +739,14 @@
     grid-template-columns: 30px 1fr auto auto;
     align-items: center;
     gap: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
     padding: 10px;
   }
 
   .profile-row.is-live {
+    border-color: rgba(41, 180, 122, 0.16);
     background: rgba(41, 180, 122, 0.05);
   }
 
@@ -794,6 +796,10 @@
     gap: 4px;
     color: #61d69f;
     font-size: 7.5px;
+  }
+
+  .profile-name .status.idle {
+    color: rgba(255, 255, 255, 0.4);
   }
 
   .profile-name .status i {
