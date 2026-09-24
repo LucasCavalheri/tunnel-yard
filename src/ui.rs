@@ -27,6 +27,7 @@ use tunnel_yard::deps::{
 use tunnel_yard::desktop::{EDITOR_FIELDS, SETUP_GATE_KEYS, TRAY_MENU_KEYS, UI_SURFACES};
 use tunnel_yard::i18n::{current_locale, set_current_locale, translate};
 use tunnel_yard::icons::{Huge, LocaleFlag};
+use tunnel_yard::layout::{line, row, workspace_column};
 use tunnel_yard::modal_layout::preferences_modal_frame;
 use tunnel_yard::settings::{load_settings, normalize_theme, save_settings, AppSettingsPatch};
 use tunnel_yard::theme::{
@@ -40,8 +41,6 @@ use tunnel_yard::updates::{
 use tunnel_yard::vpn::{
     summarize_vpn_state, VpnEvent, VpnManager, VpnProfile, VpnState, VpnStatus,
 };
-
-const SIDEBAR_WIDTH: Pixels = px(256.);
 
 #[derive(Clone, Copy)]
 struct Hi(Huge);
@@ -712,226 +711,83 @@ impl Desk {
             )
     }
 
-    fn render_sidebar(&self, cx: &mut Context<Self>) -> Div {
+    fn render_header(&self, cx: &mut Context<Self>) -> Div {
         let summary = summarize_vpn_state(&self.state);
-        let connection_count = summary.connected_count + summary.connecting_count;
-        let any_up = connection_count > 0;
-        let status_color = if any_up {
+        let active_count = summary.connected_count + summary.connecting_count;
+        let pulse = if summary.connected_count > 0 {
             cx.theme().success
+        } else if summary.connecting_count > 0 {
+            cx.theme().warning
         } else {
-            cx.theme().muted_foreground
+            cx.theme().muted_foreground.opacity(0.5)
         };
-        let connection_label = self.tv(
-            if connection_count == 1 {
-                "ops.connectionOne"
-            } else {
-                "ops.connectionMany"
-            },
-            &[("count", connection_count.to_string())],
-        );
 
         div()
-            .w(SIDEBAR_WIDTH)
-            .h_full()
             .flex_none()
-            .v_flex()
-            .border_r_1()
-            .border_color(cx.theme().sidebar_border)
-            .bg(cx.theme().sidebar)
-            .px_4()
-            .py_5()
-            .gap_4()
+            .h_flex()
+            .items_center()
+            .gap_2()
             .child(
                 div()
-                    .h_flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div().h_flex().gap_3().child(brand_mark(cx, px(38.))).child(
-                            div()
-                                .v_flex()
-                                .gap(px(2.))
-                                .child(
-                                    div()
-                                        .text_size(px(16.))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(cx.theme().sidebar_foreground)
-                                        .child(tunnel_yard::APP_NAME),
-                                )
-                                .child(
-                                    div()
-                                        .text_size(px(12.))
-                                        .text_color(cx.theme().muted_foreground)
-                                        .child(self.t("brand.subtitle")),
-                                ),
-                        ),
-                    )
-                    .child(
-                        div()
-                            .px_2()
-                            .py_1()
-                            .rounded(px(8.))
-                            .border_1()
-                            .border_color(cx.theme().sidebar_border)
-                            .bg(cx.theme().sidebar_accent)
-                            .text_size(px(11.))
-                            .text_color(cx.theme().muted_foreground)
-                            .font_family("monospace")
-                            .child(format!("v{}", self.version)),
-                    ),
-            )
-            .child(
-                div()
-                    .h_flex()
-                    .gap_3()
-                    .p_4()
-                    .rounded(px(14.))
-                    .border_1()
-                    .border_color(if any_up {
-                        cx.theme().success.opacity(0.28)
-                    } else {
-                        cx.theme().sidebar_border
-                    })
-                    .bg(if any_up {
-                        cx.theme().success.opacity(0.08)
-                    } else {
-                        cx.theme().sidebar_accent
-                    })
-                    .child(
-                        div()
-                            .size(px(40.))
-                            .flex_none()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(px(12.))
-                            .bg(status_color.opacity(0.14))
-                            .text_color(status_color)
-                            .child(
-                                hi(if any_up { Huge::WifiOn } else { Huge::WifiOff }).size(px(18.)),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .v_flex()
-                            .child(
-                                div()
-                                    .text_size(px(14.))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(cx.theme().sidebar_foreground)
-                                    .child(connection_label),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(12.))
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(if any_up {
-                                        self.t("ops.connectionsStable")
-                                    } else {
-                                        self.t("ops.noneActive")
-                                    }),
-                            ),
-                    )
-                    .child(div().size(px(8.)).rounded(px(999.)).bg(status_color).when(
-                        any_up,
-                        |this| {
-                            this.border_2()
-                                .border_color(cx.theme().success.opacity(0.25))
-                        },
-                    )),
-            )
-            .child(
-                div()
+                    .flex_1()
+                    .min_w_0()
                     .v_flex()
-                    .gap_2()
-                    .child(sidebar_section_label(self.t("ops.quickActions"), cx))
+                    .gap_1()
                     .child(
-                        Button::new("new-profile")
-                            .primary()
-                            .w_full()
-                            .icon(hi(Huge::Add))
-                            .label(self.t("ops.newProfile"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_editor(EditorMode::Create, empty_draft(), window, cx)
-                            })),
-                    )
-                    .child(
-                        Button::new("import-profile")
-                            .w_full()
-                            .outline()
-                            .icon(hi(Huge::FileImport))
-                            .label(self.t("ops.importConf"))
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.open_import(window, cx)),
-                            ),
-                    )
-                    .child(
-                        Button::new("check-updates")
-                            .w_full()
-                            .outline()
-                            .icon(hi(Huge::Download))
-                            .loading(self.update_check_in_flight)
-                            .disabled(self.update_check_in_flight)
-                            .label(match self.check_feedback {
-                                CheckFeedback::Checking => self.t("update.checking"),
-                                _ => self.t("update.checkNow"),
-                            })
-                            .on_click(cx.listener(|this, _, _, _| {
-                                this.spawn_update_check();
-                            })),
-                    ),
-            )
-            .child(
-                div()
-                    .mt_auto()
-                    .v_flex()
-                    .gap_2()
-                    .child(
-                        Button::new("open-preferences")
-                            .w_full()
-                            .ghost()
-                            .icon(hi(Huge::Settings))
-                            .label(self.t("ops.preferences"))
-                            .on_click(cx.listener(|this, _, _, _| {
-                                this.preferences_open = true;
-                            })),
+                        line(self.t("ops.tunnels"))
+                            .text_size(px(26.))
+                            .font_weight(FontWeight::BOLD),
                     )
                     .child(
                         div()
-                            .mt_3()
                             .h_flex()
-                            .gap_3()
-                            .p_3()
-                            .rounded(px(10.))
-                            .border_1()
-                            .border_color(cx.theme().success.opacity(0.18))
-                            .bg(cx.theme().success.opacity(0.06))
-                            .child(
-                                hi(Huge::ShieldCheck)
-                                    .size(px(18.))
-                                    .text_color(cx.theme().success),
-                            )
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap(px(2.))
-                                    .child(
-                                        div()
-                                            .text_size(px(12.))
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(cx.theme().sidebar_foreground)
-                                            .child(self.t("ops.protected")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_size(px(12.))
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(self.t("ops.unprivileged")),
-                                    ),
-                            ),
+                            .items_center()
+                            .gap_2()
+                            .text_size(px(13.))
+                            .text_color(cx.theme().muted_foreground)
+                            .child(div().size(px(6.)).flex_none().rounded(px(999.)).bg(pulse))
+                            .child(line(self.tv(
+                                "ops.workspaceSummary",
+                                &[
+                                    ("total", self.profiles.len().to_string()),
+                                    ("active", active_count.to_string()),
+                                ],
+                            ))),
                     ),
+            )
+            .when(!self.profiles.is_empty(), |this| {
+                this.child(
+                    div().w(px(200.)).flex_none().mr_2().child(
+                        Input::new(&self.search)
+                            .prefix(hi(Huge::Search))
+                            .cleanable(true),
+                    ),
+                )
+            })
+            .child(
+                Button::new("import-profile")
+                    .ghost()
+                    .icon(hi(Huge::FileImport))
+                    .tooltip(self.t("ops.importConf"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_import(window, cx))),
+            )
+            .child(
+                Button::new("open-preferences")
+                    .ghost()
+                    .icon(hi(Huge::Settings))
+                    .tooltip(self.t("ops.preferences"))
+                    .on_click(cx.listener(|this, _, _, _| {
+                        this.preferences_open = true;
+                    })),
+            )
+            .child(
+                Button::new("new-profile")
+                    .primary()
+                    .icon(hi(Huge::Add))
+                    .label(self.t("ops.newProfile"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.open_editor(EditorMode::Create, empty_draft(), window, cx)
+                    })),
             )
     }
 
@@ -1328,8 +1184,6 @@ impl Desk {
     fn render_workspace(&self, cx: &mut Context<Self>) -> Div {
         let filter_value = self.search.read(cx).value().to_string();
         let filter = filter_value.to_lowercase();
-        let summary = summarize_vpn_state(&self.state);
-        let active_count = summary.connected_count + summary.connecting_count;
         let visible: Vec<VpnProfile> = self
             .profiles
             .iter()
@@ -1356,83 +1210,8 @@ impl Desk {
             .bg(cx.theme().background)
             .children(self.render_update_banner(cx))
             .child(
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .v_flex()
-                    .px_6()
-                    .pt_5()
-                    .pb_4()
-                    .gap_4()
-                    .child(
-                        div()
-                            .h_flex()
-                            .justify_between()
-                            .gap_5()
-                            .child(
-                                div()
-                                    .v_flex()
-                                    .gap(px(3.))
-                                    .child(
-                                        div()
-                                            .text_size(px(12.))
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(cx.theme().primary)
-                                            .child(self.t("ops.workspace")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_size(px(28.))
-                                            .font_weight(FontWeight::BOLD)
-                                            .child(self.t("ops.tunnels")),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_size(px(14.))
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child(self.tv(
-                                                "ops.workspaceSummary",
-                                                &[
-                                                    ("total", self.profiles.len().to_string()),
-                                                    ("active", active_count.to_string()),
-                                                ],
-                                            )),
-                                    ),
-                            )
-                            .child(
-                                div().w(px(280.)).flex_none().child(
-                                    Input::new(&self.search)
-                                        .prefix(hi(Huge::Search))
-                                        .cleanable(true),
-                                ),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .h_flex()
-                            .gap_3()
-                            .child(metric_tile(
-                                Huge::Folder,
-                                self.profiles.len().to_string(),
-                                self.t("ops.totalProfiles"),
-                                cx.theme().primary,
-                                cx,
-                            ))
-                            .child(metric_tile(
-                                Huge::WifiOn,
-                                summary.connected_count.to_string(),
-                                self.t("ops.connectedNow"),
-                                cx.theme().success,
-                                cx,
-                            ))
-                            .child(metric_tile(
-                                Huge::Wifi,
-                                summary.connecting_count.to_string(),
-                                self.t("ops.connectingNow"),
-                                cx.theme().warning,
-                                cx,
-                            )),
-                    )
+                workspace_column(div().pt_8().pb_4().gap_6())
+                    .child(self.render_header(cx))
                     .child(self.render_profiles(visible, &filter_value, cx))
                     .child(self.render_console(cx)),
             )
@@ -1551,10 +1330,6 @@ impl Desk {
                     .items_center()
                     .justify_center()
                     .gap_3()
-                    .rounded(px(14.))
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .bg(cx.theme().secondary)
                     .child(
                         div()
                             .size(px(48.))
@@ -1603,10 +1378,6 @@ impl Desk {
             .items_center()
             .justify_center()
             .gap_3()
-            .rounded(px(14.))
-            .border_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().secondary)
             .child(
                 div()
                     .size(px(56.))
@@ -1664,134 +1435,110 @@ impl Desk {
             .map(|session| session.status)
             .unwrap_or(VpnStatus::Disconnected);
         let active = matches!(status, VpnStatus::Connected | VpnStatus::Connecting);
-        let (status_key, status_color) = match status {
-            VpnStatus::Connected => ("status.linkUp", cx.theme().success),
-            VpnStatus::Connecting => ("status.handshake", cx.theme().warning),
-            VpnStatus::Error => ("status.fault", cx.theme().danger),
-            VpnStatus::Disconnected => ("status.idle", cx.theme().muted_foreground),
+        let status_color = match status {
+            VpnStatus::Connected => cx.theme().success,
+            VpnStatus::Connecting => cx.theme().warning,
+            VpnStatus::Error => cx.theme().danger,
+            VpnStatus::Disconnected => cx.theme().muted_foreground,
         };
-        let metadata = format!("{}:{}", profile.host, profile.port);
-        let detail = match status {
-            VpnStatus::Connected => session
-                .as_ref()
-                .and_then(|session| session.connected_at)
-                .map(|at| self.tv("profiles.live", &[("uptime", format_duration(at))])),
-            VpnStatus::Connecting => Some(self.t("profiles.handshake")),
-            _ => session
-                .as_ref()
-                .map(|session| session.message.clone())
-                .filter(|message| !message.is_empty())
-                .or_else(|| (!profile.username.is_empty()).then(|| profile.username.clone())),
+        let status_label = match status {
+            VpnStatus::Connected => Some(
+                session
+                    .as_ref()
+                    .and_then(|session| session.connected_at)
+                    .map(|at| self.tv("profiles.live", &[("uptime", format_duration(at))]))
+                    .unwrap_or_else(|| self.t("status.linkUp")),
+            ),
+            VpnStatus::Connecting => Some(self.t("status.handshake")),
+            VpnStatus::Error => Some(self.t("status.fault")),
+            VpnStatus::Disconnected => Some(self.t("status.idle")),
+        };
+        let error = (status == VpnStatus::Error)
+            .then(|| session.as_ref().map(|session| session.message.clone()))
+            .flatten()
+            .filter(|message| !message.is_empty());
+        let metadata = if profile.username.is_empty() {
+            format!("{}:{}", profile.host, profile.port)
+        } else {
+            format!("{}:{} · {}", profile.host, profile.port, profile.username)
         };
         let profile_id = profile.id.clone();
         let edit_id = profile.id.clone();
-        let username = if profile.username.is_empty() {
-            self.t("profiles.noUser")
-        } else {
-            profile.username.clone()
-        };
-        let mark_color = profile_mark_color(&profile.name);
+        let mark: Hsla = rgb(profile_mark_color(&profile.name)).into();
 
         div()
             .flex_none()
-            .h_flex()
-            .justify_between()
-            .gap_5()
-            .px_5()
-            .py_4()
+            .px_3()
+            .py_3()
             .rounded(px(12.))
             .border_1()
             .border_color(if active {
-                status_color.opacity(0.32)
+                status_color.opacity(0.22)
             } else {
-                cx.theme().border
+                cx.theme().border.opacity(0.55)
             })
-            .bg(cx.theme().secondary)
-            .when(active, |this| this.border_l_2())
-            .hover(|this| this.border_color(status_color.opacity(0.45)))
-            .child(
+            .bg(if active {
+                status_color.opacity(0.06)
+            } else {
+                cx.theme().secondary.opacity(0.45)
+            })
+            .hover(|this| this.bg(cx.theme().secondary))
+            .child(row(
                 div()
-                    .h_flex()
-                    .flex_1()
-                    .min_w_0()
-                    .gap_4()
+                    .size(px(38.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(11.))
+                    .bg(mark.opacity(0.22))
+                    .text_color(mark)
+                    .text_size(px(13.))
+                    .font_weight(FontWeight::BOLD)
+                    .child(initials),
+                div()
+                    .gap(px(3.))
                     .child(
                         div()
-                            .size(px(48.))
-                            .flex_none()
-                            .flex()
+                            .h_flex()
                             .items_center()
-                            .justify_center()
-                            .rounded(px(12.))
-                            .bg(rgb(mark_color))
-                            .text_color(rgb(0xffffff))
-                            .text_size(px(14.))
-                            .font_weight(FontWeight::BOLD)
-                            .child(initials),
-                    )
-                    .child(
-                        div()
-                            .v_flex()
+                            .gap_3()
                             .min_w_0()
-                            .gap(px(3.))
                             .child(
                                 div()
-                                    .h_flex()
-                                    .gap_3()
-                                    .child(
-                                        div()
-                                            .text_size(px(17.))
-                                            .font_weight(FontWeight::BOLD)
-                                            .child(profile.name),
-                                    )
-                                    .child(
-                                        div()
-                                            .px_2()
-                                            .py(px(3.))
-                                            .h_flex()
-                                            .gap_1()
-                                            .rounded(px(999.))
-                                            .bg(status_color.opacity(0.1))
-                                            .text_color(status_color)
-                                            .text_size(px(12.))
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .child(status_dot(status_color, status))
-                                            .child(self.t(status_key)),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .h_flex()
-                                    .gap_2()
+                                    .min_w_0()
                                     .truncate()
-                                    .text_size(px(13.))
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(metadata)
-                                    .child("·")
-                                    .child(username),
+                                    .text_size(px(15.))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(profile.name),
                             )
-                            .when_some(detail, |this, detail| {
+                            .when_some(status_label, |this, label| {
                                 this.child(
                                     div()
+                                        .flex_none()
+                                        .h_flex()
+                                        .items_center()
+                                        .gap_1p5()
                                         .text_size(px(12.))
-                                        .font_family("monospace")
-                                        .text_color(if status == VpnStatus::Error {
-                                            cx.theme().danger
-                                        } else if status == VpnStatus::Connected {
-                                            cx.theme().success
-                                        } else {
-                                            cx.theme().muted_foreground
-                                        })
-                                        .child(detail),
+                                        .text_color(status_color)
+                                        .child(status_dot(status_color, status))
+                                        .child(label),
                                 )
                             }),
-                    ),
-            )
-            .child(
+                    )
+                    .child(
+                        line(metadata)
+                            .text_size(px(12.))
+                            .font_family("monospace")
+                            .text_color(cx.theme().muted_foreground),
+                    )
+                    .when_some(error, |this, message| {
+                        this.child(
+                            line(message)
+                                .text_size(px(12.))
+                                .text_color(cx.theme().danger),
+                        )
+                    }),
                 div()
-                    .h_flex()
-                    .flex_none()
-                    .gap_2()
                     .child(
                         Button::new(format!("edit-{edit_id}"))
                             .small()
@@ -1806,7 +1553,7 @@ impl Desk {
                     )
                     .child(
                         Button::new(format!("toggle-{profile_id}"))
-                            .w(px(132.))
+                            .w(px(128.))
                             .when(active, |button| button.danger().outline())
                             .when(!active, |button| button.primary())
                             .loading(status == VpnStatus::Connecting)
@@ -1825,43 +1572,46 @@ impl Desk {
                                 cx.listener(move |this, _, _, _| this.toggle_profile(&profile_id)),
                             ),
                     ),
-            )
+            ))
     }
 
     fn render_console(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .id("live-console")
             .flex_none()
-            .h(if self.console_expanded {
-                px(176.)
-            } else {
-                px(48.)
-            })
             .v_flex()
-            .rounded(px(14.))
-            .border_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().sidebar)
+            .gap_2()
+            .pt_3()
+            .border_t_1()
+            .border_color(cx.theme().border.opacity(0.6))
             .child(
                 div()
-                    .h(px(46.))
                     .h_flex()
+                    .items_center()
                     .justify_between()
-                    .px_4()
+                    .gap_3()
                     .child(
-                        div()
-                            .h_flex()
-                            .gap_3()
-                            .text_size(px(14.))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(cx.theme().foreground)
-                            .child(hi(Huge::Console).text_color(cx.theme().muted_foreground))
-                            .child(self.t("console.liveTitle")),
+                        Button::new("toggle-console")
+                            .small()
+                            .ghost()
+                            .icon(hi(Huge::Console))
+                            .label(self.t("console.liveTitle"))
+                            .tooltip(if self.console_expanded {
+                                self.t("console.hide")
+                            } else {
+                                self.t("console.show")
+                            })
+                            .on_click(cx.listener(|this, _, _, _| {
+                                this.console_expanded = !this.console_expanded;
+                            })),
                     )
                     .child(
                         div()
                             .h_flex()
-                            .gap_2()
+                            .items_center()
+                            .gap_3()
+                            .text_size(px(12.))
+                            .text_color(cx.theme().muted_foreground)
                             .when(self.console_expanded && !self.logs.is_empty(), |this| {
                                 this.child(
                                     Button::new("clear-console")
@@ -1872,22 +1622,17 @@ impl Desk {
                                 )
                             })
                             .child(
-                                Button::new("toggle-console")
-                                    .small()
-                                    .ghost()
-                                    .icon(if self.console_expanded {
-                                        hi(Huge::ArrowDown)
-                                    } else {
-                                        hi(Huge::ArrowUp)
-                                    })
-                                    .label(if self.console_expanded {
-                                        self.t("console.hide")
-                                    } else {
-                                        self.t("console.show")
-                                    })
-                                    .on_click(cx.listener(|this, _, _, _| {
-                                        this.console_expanded = !this.console_expanded;
-                                    })),
+                                div()
+                                    .h_flex()
+                                    .items_center()
+                                    .gap_1p5()
+                                    .child(hi(Huge::ShieldCheck).size(px(14.)))
+                                    .child(self.t("ops.protected")),
+                            )
+                            .child(
+                                div()
+                                    .font_family("monospace")
+                                    .child(format!("v{}", self.version)),
                             ),
                     ),
             )
@@ -1895,15 +1640,14 @@ impl Desk {
                 this.child(
                     div()
                         .id("console-lines")
-                        .flex_1()
-                        .min_h_0()
+                        .h(px(140.))
                         .overflow_y_scrollbar()
-                        .border_t_1()
-                        .border_color(cx.theme().border)
+                        .rounded(px(10.))
+                        .bg(cx.theme().secondary)
                         .px_4()
                         .py_3()
                         .v_flex()
-                        .gap_2()
+                        .gap_1p5()
                         .font_family("monospace")
                         .text_size(px(12.))
                         .children(if self.logs.is_empty() {
@@ -2610,7 +2354,6 @@ impl Render for Desk {
                 .flex_1()
                 .min_h_0()
                 .h_flex()
-                .child(self.render_sidebar(cx))
                 .child(self.render_workspace(cx))
         };
 
@@ -2836,60 +2579,6 @@ fn surface(cx: &App) -> Div {
         .border_color(cx.theme().border)
         .bg(cx.theme().popover)
         .shadow_lg()
-}
-
-fn metric_tile(icon: Huge, value: String, label: String, tone: Hsla, cx: &App) -> Div {
-    div()
-        .flex_1()
-        .min_w_0()
-        .h_flex()
-        .items_center()
-        .gap_3()
-        .px_4()
-        .py_3()
-        .rounded(px(14.))
-        .border_1()
-        .border_color(cx.theme().border)
-        .bg(cx.theme().secondary)
-        .child(
-            div()
-                .size(px(32.))
-                .flex_none()
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded(px(10.))
-                .bg(tone.opacity(0.14))
-                .text_color(tone)
-                .child(hi(icon).size(px(16.))),
-        )
-        .child(
-            div()
-                .v_flex()
-                .min_w_0()
-                .child(
-                    div()
-                        .text_size(px(18.))
-                        .font_weight(FontWeight::BOLD)
-                        .child(value),
-                )
-                .child(
-                    div()
-                        .truncate()
-                        .text_size(px(12.))
-                        .text_color(cx.theme().muted_foreground)
-                        .child(label),
-                ),
-        )
-}
-
-fn sidebar_section_label(text: String, cx: &App) -> Div {
-    div()
-        .px_1()
-        .text_size(px(11.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(cx.theme().muted_foreground)
-        .child(text.to_uppercase())
 }
 
 fn centered_page(cx: &App) -> Div {

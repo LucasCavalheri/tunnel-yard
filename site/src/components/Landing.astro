@@ -1,6 +1,5 @@
 ---
 import {
-  Activity,
   ArrowRight,
   BellRing,
   Check,
@@ -186,8 +185,6 @@ const canonical = absolute(localePath(locale));
           </div>
 
           <div class="hero-product reveal reveal-delay-2" aria-label={t.hero.previewLabel}>
-            <div class="orbit orbit-one" aria-hidden="true"><span></span></div>
-            <div class="orbit orbit-two" aria-hidden="true"><span></span></div>
             <div class="app-window">
               <div class="app-titlebar">
                 <div class="window-controls" aria-hidden="true">
@@ -204,110 +201,57 @@ const canonical = absolute(localePath(locale));
                 </div>
               </div>
 
-              <div class="app-layout">
-                <aside class="app-sidebar">
-                  <div class="side-brand">
-                    <div class="side-brand-copy">
-                      <img src="/icon.svg" alt="" width="28" height="28" />
-                      <div>
-                        <strong>TunnelYard</strong>
-                        <small>{t.hero.app.controlDesk}</small>
-                      </div>
-                    </div>
-                    <span class="version-pill">v{version}</span>
+              <div class="app-body">
+                <div class="mock-heading">
+                  <div class="mock-title">
+                    <h2>{t.hero.app.yourTunnels}</h2>
+                    <p><i class="live-dot"></i>{t.hero.app.manageAll}</p>
                   </div>
-
-                  <div class="connection-summary">
-                    <div class="summary-icon"><Activity size={16} aria-hidden="true" /></div>
-                    <div><strong>{t.hero.app.connections}</strong><small>{t.hero.app.allStable}</small></div>
-                    <span class="live-indicator"></span>
-                  </div>
-
-                  <button class="mock-primary" type="button">
-                    <Plus size={14} aria-hidden="true" />
-                    {t.hero.app.newProfile}
-                  </button>
-                  <div class="side-links">
-                    <span><FileInput size={14} /> {t.hero.app.importConf}</span>
-                    <span><Settings2 size={14} /> {t.hero.app.preferences}</span>
-                  </div>
-                  <div class="side-spacer"></div>
-                  <div class="side-security">
-                    <ShieldCheck size={15} aria-hidden="true" />
-                    <div><strong>{t.hero.app.protectedRun}</strong><small>{t.hero.app.unprivileged}</small></div>
-                  </div>
-                </aside>
-
-                <div class="app-main">
-                  <div class="app-heading">
-                    <div><h2>{t.hero.app.yourTunnels}</h2><p>{t.hero.app.manageAll}</p></div>
-                    <div class="mock-search"><Search size={13} aria-hidden="true" /><span>{t.hero.app.searchProfile}</span></div>
-                  </div>
-
-                  <div class="profile-list">
-                    <article class="profile-card profile-connected">
-                      <div class="profile-mark mark-coral">HQ</div>
-                      <div class="profile-info">
-                        <div class="profile-name">
-                          <strong>Acme HQ</strong>
-                          <span class="status-badge connected"><i></i> {t.hero.app.connected}</span>
-                        </div>
-                        <p>vpn.acme.com · 10443</p>
-                        <div class="profile-stats"><span>12m 48s</span><span>↓ 28.4 MB</span><span>↑ 4.1 MB</span></div>
-                      </div>
-                      <button class="profile-action disconnect" type="button">{t.hero.app.disconnect}</button>
-                    </article>
-
-                    <article class="profile-card profile-connected">
-                      <div class="profile-mark mark-violet">NX</div>
-                      <div class="profile-info">
-                        <div class="profile-name">
-                          <strong>{t.hero.app.northClient}</strong>
-                          <span class="status-badge connected"><i></i> {t.hero.app.connected}</span>
-                        </div>
-                        <p>ssl.north.dev · 443</p>
-                        <div class="profile-stats"><span>04m 22s</span><span>↓ 8.6 MB</span><span>↑ 1.2 MB</span></div>
-                      </div>
-                      <button class="profile-action disconnect" type="button">{t.hero.app.disconnect}</button>
-                    </article>
-
-                    <article class="profile-card">
-                      <div class="profile-mark mark-blue">ST</div>
-                      <div class="profile-info">
-                        <div class="profile-name">
-                          <strong>{t.hero.app.staging}</strong>
-                          <span class="status-badge idle"><i></i> {t.hero.app.idle}</span>
-                        </div>
-                        <p>vpn.staging.internal · 443</p>
-                        <div class="profile-stats"><span>{t.hero.app.lastAccess}</span></div>
-                      </div>
-                      <button class="profile-action connect" type="button">{t.hero.app.connect}</button>
-                    </article>
-                  </div>
-
-                  <div class="console-panel">
-                    <div class="console-top">
-                      <span><SquareTerminal size={12} /> {t.hero.app.liveConsole}</span>
-                      <span class="console-live"><i></i> {t.hero.app.receiving}</span>
-                    </div>
-                    <div class="console-lines">
-                      <p><span>20:41:08</span> {t.hero.app.logUp}</p>
-                      <p><span>20:41:08</span> {t.hero.app.logRoutes}</p>
-                      <p class="console-accent"><span>20:41:09</span> {t.hero.app.logConnected}</p>
-                    </div>
+                  <div class="mock-tools">
+                    <div class="mock-search"><Search size={12} aria-hidden="true" /><span>{t.hero.app.searchProfile}</span></div>
+                    <span class="mock-icon" title={t.hero.app.importConf}><FileInput size={13} aria-hidden="true" /></span>
+                    <span class="mock-icon" title={t.hero.app.preferences}><Settings2 size={13} aria-hidden="true" /></span>
+                    <span class="mock-primary"><Plus size={12} aria-hidden="true" />{t.hero.app.newProfile}</span>
                   </div>
                 </div>
+
+                <div class="profile-list">
+                  <article class="profile-row is-live">
+                    <div class="profile-mark mark-coral">HQ</div>
+                    <div class="profile-info">
+                      <div class="profile-name"><strong>Acme HQ</strong><span class="status"><i></i>{t.hero.app.connected} · 12m 48s</span></div>
+                      <p>vpn.acme.com:10443 · ana.souza</p>
+                    </div>
+                    <span class="mock-icon"><FilePenLine size={12} aria-hidden="true" /></span>
+                    <span class="profile-action disconnect">{t.hero.app.disconnect}</span>
+                  </article>
+
+                  <article class="profile-row is-live">
+                    <div class="profile-mark mark-violet">NX</div>
+                    <div class="profile-info">
+                      <div class="profile-name"><strong>{t.hero.app.northClient}</strong><span class="status"><i></i>{t.hero.app.connected} · 04m 22s</span></div>
+                      <p>ssl.north.dev:443 · ana</p>
+                    </div>
+                    <span class="mock-icon"><FilePenLine size={12} aria-hidden="true" /></span>
+                    <span class="profile-action disconnect">{t.hero.app.disconnect}</span>
+                  </article>
+
+                  <article class="profile-row">
+                    <div class="profile-mark mark-blue">ST</div>
+                    <div class="profile-info">
+                      <div class="profile-name"><strong>{t.hero.app.staging}</strong><span class="status idle"><i></i>{t.hero.app.idle}</span></div>
+                      <p>vpn.staging.internal:443 · deploy</p>
+                    </div>
+                    <span class="mock-icon"><FilePenLine size={12} aria-hidden="true" /></span>
+                    <span class="profile-action connect">{t.hero.app.connect}</span>
+                  </article>
+                </div>
+
+                <div class="mock-console">
+                  <span><SquareTerminal size={12} aria-hidden="true" /> {t.hero.app.liveConsole}</span>
+                  <span><ShieldCheck size={11} aria-hidden="true" /> {t.hero.app.protectedRun} <em>v{version}</em></span>
+                </div>
               </div>
-            </div>
-
-            <div class="floating-toast toast-connected">
-              <span class="toast-icon"><CircleCheck size={18} /></span>
-              <div><strong>{t.hero.toastConnected}</strong><small>{t.hero.toastConnectedNote}</small></div>
-            </div>
-
-            <div class="floating-toast toast-recovery">
-              <span class="toast-icon"><RefreshCw size={16} /></span>
-              <div><strong>{t.hero.toastRecovery}</strong><small>{t.hero.toastRecoveryNote}</small></div>
             </div>
           </div>
         </div>
@@ -543,23 +487,6 @@ const canonical = absolute(localePath(locale));
         </div>
       </section>
 
-      <section class="final-cta section">
-        <div class="container">
-          <div class="cta-panel reveal">
-            <div class="cta-grid" aria-hidden="true"></div>
-            <div class="cta-orb cta-orb-one" aria-hidden="true"></div>
-            <div class="cta-orb cta-orb-two" aria-hidden="true"></div>
-            <img src="/icon.svg" alt="" width="72" height="72" class="cta-icon" />
-            <div class="eyebrow eyebrow-light"><Sparkles size={14} /> {t.cta.eyebrow}</div>
-            <h2>{t.cta.titleLine1}<br />{t.cta.titleLine2}</h2>
-            <p>{t.cta.body}</p>
-            <div class="cta-actions">
-              <a class="button button-white button-large" href="#install"><Download size={19} /> {fill(t.cta.download, { version })}</a>
-              <a class="button button-ghost-light button-large" href={repoUrl} target="_blank" rel="noreferrer"><Star size={18} /> {t.cta.github}</a>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer>

@@ -20,13 +20,12 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "Could not check the VPN client (openfortivpn).",
         "Não foi possível verificar o cliente de VPN (openfortivpn).",
     ),
-    ("brand.subtitle", "FortiGate VPN for Linux", "VPN FortiGate no Linux"),
     // statuses
     ("status.linkUp", "Connected", "Conectado"),
     ("status.handshake", "Connecting", "Conectando"),
     ("status.fault", "Error", "Erro"),
     ("status.idle", "Disconnected", "Desconectado"),
-    // sidebar and preferences
+    // header and preferences
     ("ops.autoRelink", "Reconnect automatically", "Reconectar automaticamente"),
     (
         "ops.autoRelinkHint",
@@ -45,16 +44,11 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("ops.languageHint", "Used everywhere in the app.", "Usado em todo o app."),
     ("ops.newProfile", "New profile", "Novo perfil"),
     ("ops.importConf", "Import .conf", "Importar .conf"),
-    ("ops.quickActions", "Actions", "Ações"),
-    ("ops.workspace", "VPN PROFILES", "PERFIS DE VPN"),
     (
         "ops.workspaceSummary",
         "{total} profiles · {active} connected",
         "{total} perfis · {active} conectados",
     ),
-    ("ops.totalProfiles", "profiles", "perfis"),
-    ("ops.connectedNow", "connected", "conectados"),
-    ("ops.connectingNow", "connecting", "conectando"),
     ("ops.preferences", "Preferences", "Preferências"),
     (
         "ops.preferencesHint",
@@ -69,15 +63,6 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ),
     ("ops.maintenance", "Maintenance", "Manutenção"),
     ("ops.protected", "Runs without root", "Roda sem root"),
-    (
-        "ops.unprivileged",
-        "PolicyKit asks for permission only when a tunnel starts.",
-        "O PolicyKit só pede permissão na hora de conectar.",
-    ),
-    ("ops.connectionOne", "{count} tunnel connected", "{count} túnel conectado"),
-    ("ops.connectionMany", "{count} tunnels connected", "{count} túneis conectados"),
-    ("ops.connectionsStable", "Everything is running", "Tudo funcionando"),
-    ("ops.noneActive", "Connect a profile to start", "Conecte um perfil para começar"),
     (
         "ops.deskSummary",
         "{up} connected · {connecting} connecting",
@@ -135,10 +120,8 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "Crie um perfil ou importe um arquivo .conf que você já usa com o openfortivpn.",
     ),
     ("profiles.live", "Connected · {uptime}", "Conectado · {uptime}"),
-    ("profiles.handshake", "Connecting…", "Conectando…"),
     ("profiles.bringUp", "Connect", "Conectar"),
     ("profiles.killLink", "Disconnect", "Desconectar"),
-    ("profiles.noUser", "No username", "Sem usuário"),
     ("profiles.edit", "Edit", "Editar"),
     ("profiles.delete", "Delete", "Excluir"),
     (

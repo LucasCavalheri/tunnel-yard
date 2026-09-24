@@ -1145,10 +1145,14 @@ fn landing_page_ships_the_portal_mark() {
     assert!(landing.contains("content={absolute(\"/icon.png\")}"));
     assert!(landing.contains("rel=\"apple-touch-icon\""));
     assert!(landing.contains("href=\"/icon-32.png\""));
-    assert!(landing.contains("class=\"side-brand-copy\""));
+    assert!(landing.contains("class=\"mock-heading\""));
     assert!(
-        landing.matches("src=\"/icon.svg\"").count() >= 6,
-        "header, preview, features, tray, CTA and footer should show the mark"
+        !landing.contains("app-sidebar"),
+        "the preview must match the app, which has no sidebar"
+    );
+    assert!(
+        landing.matches("src=\"/icon.svg\"").count() >= 5,
+        "header, preview, features, tray and footer should show the mark"
     );
 
     let dist_svg = root.join("site/dist/icon.svg");
@@ -1223,8 +1227,6 @@ fn landing_language_switch_and_github_star_are_wired() {
     assert!(release_utils.contains("stargazers_count"));
     assert!(en.contains("star: \"Star\""));
     assert!(pt.contains("star: \"Dar estrela\""));
-    assert!(en.contains("github: \"Star on GitHub\""));
-    assert!(pt.contains("github: \"Dar estrela no GitHub\""));
 }
 
 #[test]

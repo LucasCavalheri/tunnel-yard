@@ -56,14 +56,10 @@ export const ptBR: Dictionary = {
     previewLabel: "Prévia da janela do TunnelYard",
     trustedWith: "Funciona com",
     app: {
-      controlDesk: "VPN FortiGate no Linux",
-      connections: "2 túneis conectados",
-      allStable: "Tudo funcionando",
       newProfile: "Novo perfil",
       importConf: "Importar .conf",
       preferences: "Preferências",
       protectedRun: "Roda sem root",
-      unprivileged: "O PolicyKit só pede na hora de conectar.",
       yourTunnels: "Seus túneis",
       manageAll: "3 perfis · 2 conectados",
       searchProfile: "Buscar perfis",
@@ -73,17 +69,8 @@ export const ptBR: Dictionary = {
       connect: "Conectar",
       northClient: "Cliente North",
       staging: "Staging",
-      lastAccess: "Usado ontem",
       liveConsole: "Console",
-      receiving: "ao vivo",
-      logUp: "INFO: Tunnel is up and running.",
-      logRoutes: "INFO: Adding VPN nameservers...",
-      logConnected: "✓ Acme HQ está conectada",
     },
-    toastConnected: "VPN conectada",
-    toastConnectedNote: "A Acme HQ está pronta.",
-    toastRecovery: "Reconectou sozinho",
-    toastRecoveryNote: "O túnel caiu e voltou sem você fazer nada.",
   },
 
   problem: {
@@ -265,15 +252,6 @@ export const ptBR: Dictionary = {
     copy: "Copiar",
     copied: "Copiado",
     hint: "Precisa de root ou sudo. Funciona em x86_64 e ARM64 com apt, dnf, yum, zypper, pacman ou apk, e usa o arquivo portátil se não achar nenhum deles.",
-  },
-
-  cta: {
-    eyebrow: "Quando você quiser",
-    titleLine1: "Sua próxima conexão VPN",
-    titleLine2: "está a um clique.",
-    body: "Baixe o TunnelYard, importe os arquivos .conf que você já tem e volte ao trabalho.",
-    download: "Baixar v{version}",
-    github: "Dar estrela no GitHub",
   },
 
   footer: {

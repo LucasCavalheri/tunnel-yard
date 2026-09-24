@@ -56,14 +56,10 @@ export const en = {
     previewLabel: "Preview of the TunnelYard window",
     trustedWith: "Works with",
     app: {
-      controlDesk: "FortiGate VPN for Linux",
-      connections: "2 tunnels connected",
-      allStable: "Everything is running",
       newProfile: "New profile",
       importConf: "Import .conf",
       preferences: "Preferences",
       protectedRun: "Runs without root",
-      unprivileged: "PolicyKit asks only when you connect.",
       yourTunnels: "Your tunnels",
       manageAll: "3 profiles · 2 connected",
       searchProfile: "Search profiles",
@@ -73,17 +69,8 @@ export const en = {
       connect: "Connect",
       northClient: "North client",
       staging: "Staging",
-      lastAccess: "Last used yesterday",
       liveConsole: "Console",
-      receiving: "live",
-      logUp: "INFO: Tunnel is up and running.",
-      logRoutes: "INFO: Adding VPN nameservers...",
-      logConnected: "✓ Acme HQ is connected",
     },
-    toastConnected: "VPN connected",
-    toastConnectedNote: "Acme HQ is ready.",
-    toastRecovery: "Reconnected automatically",
-    toastRecoveryNote: "The tunnel dropped and came back on its own.",
   },
 
   problem: {
@@ -265,15 +252,6 @@ export const en = {
     copy: "Copy",
     copied: "Copied",
     hint: "Needs root or sudo. Works on x86_64 and ARM64 with apt, dnf, yum, zypper, pacman or apk, and falls back to the portable archive.",
-  },
-
-  cta: {
-    eyebrow: "Ready when you are",
-    titleLine1: "Your next VPN connection",
-    titleLine2: "is one click away.",
-    body: "Download TunnelYard, import the .conf files you already have and get back to work.",
-    download: "Download v{version}",
-    github: "Star on GitHub",
   },
 
   footer: {
