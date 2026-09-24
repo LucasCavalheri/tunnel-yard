@@ -188,6 +188,8 @@ struct Desk {
     setup_tx: mpsc::Sender<SetupMsg>,
     search: Entity<InputState>,
     applied_mode: Option<String>,
+    /// `TUNNELYARD_SHOT=demo`: made-up profiles, nothing read from /etc, no tunnels touched.
+    demo: Option<VpnState>,
     preferences_open: bool,
     console_expanded: bool,
 }
@@ -251,7 +253,9 @@ pub fn run(hidden: bool) -> Result<(), String> {
 impl Drop for Desk {
     fn drop(&mut self) {
         *self.quitting.lock().unwrap() = true;
-        self.vpn.lock().unwrap().disconnect(None);
+        if self.demo.is_none() {
+            self.vpn.lock().unwrap().disconnect(None);
+        }
         #[cfg(target_os = "linux")]
         if let Some(handle) = self.linux_tray.take() {
             handle.shutdown();
@@ -331,6 +335,7 @@ impl Desk {
             setup_tx,
             search,
             applied_mode: None,
+            demo: None,
             preferences_open: false,
             console_expanded: false,
         };
@@ -342,7 +347,15 @@ impl Desk {
             }
             Err(_) => desk.boot_error = Some(desk.t("boot.probeFailed")),
         }
-        if desk.deps_ready {
+        if tunnel_yard::demo::is_demo(std::env::var("TUNNELYARD_SHOT").ok().as_deref()) {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|since| since.as_millis())
+                .unwrap_or_default();
+            desk.boot_error = None;
+            desk.deps_ready = true;
+            desk.demo = Some(tunnel_yard::demo::state(now));
+        } else if desk.deps_ready {
             desk.profiles = desk.vpn.lock().unwrap().get_profiles();
             desk.state = desk.vpn.lock().unwrap().get_state();
         }
@@ -542,6 +555,9 @@ impl Desk {
     }
 
     fn toggle_profile(&self, id: &str) {
+        if self.demo.is_some() {
+            return;
+        }
         let active = self
             .state
             .sessions
@@ -713,7 +729,6 @@ impl Desk {
 
     fn render_header(&self, cx: &mut Context<Self>) -> Div {
         let summary = summarize_vpn_state(&self.state);
-        let active_count = summary.connected_count + summary.connecting_count;
         let pulse = if summary.connected_count > 0 {
             cx.theme().success
         } else if summary.connecting_count > 0 {
@@ -746,12 +761,9 @@ impl Desk {
                             .text_size(px(13.))
                             .text_color(cx.theme().muted_foreground)
                             .child(div().size(px(6.)).flex_none().rounded(px(999.)).bg(pulse))
-                            .child(line(self.tv(
-                                "ops.workspaceSummary",
-                                &[
-                                    ("total", self.profiles.len().to_string()),
-                                    ("active", active_count.to_string()),
-                                ],
+                            .child(line(tunnel_yard::workspace_summary(
+                                self.profiles.len(),
+                                &self.state,
                             ))),
                     ),
             )
@@ -1553,7 +1565,7 @@ impl Desk {
                     )
                     .child(
                         Button::new(format!("toggle-{profile_id}"))
-                            .w(px(128.))
+                            .min_w(px(140.))
                             .when(active, |button| button.danger().outline())
                             .when(!active, |button| button.primary())
                             .loading(status == VpnStatus::Connecting)
@@ -2342,6 +2354,10 @@ impl Desk {
 impl Render for Desk {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.ensure_theme(window, cx);
+        if let Some(state) = &self.demo {
+            self.profiles = tunnel_yard::demo::profiles();
+            self.state = state.clone();
+        }
         let content = if let Some(error) = self.boot_error.clone() {
             self.render_boot_fault(error, cx)
         } else if !self.deps_ready {
