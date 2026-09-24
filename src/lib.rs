@@ -13,6 +13,7 @@ pub mod deps;
 pub mod desktop;
 pub mod i18n;
 pub mod icons;
+pub mod layout;
 pub mod modal_layout;
 pub mod os_ui;
 pub mod platform;
