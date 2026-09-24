@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 3.0.7
+
+- The window is one calm column now. The sidebar is gone: search, import,
+  preferences and New profile sit in the header, so nothing gets cut off at
+  the edge anymore.
+- Profiles are lighter rows instead of heavy cards, and your user shows up
+  once. Long hosts and user names end in "…" instead of running under the
+  buttons.
+- The console is a slim footer that also shows the version and that the app
+  runs without root.
+- The website shows the new window and is shorter: no floating cards and no
+  big orange banner at the end.
+
 ## 3.0.6
 
 - Rewrote every message in the app and on the website, in English and Portuguese,
