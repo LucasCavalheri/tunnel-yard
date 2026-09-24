@@ -31,7 +31,6 @@ export const en = {
     product: "Product",
     features: "Features",
     security: "Security",
-    performance: "Performance",
     downloads: "Downloads",
     github: "GitHub",
     viewOnGithub: "View on GitHub",
@@ -56,14 +55,10 @@ export const en = {
     previewLabel: "Preview of the TunnelYard window",
     trustedWith: "Works with",
     app: {
-      controlDesk: "FortiGate VPN for Linux",
-      connections: "2 tunnels connected",
-      allStable: "Everything is running",
       newProfile: "New profile",
       importConf: "Import .conf",
       preferences: "Preferences",
       protectedRun: "Runs without root",
-      unprivileged: "PolicyKit asks only when you connect.",
       yourTunnels: "Your tunnels",
       manageAll: "3 profiles · 2 connected",
       searchProfile: "Search profiles",
@@ -73,17 +68,8 @@ export const en = {
       connect: "Connect",
       northClient: "North client",
       staging: "Staging",
-      lastAccess: "Last used yesterday",
       liveConsole: "Console",
-      receiving: "live",
-      logUp: "INFO: Tunnel is up and running.",
-      logRoutes: "INFO: Adding VPN nameservers...",
-      logConnected: "✓ Acme HQ is connected",
     },
-    toastConnected: "VPN connected",
-    toastConnectedNote: "Acme HQ is ready.",
-    toastRecovery: "Reconnected automatically",
-    toastRecoveryNote: "The tunnel dropped and came back on its own.",
   },
 
   problem: {
@@ -169,43 +155,6 @@ export const en = {
     stepThreeBody: "Each tunnel is a separate process, so one failing never takes the others down.",
   },
 
-  performance: {
-    eyebrow: "Performance notes",
-    titleLine1: "Every MiB,",
-    titleLine2: "on the record.",
-    intro: "One measurement on one machine, reported in full, including what it does not prove.",
-    conditions: "Linux x64 · v{measuredVersion} debug build · {date}",
-
-    headlineLabel: "App with 2 tunnels connected",
-    headlineNote: "Average resident memory",
-    headlineUnit: "RSS · 60 samples, one per second",
-
-    splitTitle: "Where the memory goes",
-    interfaceLabel: "Interface",
-    interfaceNote: "The TunnelYard window (Rust and GPUI)",
-    enginesLabel: "VPN processes",
-    enginesNote: "Two openfortivpn and two pppd",
-
-    stabilityTitle: "Change over the minute",
-    stabilityValue: "{drift} MiB",
-    stabilityBody:
-      "The total change across all 60 samples. Memory stayed flat the whole time, so a chart would just be a straight line.",
-
-    caveatLabel: "ONE MACHINE",
-    caveat:
-      "One computer, a development build, one minute. This is not a benchmark and not a promise about your machine.",
-
-    methodLead: "The numbers come with context.",
-    methodLeadStrong: "So does the method.",
-    methodSummary: "How we measured",
-    methodOne:
-      "Ubuntu 26.04.1 LTS, x86_64, development build {measuredVersion}, measured on {date}: 60 readings of VmRSS from /proc/PID/status, one second apart. Interface is the app window. VPN processes is the sum of two openfortivpn and two pppd.",
-    methodTwo:
-      "We also measured a freshly opened app with no tunnels at {idle} MiB. We leave that number out of the comparison on purpose: it was a different process, running for a different time, with a different screen open. The difference between the two says nothing about what connecting costs.",
-    methodThree:
-      "Adding RSS values can count shared memory more than once. GPU, kernel, shells and desktop services are not included. No passwords were read and the existing connections were left alone. Other machines and release builds will differ.",
-  },
-
   downloads: {
     eyebrow: "Version {version}",
     title: "Pick your Linux.",
@@ -265,15 +214,6 @@ export const en = {
     copy: "Copy",
     copied: "Copied",
     hint: "Needs root or sudo. Works on x86_64 and ARM64 with apt, dnf, yum, zypper, pacman or apk, and falls back to the portable archive.",
-  },
-
-  cta: {
-    eyebrow: "Ready when you are",
-    titleLine1: "Your next VPN connection",
-    titleLine2: "is one click away.",
-    body: "Download TunnelYard, import the .conf files you already have and get back to work.",
-    download: "Download v{version}",
-    github: "Star on GitHub",
   },
 
   footer: {
