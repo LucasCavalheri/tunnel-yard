@@ -1,0 +1,198 @@
+---
+import { ChevronDown } from "@lucide/astro";
+import memory from "../data/memory.json";
+import { fill, formatNumber, type Dictionary, type Locale } from "../i18n";
+
+interface Props {
+  locale: Locale;
+  t: Dictionary;
+}
+
+const { locale, t } = Astro.props;
+
+const active = memory.groups.active;
+const engines = memory.groups.engines;
+
+const total = active.mean + engines.mean;
+const interfaceShare = (active.mean / total) * 100;
+const enginesShare = (engines.mean / total) * 100;
+
+// The point of this section: state the movement instead of plotting it. Across
+// the recording the drift is 0.25 MiB, so a chart would draw a straight line.
+const totals = active.values.map((value, index) => value + engines.values[index]);
+const drift = Math.max(...totals) - Math.min(...totals);
+
+const num = (value: number, digits = 1) => formatNumber(locale, value, digits);
+const percent = (value: number) => `${formatNumber(locale, value, 1)}%`;
+
+const measuredVersion = memory.environment.version;
+const measuredDate = new Intl.DateTimeFormat(locale, {
+  day: "2-digit",
+  month: locale === "en" ? "short" : "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+}).format(new Date(`${memory.environment.date}T00:00:00Z`));
+
+const conditions = fill(t.performance.conditions, { measuredVersion, date: measuredDate });
+---
+
+<section class="memory-lab section" id="performance" aria-labelledby="memory-title">
+  <div class="container">
+    <div class="lab-heading">
+      <div>
+        <div class="lab-kicker reveal">{t.performance.eyebrow}</div>
+        <h2 id="memory-title" class="reveal">{t.performance.titleLine1}<br /><span>{t.performance.titleLine2}</span></h2>
+      </div>
+      <div class="lab-intro reveal reveal-delay-1">
+        <p>{t.performance.intro}</p>
+        <span>{conditions}</span>
+      </div>
+    </div>
+
+    <div class="lab-panel reveal reveal-delay-1">
+      <div class="lab-reading">
+        <span class="lab-label">{t.performance.headlineLabel}</span>
+        <div class="lab-number"><strong>{num(total)}</strong><span>MiB</span></div>
+        <p class="lab-reading-note">{t.performance.headlineNote}<span>{t.performance.headlineUnit}</span></p>
+      </div>
+
+      <div class="lab-detail">
+        <h3>{t.performance.splitTitle}</h3>
+
+        <div class="lab-bar" aria-hidden="true">
+          <span class="bar-interface" style={`width:${interfaceShare}%`}></span>
+          <span class="bar-engines" style={`width:${enginesShare}%`}></span>
+        </div>
+
+        <dl class="lab-split">
+          <div>
+            <dt><i class="lab-key key-interface"></i>{t.performance.interfaceLabel}</dt>
+            <dd><strong>{num(active.mean)}</strong> <small>MiB</small> <span>{percent(interfaceShare)}</span></dd>
+            <p>{t.performance.interfaceNote}</p>
+          </div>
+          <div>
+            <dt><i class="lab-key key-engines"></i>{t.performance.enginesLabel}</dt>
+            <dd><strong>{num(engines.mean)}</strong> <small>MiB</small> <span>{percent(enginesShare)}</span></dd>
+            <p>{t.performance.enginesNote}</p>
+          </div>
+        </dl>
+
+        <div class="lab-stability">
+          <div class="stability-top">
+            <h4>{t.performance.stabilityTitle}</h4>
+            <strong>{fill(t.performance.stabilityValue, { drift: num(drift, 2) })}</strong>
+          </div>
+          <p>{t.performance.stabilityBody}</p>
+        </div>
+      </div>
+
+      <div class="lab-footer">
+        <span>{t.performance.caveatLabel}</span>
+        <p>{t.performance.caveat}</p>
+      </div>
+    </div>
+
+    <div class="lab-method reveal">
+      <p>{t.performance.methodLead}<br /><strong>{t.performance.methodLeadStrong}</strong></p>
+      <details>
+        <summary>{t.performance.methodSummary} <ChevronDown size={16} aria-hidden="true" /></summary>
+        <div>
+          <p>{fill(t.performance.methodOne, { measuredVersion, date: measuredDate })}</p>
+          <p>{fill(t.performance.methodTwo, { idle: num(memory.groups.idle.mean) })}</p>
+          <p>{t.performance.methodThree}</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<style>
+  .memory-lab { padding: 130px 0 118px; background: #efede6; color: #1a201c; border-bottom: 1px solid #dedbd2; scroll-margin-top: 70px; }
+
+  .lab-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 48px; margin-bottom: 44px; }
+  .lab-kicker { font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .12em; color: #6d7266; margin-bottom: 22px; }
+  h2 { font-size: clamp(40px, 5vw, 68px); line-height: 1.05; letter-spacing: -.05em; font-weight: 650; }
+  h2 span { color: #7c8173; }
+  .lab-intro { max-width: 360px; padding-bottom: 6px; }
+  .lab-intro p { font-size: 15px; line-height: 1.75; color: #4d5449; }
+  .lab-intro > span { display: block; margin-top: 18px; font: 10px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; color: #7b8074; letter-spacing: .04em; }
+
+  .lab-panel { background: #171b18; color: #ecefe5; border: 1px solid #303830; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 45px -25px rgba(40, 50, 35, .4), 0 2px 3px rgba(40, 50, 35, .12); display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+
+  .lab-reading { padding: 40px 32px; border-right: 1px solid #30372f; display: flex; flex-direction: column; justify-content: center; }
+  .lab-label { display: block; font-size: 12px; line-height: 1.6; color: #b0b9a7; max-width: 190px; }
+  .lab-number { display: flex; align-items: baseline; gap: 10px; margin: 24px 0 12px; }
+  .lab-number strong { font-size: clamp(52px, 5vw, 68px); font-weight: 500; line-height: 1; letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
+  .lab-number > span { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #a0ab95; }
+  .lab-reading-note { font-size: 12px; line-height: 1.7; color: #a5af9b; }
+  .lab-reading-note > span { display: block; margin-top: 6px; color: #78856f; font: 10px/1.9 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .lab-detail { padding: 36px 32px 32px; min-width: 0; }
+  .lab-detail h3 { font-size: 12px; font-weight: 500; color: #b9c2af; letter-spacing: .01em; }
+
+  .lab-bar { display: flex; gap: 3px; height: 10px; margin: 20px 0 26px; }
+  .lab-bar span { border-radius: 2px; }
+  .bar-interface { background: #f27649; }
+  .bar-engines { background: #bdd0b0; }
+
+  .lab-split { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .lab-split dt { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aab4a1; }
+  .lab-split dd { margin: 10px 0 0; display: flex; align-items: baseline; gap: 7px; }
+  .lab-split dd strong { font-size: 27px; font-weight: 500; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .lab-split dd small { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #9da993; }
+  .lab-split dd > span { margin-left: 10px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8b9880; }
+  .lab-split p { margin-top: 8px; font-size: 11px; line-height: 1.7; color: #85927b; }
+  .lab-key { display: inline-block; width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
+  .key-interface { background: #f27649; }
+  .key-engines { background: #bdd0b0; }
+
+  .lab-stability { border-top: 1px solid #30372f; margin-top: 30px; padding-top: 22px; }
+  .stability-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .stability-top h4 { font-size: 12px; font-weight: 500; color: #b9c2af; }
+  .stability-top strong { font: 500 20px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #d8e1ca; font-variant-numeric: tabular-nums; }
+  .lab-stability p { margin-top: 12px; font-size: 11px; line-height: 1.8; color: #85927b; max-width: 62ch; }
+
+  .lab-footer { grid-column: 1 / -1; border-top: 1px solid #30372f; display: flex; align-items: center; gap: 22px; padding: 16px 32px; color: #8f9c83; }
+  .lab-footer > span { font: 8px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; white-space: nowrap; }
+  .lab-footer p { font-size: 10px; line-height: 1.6; }
+
+  .lab-method { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 36px; }
+  .lab-method > p { color: #85897c; font-size: 13px; line-height: 1.9; }
+  .lab-method strong { color: #555e4e; font-weight: 500; }
+  .lab-method details { border-top: 1px solid #c9ccbf; }
+  .lab-method summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; padding: 17px 0; color: #4a5543; font-size: 12px; list-style: none; }
+  .lab-method summary::-webkit-details-marker { display: none; }
+  .lab-method summary svg { transition: transform 200ms ease; flex-shrink: 0; }
+  .lab-method details[open] summary svg { transform: rotate(180deg); }
+  .lab-method details p { color: #6a7461; font-size: 12px; line-height: 1.9; margin-bottom: 14px; }
+  .lab-method details p:last-child { margin-bottom: 20px; }
+
+  @media (max-width: 1000px) {
+    .lab-panel { grid-template-columns: 250px minmax(0, 1fr); }
+    .lab-reading { padding: 30px 24px; }
+    .lab-detail { padding: 30px 24px 26px; }
+    .lab-split { gap: 22px; }
+    .lab-footer { padding: 16px 24px; }
+  }
+
+  @media (max-width: 760px) {
+    .lab-heading { display: block; margin-bottom: 30px; }
+    .lab-intro { margin-top: 24px; max-width: none; }
+    .lab-panel { grid-template-columns: 1fr; }
+    .lab-reading { border-right: 0; border-bottom: 1px solid #30372f; padding: 28px 22px; }
+    .lab-label { max-width: none; }
+    .lab-detail { padding: 28px 22px 24px; }
+    .lab-split { grid-template-columns: 1fr; gap: 24px; }
+    .lab-footer { padding: 16px 22px; display: block; }
+    .lab-footer p { margin-top: 7px; }
+    .lab-method { grid-template-columns: 1fr; gap: 20px; margin-top: 26px; }
+  }
+
+  @media (max-width: 640px) {
+    .memory-lab { padding-block: 92px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lab-method summary svg { transition: none; }
+  }
+</style>

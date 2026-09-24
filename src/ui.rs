@@ -1316,8 +1316,7 @@ impl Desk {
             .flex_1()
             .min_h_0()
             .v_flex()
-            .gap_1()
-            .mx(px(-12.))
+            .gap_2()
             .overflow_y_scrollbar();
 
         if self.profiles.is_empty() {
@@ -1442,7 +1441,6 @@ impl Desk {
             VpnStatus::Error => cx.theme().danger,
             VpnStatus::Disconnected => cx.theme().muted_foreground,
         };
-        // A resting profile says nothing; only a live, starting or failed one earns a label.
         let status_label = match status {
             VpnStatus::Connected => Some(
                 session
@@ -1453,7 +1451,7 @@ impl Desk {
             ),
             VpnStatus::Connecting => Some(self.t("status.handshake")),
             VpnStatus::Error => Some(self.t("status.fault")),
-            VpnStatus::Disconnected => None,
+            VpnStatus::Disconnected => Some(self.t("status.idle")),
         };
         let error = (status == VpnStatus::Error)
             .then(|| session.as_ref().map(|session| session.message.clone()))
@@ -1473,7 +1471,17 @@ impl Desk {
             .px_3()
             .py_3()
             .rounded(px(12.))
-            .when(active, |this| this.bg(status_color.opacity(0.06)))
+            .border_1()
+            .border_color(if active {
+                status_color.opacity(0.22)
+            } else {
+                cx.theme().border.opacity(0.55)
+            })
+            .bg(if active {
+                status_color.opacity(0.06)
+            } else {
+                cx.theme().secondary.opacity(0.45)
+            })
             .hover(|this| this.bg(cx.theme().secondary))
             .child(row(
                 div()
