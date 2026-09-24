@@ -23,10 +23,10 @@ para um 404 em `/_astro/*.css` não publicar a página sem estilo. O site está
 publicado em <https://tunnelyard.lucascavalheri.com.br/>.
 
 Previews continuam sendo criados para pull requests e outras branches, mas o
-deploy automático de produção no `master` fica desativado em
+deploy automático de produção na `main` fica desativado em
 [`vercel.json`](./vercel.json). O workflow de release publica primeiro os
 artefatos no GitHub e só então chama o Deploy Hook da Vercel configurado para a
-branch `master`. A URL do hook deve existir no secret de Actions
+branch `main`. A URL do hook deve existir no secret de Actions
 `VERCEL_DEPLOY_HOOK_URL`.
 
 ## Idiomas

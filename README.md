@@ -124,11 +124,12 @@ When a newer GitHub release exists, the main window, Preferences and tray item *
 
 ### 🏷️ Publishing a release
 
-Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, commit, tag, push:
+`main` only takes pull requests with a green `CI` check, and `v*` tags cannot be moved or deleted. Bump `version` in `Cargo.toml`, add a `CHANGELOG.md` section, merge that pull request, then tag the merge:
 
 ```bash
+git switch main && git pull
 git tag v3.0.8
-git push origin master --follow-tags
+git push origin v3.0.8
 ```
 
 CI ([`.github/workflows/release.yml`](.github/workflows/release.yml)) tests, builds native packages and copies that changelog section into the GitHub release notes.
