@@ -26,6 +26,13 @@
   <img src="https://img.shields.io/badge/built%20with-Rust-informational.svg" alt="Built with Rust">
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/window-en-dark.webp">
+    <img src="docs/screenshots/window-en-light.webp" width="840" alt="The TunnelYard window: two tunnels connected, one connecting and one idle">
+  </picture>
+</p>
+
 TunnelYard 3 is Linux-only. It speaks **openfortivpn**, stores profiles in `/etc/openfortivpn`, and asks PolicyKit when a tunnel actually needs privilege. Connect one tunnel or several, hide the window, get a notification when a link drops, and let the app bring it back.
 
 ---
@@ -203,6 +210,7 @@ cargo run
 | `cargo run` | Desktop UI |
 | `cargo run -- --hidden` | Start hidden (tray / login item) |
 | `cargo run -- --smoke` | Engine/settings/profile JSON, then exit |
+| `TUNNELYARD_SHOT=demo cargo run` | Made-up profiles on `.example` hosts for screenshots; nothing is read from `/etc/openfortivpn` and no tunnel is touched |
 | `cargo test` | Domain tests |
 | `cargo build --release` | Optimized `tunnel-yard` |
 
