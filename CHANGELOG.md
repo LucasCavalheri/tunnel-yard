@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 3.0.8
+
+- "Desconectar" no longer gets cut to "Descone…" in Portuguese.
+- The line under "Your tunnels" counts only tunnels that are connected, not
+  the ones still connecting.
+- The README shows the new window. The screenshots use made-up profiles, and
+  `TUNNELYARD_SHOT=demo` lets you take your own without showing real hosts.
+- The website preview uses `.example` hosts only.
+
 ## 3.0.7
 
 - The window is one calm column now. The sidebar is gone: search, import,
