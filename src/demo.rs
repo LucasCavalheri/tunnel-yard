@@ -59,3 +59,22 @@ pub fn state(now_ms: u128) -> VpnState {
         auto_reconnect: true,
     }
 }
+
+/// The window's first size and the smallest it can be resized to.
+pub const WINDOW_SIZE: (f32, f32) = (1120., 740.);
+pub const WINDOW_MIN_SIZE: (f32, f32) = (900., 620.);
+
+/// `TUNNELYARD_WINDOW=WIDTHxHEIGHT` opens the window at that size, for screenshots at every
+/// size (`scripts/screenshots.sh`). Unset or unreadable: the normal size. Never below the minimum.
+pub fn window_size(spec: Option<&str>) -> (f32, f32) {
+    let parsed = spec.and_then(|spec| {
+        let (w, h) = spec.trim().split_once('x')?;
+        Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?))
+    });
+    match parsed {
+        Some((w, h)) if w.is_finite() && h.is_finite() => {
+            (w.max(WINDOW_MIN_SIZE.0), h.max(WINDOW_MIN_SIZE.1))
+        }
+        _ => WINDOW_SIZE,
+    }
+}

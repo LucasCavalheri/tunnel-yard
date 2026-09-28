@@ -212,6 +212,7 @@ cargo run
 | `cargo run -- --hidden` | Start hidden (tray / login item) |
 | `cargo run -- --smoke` | Engine/settings/profile JSON, then exit |
 | `TUNNELYARD_SHOT=demo cargo run` | Made-up profiles on `.example` hosts for screenshots; nothing is read from `/etc/openfortivpn` and no tunnel is touched |
+| `scripts/screenshots.sh [--video]` | The same demo on a virtual display, at every window size, theme and language (and recordings with `--video`); no window opens on your desktop. Needs `xvfb` and `ffmpeg` |
 | `cargo test` | Domain tests |
 | `cargo build --release` | Optimized `tunnel-yard` |
 

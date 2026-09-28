@@ -63,3 +63,16 @@ fn the_summary_counts_only_tunnels_that_are_up() {
         "4 perfis · 2 conectados"
     );
 }
+
+#[test]
+fn window_size_follows_the_env_but_never_goes_below_the_minimum() {
+    assert_eq!(demo::window_size(None), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("1920x1080")), (1920., 1080.));
+    assert_eq!(demo::window_size(Some(" 1366x768 ")), (1366., 768.));
+    assert_eq!(demo::window_size(Some("640x480")), demo::WINDOW_MIN_SIZE);
+    assert_eq!(demo::window_size(Some("640x900")), (900., 900.));
+    assert_eq!(demo::window_size(Some("wide")), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("1366xtall")), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("infxinf")), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("")), demo::WINDOW_SIZE);
+}

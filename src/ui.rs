@@ -209,8 +209,11 @@ pub fn run(hidden: bool) -> Result<(), String> {
                 .ok()
                 .map(|image| Arc::new(image.into_rgba8()));
             let mut options = TitleBar::window_options();
-            options.window_bounds = Some(WindowBounds::centered(size(px(1120.), px(740.)), cx));
-            options.window_min_size = Some(size(px(900.), px(620.)));
+            let (width, height) =
+                tunnel_yard::demo::window_size(std::env::var("TUNNELYARD_WINDOW").ok().as_deref());
+            let (min_width, min_height) = tunnel_yard::demo::WINDOW_MIN_SIZE;
+            options.window_bounds = Some(WindowBounds::centered(size(px(width), px(height)), cx));
+            options.window_min_size = Some(size(px(min_width), px(min_height)));
             options.app_id = Some(tunnel_yard::APP_ID.into());
             options.show = !hidden;
             options.icon = icon;
