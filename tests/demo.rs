@@ -95,14 +95,10 @@ fn window_size_follows_the_env_but_never_goes_below_the_minimum() {
 #[test]
 fn a_capture_manager_reads_no_profile_and_sends_nothing() {
     use std::sync::mpsc::TryRecvError;
-    use tunnel_yard::vpn::{VpnEvent, VpnManager};
+    use tunnel_yard::vpn::VpnManager;
 
+    // Only the offline manager: the normal one reads the host's real /etc/openfortivpn.
     let (offline, rx) = VpnManager::subscribe_offline();
     assert!(offline.get_profiles().is_empty());
     assert!(matches!(rx.try_recv(), Err(TryRecvError::Empty)));
-
-    // The normal manager reads profiles on start and says so: the offline one is the only
-    // difference a capture relies on.
-    let (_normal, rx) = VpnManager::subscribe();
-    assert!(matches!(rx.try_recv(), Ok(VpnEvent::Profiles(_))));
 }

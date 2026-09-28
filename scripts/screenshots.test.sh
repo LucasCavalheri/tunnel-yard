@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Argument handling of scripts/screenshots.sh, without a display. The capture itself runs in CI.
+# Argument handling and helpers of scripts/screenshots.sh, without a display. The capture itself
+# runs in CI. Needs ffmpeg (the paint check is tested on real frames): sudo apt install ffmpeg.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 script=scripts/screenshots.sh
@@ -54,7 +55,8 @@ done
 if command -v ffmpeg >/dev/null; then
   frames=$(mktemp -d)
   ffmpeg -loglevel error -y -f lavfi -i color=black:s=64x64 -frames:v 1 "$frames/black.png"
-  ffmpeg -loglevel error -y -f lavfi -i color=0x1a1d21:s=64x64 -frames:v 1 "$frames/dark.png"
+  # As dark as the darkest real capture (YAVG ~31), so the 20-to-31 margin is what is tested.
+  ffmpeg -loglevel error -y -f lavfi -i color=0x121417:s=64x64 -frames:v 1 "$frames/dark.png"
   ffmpeg -loglevel error -y -f lavfi -i color=0xf4f1ea:s=64x64 -frames:v 1 "$frames/light.png"
   [[ $(bash "$script" --painted "$frames/black.png") == blank ]] || { echo "FAIL: a black screen counted as painted" >&2; fail=1; }
   [[ $(bash "$script" --painted "$frames/dark.png") == painted ]] || { echo "FAIL: the dark theme did not count as painted" >&2; fail=1; }
