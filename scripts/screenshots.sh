@@ -30,11 +30,17 @@ binary=""
 out=target/screenshots
 dry_run=0
 
-# Seconds of black lead-in to cut: from launch to 0.2 s before the first paint, never negative.
-lead_in() { awk -v a="$1" -v b="$2" 'BEGIN { d = b - a - 0.2; printf "%.2f", (d > 0 ? d : 0) }'; }
+# Seconds of black at the very start of a recording, read from ffmpeg's blackdetect log on stdin:
+# the end of a black stretch that starts at 0. No such stretch: 0.
+black_lead() {
+  awk '/black_start:/ {
+    for (i = 1; i <= NF; i++) { split($i, kv, ":"); v[kv[1]] = kv[2] }
+    if (v["black_start"] + 0 < 0.05) { printf "%.2f\n", v["black_end"]; found = 1; exit }
+  } END { if (!found) print "0.00" }'
+}
 
-# Internal, for scripts/screenshots.test.sh: prints lead_in STARTED PAINTED and exits.
-if [[ ${1:-} == --lead-in ]]; then lead_in "$2" "$3"; echo; exit 0; fi
+# Internal, for scripts/screenshots.test.sh: black_lead on stdin, then exit.
+if [[ ${1:-} == --black-lead ]]; then black_lead; exit 0; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -115,8 +121,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-now() { date +%s.%N; }
-
 # Luma of the virtual screen: ~0 while it is still black, above 3 once the window has painted.
 luma() {
   ffmpeg -loglevel error -f x11grab -video_size "$1" -i "$display" -frames:v 1 \
@@ -172,7 +176,6 @@ for s in "${size_list[@]}"; do
         -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$scratch/raw.mp4" </dev/null &
       rec_pid=$!
     fi
-    started=$(now)
     "${run_env[@]}" "$binary" >"$scratch/app.log" 2>&1 &
     app_pid=$!
     if ! wait_for_paint "${w}x${h}"; then
@@ -180,13 +183,13 @@ for s in "${size_list[@]}"; do
       tail -20 "$scratch/app.log" >&2
       exit 1
     fi
-    painted=$(now)
     sleep "$wait_s"
     ffmpeg -loglevel error -y -f x11grab -video_size "${w}x${h}" -i "$display" -frames:v 1 -update 1 "$out/$name.png"
     if [[ -n $rec_pid ]]; then
       kill -INT "$rec_pid" 2>/dev/null || true
       wait "$rec_pid" 2>/dev/null || true
-      lead=$(lead_in "$started" "$painted")
+      # Cut what is still black before the window shows (Xvfb and software Vulkan start slowly).
+      lead=$(ffmpeg -loglevel info -i "$scratch/raw.mp4" -vf "blackdetect=d=0.1:pix_th=0.05" -an -f null - 2>&1 | black_lead)
       ffmpeg -loglevel error -y -ss "$lead" -i "$scratch/raw.mp4" -t "$wait_s" \
         -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p "$out/$name.mp4"
       frames=$(( wait_s * 30 ))

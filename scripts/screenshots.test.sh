@@ -31,13 +31,17 @@ one=$(bash "$script" --dry-run --sizes 1366x768 --shots demo --themes dark --loc
 
 expect_exit 0 --help
 
-# The recording's lead-in must keep a decimal point on a pt-BR desktop (ffmpeg -ss rejects "1,30").
+# The black lead-in read from ffmpeg's blackdetect log, with a decimal point on a pt-BR desktop too.
+log='[blackdetect @ 0x1] black_start:0 black_end:0.666667 black_duration:0.666667'
 for locale in pt_BR.UTF-8 C; do
-  got=$(LC_ALL=$locale LANG=$locale bash "$script" --lead-in 1700000000.10 1700000001.60 2>/dev/null)
-  [[ $got == 1.30 ]] || { echo "FAIL: lead-in under $locale was '$got', expected 1.30" >&2; fail=1; }
+  got=$(LC_ALL=$locale LANG=$locale bash "$script" --black-lead <<< "$log" 2>/dev/null)
+  [[ $got == 0.67 ]] || { echo "FAIL: black lead-in under $locale was '$got', expected 0.67" >&2; fail=1; }
 done
-got=$(bash "$script" --lead-in 1700000003.00 1700000001.00)
-[[ $got == 0.00 ]] || { echo "FAIL: a paint before launch must not give a negative lead-in, got '$got'" >&2; fail=1; }
+got=$(bash "$script" --black-lead <<< '[blackdetect @ 0x1] black_start:2.5 black_end:3 black_duration:0.5')
+[[ $got == 0.00 ]] || { echo "FAIL: black later in the clip is not a lead-in, got '$got'" >&2; fail=1; }
+got=$(bash "$script" --black-lead < /dev/null)
+[[ $got == 0.00 ]] || { echo "FAIL: no black at all must give 0.00, got '$got'" >&2; fail=1; }
+
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
 expect_exit 2 --dry-run --sizes 9000x5000
