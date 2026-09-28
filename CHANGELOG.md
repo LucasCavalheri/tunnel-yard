@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 3.0.9
+
+- `scripts/screenshots.sh` captures the real window at every size (900x620 up
+  to 2560x1440), theme and language on a virtual display, and records it with
+  `--video`. Nothing opens on your desktop while it runs.
+- `TUNNELYARD_WINDOW=WIDTHxHEIGHT` opens the window at a given size, never
+  below the minimum.
+- Screenshot mode (`TUNNELYARD_SHOT=demo` or `editor`) shows only made-up
+  profiles: no tray icon, no read of `/etc/openfortivpn` (the editor shot used
+  to list your real profiles behind the form) and no update check.
+
 ## 3.0.8
 
 - "Desconectar" no longer gets cut to "Descone…" in Portuguese.
