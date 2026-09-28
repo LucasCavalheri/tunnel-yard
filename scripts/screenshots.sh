@@ -16,6 +16,8 @@
 # Needs xvfb and ffmpeg (Debian/Ubuntu: sudo apt install xvfb ffmpeg mesa-vulkan-drivers).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Decimal points, not commas, in awk and ffmpeg timings, whatever the desktop locale is.
+export LC_ALL=C
 
 all_sizes=(900x620 1024x680 1120x740 1366x768 1920x1080 2560x1440)
 sizes=all

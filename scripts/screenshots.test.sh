@@ -30,6 +30,9 @@ one=$(bash "$script" --dry-run --sizes 1366x768 --shots demo --themes dark --loc
 [[ $one == 'demo-dark-pt-BR@1366x768' ]] || { echo "FAIL: filtered plan was '$one'" >&2; fail=1; }
 
 expect_exit 0 --help
+
+# Timings must use a decimal point on a pt-BR desktop too (ffmpeg -ss rejects "1,30").
+grep -qx 'export LC_ALL=C' "$script" || { echo "FAIL: screenshots.sh must pin LC_ALL=C" >&2; fail=1; }
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
 expect_exit 2 --dry-run --sizes 9000x5000
