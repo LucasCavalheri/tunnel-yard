@@ -39,8 +39,12 @@ black_lead() {
   } END { if (!found) print "0.00" }'
 }
 
-# Internal, for scripts/screenshots.test.sh: black_lead on stdin, then exit.
+# Take every Nth frame so a clip of COUNT frames fills the 12 tiles of the strip.
+strip_every() { local count=$1; echo $(( count / 12 > 0 ? count / 12 : 1 )); }
+
+# Internal, for scripts/screenshots.test.sh: black_lead on stdin / strip_every COUNT, then exit.
 if [[ ${1:-} == --black-lead ]]; then black_lead; exit 0; fi
+if [[ ${1:-} == --strip-every ]]; then strip_every "$2"; exit 0; fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -192,8 +196,9 @@ for s in "${size_list[@]}"; do
       lead=$(ffmpeg -loglevel info -i "$scratch/raw.mp4" -vf "blackdetect=d=0.1:pix_th=0.05" -an -f null - 2>&1 | black_lead)
       ffmpeg -loglevel error -y -ss "$lead" -i "$scratch/raw.mp4" -t "$wait_s" \
         -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p "$out/$name.mp4"
-      frames=$(( wait_s * 30 ))
-      every=$(( frames / 12 > 0 ? frames / 12 : 1 ))
+      # The clip is shorter than --wait once the black lead-in is gone: count its real frames.
+      frames=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 "$out/$name.mp4")
+      every=$(strip_every "${frames:-0}")
       ffmpeg -loglevel error -y -i "$out/$name.mp4" \
         -vf "select='not(mod(n\,$every))',scale=640:-1,tile=4x3:padding=4:color=black" \
         -frames:v 1 -update 1 "$out/$name-strip.png"

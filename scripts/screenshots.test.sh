@@ -42,6 +42,14 @@ got=$(bash "$script" --black-lead <<< '[blackdetect @ 0x1] black_start:2.5 black
 got=$(bash "$script" --black-lead < /dev/null)
 [[ $got == 0.00 ]] || { echo "FAIL: no black at all must give 0.00, got '$got'" >&2; fail=1; }
 
+# Every clip length fills the 12 tiles of the strip (ffmpeg keeps frames n where n % every == 0).
+for count in 12 13 24 67 90 91 143 144 300; do
+  every=$(bash "$script" --strip-every "$count")
+  picked=$(( (count + every - 1) / every ))
+  (( picked >= 12 )) || { echo "FAIL: $count frames, every $every, only $picked tiles" >&2; fail=1; }
+done
+[[ $(bash "$script" --strip-every 5) == 1 ]] || { echo "FAIL: a clip under 12 frames must keep every frame" >&2; fail=1; }
+
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
 expect_exit 2 --dry-run --sizes 9000x5000
