@@ -10,6 +10,16 @@ fn demo_mode_turns_on_only_for_the_demo_shot() {
 }
 
 #[test]
+fn every_capture_shot_keeps_real_data_out_and_nothing_else_does() {
+    assert!(demo::is_capture(Some("demo")));
+    assert!(demo::is_capture(Some("editor")));
+    assert!(!demo::is_capture(None));
+    assert!(!demo::is_capture(Some("")));
+    assert!(!demo::is_capture(Some("Demo")));
+    assert!(!demo::is_capture(Some("settings")));
+}
+
+#[test]
 fn demo_profiles_only_use_reserved_example_hosts() {
     let profiles = demo::profiles();
     assert!(profiles.len() >= 3);
@@ -62,4 +72,33 @@ fn the_summary_counts_only_tunnels_that_are_up() {
         tunnel_yard::i18n::with_locale("pt-BR", || tunnel_yard::workspace_summary(total, &state)),
         "4 perfis · 2 conectados"
     );
+}
+
+#[test]
+fn window_size_follows_the_env_but_never_goes_below_the_minimum() {
+    assert_eq!(demo::window_size(None), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("1920x1080")), (1920., 1080.));
+    assert_eq!(demo::window_size(Some(" 1366x768 ")), (1366., 768.));
+    assert_eq!(demo::window_size(Some("640x480")), demo::WINDOW_MIN_SIZE);
+    assert_eq!(demo::window_size(Some("640x900")), (900., 900.));
+    assert_eq!(demo::window_size(Some("wide")), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("1366xtall")), demo::WINDOW_SIZE);
+    assert_eq!(demo::window_size(Some("infxinf")), demo::WINDOW_SIZE);
+    assert_eq!(
+        demo::window_size(Some("999999x999999")),
+        demo::WINDOW_MAX_SIZE
+    );
+    assert_eq!(demo::window_size(Some("2560x99999")), (2560., 4320.));
+    assert_eq!(demo::window_size(Some("")), demo::WINDOW_SIZE);
+}
+
+#[test]
+fn a_capture_manager_reads_no_profile_and_sends_nothing() {
+    use std::sync::mpsc::TryRecvError;
+    use tunnel_yard::vpn::VpnManager;
+
+    // Only the offline manager: the normal one reads the host's real /etc/openfortivpn.
+    let (offline, rx) = VpnManager::subscribe_offline();
+    assert!(offline.get_profiles().is_empty());
+    assert!(matches!(rx.try_recv(), Err(TryRecvError::Empty)));
 }

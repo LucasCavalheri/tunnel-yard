@@ -43,6 +43,10 @@ jobs:
         run: bash scripts/deploy-site.test.sh
       - name: Test CI aggregator
         run: bash scripts/ci-gate.test.sh
+      - name: Test screenshot script arguments
+        run: |
+          sudo apt-get install -y ffmpeg
+          bash scripts/screenshots.test.sh
 
   test:
     name: test (${{ matrix.target }})
@@ -77,6 +81,19 @@ jobs:
         run: |
           binary="target/${{ matrix.target }}/debug/tunnel-yard"
           "$binary" --smoke
+      - name: Screens at every size (virtual display)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          sudo apt-get install -y xvfb ffmpeg mesa-vulkan-drivers
+          bash scripts/screenshots.sh --binary "target/${{ matrix.target }}/debug/tunnel-yard" --locales en --out target/screenshots
+          bash scripts/screenshots.sh --binary "target/${{ matrix.target }}/debug/tunnel-yard" --sizes 1120x740 --shots demo --themes dark --locales pt-BR --video --out target/screenshots
+      - name: Upload screens
+        if: always() && matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: screens
+          path: target/screenshots/
+          if-no-files-found: ignore
 
   site:
     name: site

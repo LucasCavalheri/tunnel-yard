@@ -209,8 +209,11 @@ pub fn run(hidden: bool) -> Result<(), String> {
                 .ok()
                 .map(|image| Arc::new(image.into_rgba8()));
             let mut options = TitleBar::window_options();
-            options.window_bounds = Some(WindowBounds::centered(size(px(1120.), px(740.)), cx));
-            options.window_min_size = Some(size(px(900.), px(620.)));
+            let (width, height) =
+                tunnel_yard::demo::window_size(std::env::var("TUNNELYARD_WINDOW").ok().as_deref());
+            let (min_width, min_height) = tunnel_yard::demo::WINDOW_MIN_SIZE;
+            options.window_bounds = Some(WindowBounds::centered(size(px(width), px(height)), cx));
+            options.window_min_size = Some(size(px(min_width), px(min_height)));
             options.app_id = Some(tunnel_yard::APP_ID.into());
             options.show = !hidden;
             options.icon = icon;
@@ -274,7 +277,16 @@ impl Desk {
     ) -> Self {
         // The backend writes status and console lines in the UI language.
         set_current_locale(&locale);
-        let (vpn, events) = VpnManager::subscribe();
+        // A capture (`TUNNELYARD_SHOT`) touches nothing real. Two layers keep the tray off the
+        // desktop: no spawn_tray here, and scripts/screenshots.sh points the session bus nowhere.
+        // Keep both. The manager never reads /etc/openfortivpn either.
+        let capture =
+            tunnel_yard::demo::is_capture(std::env::var("TUNNELYARD_SHOT").ok().as_deref());
+        let (vpn, events) = if capture {
+            VpnManager::subscribe_offline()
+        } else {
+            VpnManager::subscribe()
+        };
         vpn.set_auto_reconnect(auto_reconnect);
         let vpn = Arc::new(Mutex::new(vpn));
         let quitting = Arc::new(Mutex::new(false));
@@ -283,9 +295,15 @@ impl Desk {
         let (update_install_tx, update_install_rx) = mpsc::channel();
         let (setup_tx, setup_rx) = mpsc::channel();
         #[cfg(target_os = "linux")]
-        let linux_tray = spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        let linux_tray = if capture {
+            None
+        } else {
+            spawn_tray(vpn.clone(), tray_tx, quitting.clone())
+        };
         #[cfg(not(target_os = "linux"))]
-        spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        if !capture {
+            spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        }
 
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(translate(&locale, "ops.search", &[]))
@@ -347,7 +365,11 @@ impl Desk {
             }
             Err(_) => desk.boot_error = Some(desk.t("boot.probeFailed")),
         }
-        if tunnel_yard::demo::is_demo(std::env::var("TUNNELYARD_SHOT").ok().as_deref()) {
+        if capture {
+            // No update check either: a capture reaches nothing outside the machine.
+            desk.next_update_check_at = Instant::now() + Duration::from_secs(365 * 24 * 3600);
+        }
+        if capture {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|since| since.as_millis())
@@ -521,6 +543,8 @@ impl Desk {
                         self.logs.drain(0..self.logs.len() - 400);
                     }
                 }
+                // A capture shows only made-up profiles, whatever reaches the channel.
+                VpnEvent::Profiles(_) if self.demo.is_some() => {}
                 VpnEvent::Profiles(profiles) => {
                     self.profiles = profiles;
                     self.rebuild_os_tray();

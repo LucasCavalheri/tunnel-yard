@@ -12,6 +12,12 @@ pub fn is_demo(shot: Option<&str>) -> bool {
     shot == Some("demo")
 }
 
+/// Any capture (`demo` or `editor`): the window shows only made-up data, and nothing real is
+/// touched — no tray icon on the desktop, no read of `/etc/openfortivpn`, no update check.
+pub fn is_capture(shot: Option<&str>) -> bool {
+    matches!(shot, Some("demo" | "editor"))
+}
+
 fn profile(id: &str, name: &str, host: &str, port: u32, username: &str) -> VpnProfile {
     VpnProfile {
         id: id.into(),
@@ -57,5 +63,26 @@ pub fn state(now_ms: u128) -> VpnState {
             session("lab", VpnStatus::Connecting, None),
         ]),
         auto_reconnect: true,
+    }
+}
+
+/// The window's first size, the smallest it can be resized to, and the largest a capture asks for.
+pub const WINDOW_SIZE: (f32, f32) = (1120., 740.);
+pub const WINDOW_MIN_SIZE: (f32, f32) = (900., 620.);
+pub const WINDOW_MAX_SIZE: (f32, f32) = (7680., 4320.);
+
+/// `TUNNELYARD_WINDOW=WIDTHxHEIGHT` opens the window at that size, for screenshots at every
+/// size (`scripts/screenshots.sh`). Unset or unreadable: the normal size. Clamped to 900x620..8K.
+pub fn window_size(spec: Option<&str>) -> (f32, f32) {
+    let parsed = spec.and_then(|spec| {
+        let (w, h) = spec.trim().split_once('x')?;
+        Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?))
+    });
+    match parsed {
+        Some((w, h)) if w.is_finite() && h.is_finite() => (
+            w.clamp(WINDOW_MIN_SIZE.0, WINDOW_MAX_SIZE.0),
+            h.clamp(WINDOW_MIN_SIZE.1, WINDOW_MAX_SIZE.1),
+        ),
+        _ => WINDOW_SIZE,
     }
 }

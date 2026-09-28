@@ -366,21 +366,33 @@ pub struct VpnManager {
 
 impl VpnManager {
     pub fn new(events: Sender<VpnEvent>) -> Self {
-        let mgr = Self {
+        let mgr = Self::offline(events);
+        mgr.refresh_profiles();
+        mgr
+    }
+
+    /// A manager that has read nothing yet: no profile list from `/etc/openfortivpn` and no
+    /// event sent. Used by captures (`TUNNELYARD_SHOT`), which must never touch real profiles.
+    pub fn offline(events: Sender<VpnEvent>) -> Self {
+        Self {
             inner: Arc::new(Mutex::new(Inner {
                 live: HashMap::new(),
                 profiles: vec![],
                 auto_reconnect: false,
             })),
             events,
-        };
-        mgr.refresh_profiles();
-        mgr
+        }
     }
 
     pub fn subscribe() -> (Self, Receiver<VpnEvent>) {
         let (tx, rx) = mpsc::channel();
         (Self::new(tx), rx)
+    }
+
+    /// `subscribe` without the first profile read, for captures.
+    pub fn subscribe_offline() -> (Self, Receiver<VpnEvent>) {
+        let (tx, rx) = mpsc::channel();
+        (Self::offline(tx), rx)
     }
 
     fn emit_log(&self, line: &str) {

@@ -59,10 +59,10 @@ Grab a build from [GitHub Releases](https://github.com/LucasCavalheri/tunnel-yar
 
 | File | Distro family |
 |------|----------|
-| `tunnel-yard_3.0.8_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
-| `tunnel-yard-3.0.8-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
-| `tunnel-yard-3.0.8-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
-| `tunnel-yard-3.0.8-r0-x86_64.apk` | Alpine (needs `gcompat`) |
+| `tunnel-yard_3.0.9_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS, Kali, Raspberry Pi OS, … |
+| `tunnel-yard-3.0.9-1.x86_64.rpm` | Fedora, RHEL, Rocky, Alma, openSUSE, Mageia, … |
+| `tunnel-yard-3.0.9-1-x86_64.pkg.tar.zst` | Arch, Manjaro |
+| `tunnel-yard-3.0.9-r0-x86_64.apk` | Alpine (needs `gcompat`) |
 | `tunnel-yard-linux-x64.tar.gz` | Gentoo, Void, NixOS and anywhere else |
 
 ARM64 files use `arm64` / `aarch64` in the name.
@@ -75,17 +75,17 @@ The script reads `uname` and the package manager, then installs the matching Git
 
 ```bash
 # Debian / Ubuntu / Mint / Pop!_OS / Kali
-sudo apt install ./tunnel-yard_3.0.8_amd64.deb
+sudo apt install ./tunnel-yard_3.0.9_amd64.deb
 
 # Fedora / RHEL / Rocky / Alma
-sudo dnf install ./tunnel-yard-3.0.8-1.x86_64.rpm
+sudo dnf install ./tunnel-yard-3.0.9-1.x86_64.rpm
 
 # Arch / Manjaro
-sudo pacman -U ./tunnel-yard-3.0.8-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tunnel-yard-3.0.9-1-x86_64.pkg.tar.zst
 
 # Alpine
 sudo apk add gcompat
-sudo apk add --allow-untrusted ./tunnel-yard-3.0.8-r0-x86_64.apk
+sudo apk add --allow-untrusted ./tunnel-yard-3.0.9-r0-x86_64.apk
 
 # Portable
 tar -xzf tunnel-yard-linux-x64.tar.gz
@@ -128,8 +128,8 @@ When a newer GitHub release exists, the main window, Preferences and tray item *
 
 ```bash
 git switch main && git pull
-git tag v3.0.8
-git push origin v3.0.8
+git tag v3.0.9
+git push origin v3.0.9
 ```
 
 CI ([`.github/workflows/release.yml`](.github/workflows/release.yml)) tests, builds native packages and copies that changelog section into the GitHub release notes.
@@ -212,6 +212,7 @@ cargo run
 | `cargo run -- --hidden` | Start hidden (tray / login item) |
 | `cargo run -- --smoke` | Engine/settings/profile JSON, then exit |
 | `TUNNELYARD_SHOT=demo cargo run` | Made-up profiles on `.example` hosts for screenshots; nothing is read from `/etc/openfortivpn` and no tunnel is touched |
+| `scripts/screenshots.sh [--video]` | The same demo on a virtual display, at every window size, theme and language (and recordings with `--video`); no window opens on your desktop. Needs `xvfb` and `ffmpeg` |
 | `cargo test` | Domain tests |
 | `cargo build --release` | Optimized `tunnel-yard` |
 
