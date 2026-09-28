@@ -178,7 +178,7 @@ for s in "${size_list[@]}"; do
     if [[ -n $rec_pid ]]; then
       kill -INT "$rec_pid" 2>/dev/null || true
       wait "$rec_pid" 2>/dev/null || true
-      lead=$(awk -v a="$started" -v b="$painted" 'BEGIN { d = b - a - 0.2; printf "%.2f", d > 0 ? d : 0 }')
+      lead=$(awk -v a="$started" -v b="$painted" 'BEGIN { d = b - a - 0.2; printf "%.2f", (d > 0 ? d : 0) }')
       ffmpeg -loglevel error -y -ss "$lead" -i "$scratch/raw.mp4" -t "$wait_s" \
         -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p "$out/$name.mp4"
       frames=$(( wait_s * 30 ))
