@@ -19,7 +19,7 @@ Tokens are limited. Every token you save must come from **repeated or mechanical
 - Report every finding, small ones included.
 
 **Cut this instead:**
-- **Gates the parent already ran.** The briefing lists `cargo fmt --all -- --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`, the `scripts/*.test.sh` the change touches and, if dependencies changed, `cargo audit` with their exit codes. Do not rerun them. Run a single test (`cargo test <name>`) only to prove or disprove a specific suspicion. If a gate is missing from the briefing, or its result is not an exit code, run it yourself and say it was missing.
+- **Gates the parent already ran.** The briefing lists `cargo fmt --all -- --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`, the `scripts/*.test.sh` the change touches and, if dependencies changed, `cargo audit` with their exit codes. Do not rerun them. Run a single test (`cargo test <name>`) only to prove or disprove a specific suspicion. A conditional gate may come as `not run (<reason>)` — `cargo audit` when `Cargo.lock` is unchanged: check the reason against the diff instead of running it. Every other gate needs an exit code; if one is missing, or comes without an exit code, run it yourself and say it was missing.
 - **Reading AGENTS.md whole.** Read the sections for the surfaces the diff touches; `grep -n '^## ' AGENTS.md` gives the map.
 - **Re-reading.** Never open a file, section or image twice in the same conversation. Read big files by line range around the change, but always the whole function being changed.
 - **Noisy output.** Pipe long commands through `tail -40` / `grep`; never `cat` a log.
@@ -30,7 +30,7 @@ Tokens are limited. Every token you save must come from **repeated or mechanical
 The parent tells you the round, the tier and what changed.
 
 **Tiers** (you can raise the tier, never lower it):
-- **T0, text only:** docs, agent files, comments. Read the diff and check it against AGENTS.md. No frames, no tests. One round.
+- **T0, text only:** docs, agent files, comments. Read the diff and check it against AGENTS.md. No frames, no tests. One round, unless it finds a blocker or must-fix: then the normal round rules apply.
 - **T1, standard:** the full review below, for the surfaces the diff touches.
 - **T2, sensitive:** `pkexec`/root, credentials, the updater and installer, config written as root, child process lifecycle. Full review of every area. The parent runs it on the strongest model.
 

@@ -32,6 +32,9 @@ one=$(bash "$script" --dry-run --sizes 1366x768 --shots demo --themes dark --loc
 expect_exit 0 --help
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
+expect_exit 2 --dry-run --sizes 9000x5000
+expect_exit 2 --dry-run --wait 0
+expect_exit 2 --dry-run --wait soon
 expect_exit 2 --dry-run --shots settings
 expect_exit 2 --dry-run --themes blue
 expect_exit 2 --dry-run --locales fr

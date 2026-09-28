@@ -10,6 +10,16 @@ fn demo_mode_turns_on_only_for_the_demo_shot() {
 }
 
 #[test]
+fn every_capture_shot_keeps_real_data_out_and_nothing_else_does() {
+    assert!(demo::is_capture(Some("demo")));
+    assert!(demo::is_capture(Some("editor")));
+    assert!(!demo::is_capture(None));
+    assert!(!demo::is_capture(Some("")));
+    assert!(!demo::is_capture(Some("Demo")));
+    assert!(!demo::is_capture(Some("settings")));
+}
+
+#[test]
 fn demo_profiles_only_use_reserved_example_hosts() {
     let profiles = demo::profiles();
     assert!(profiles.len() >= 3);
@@ -74,5 +84,10 @@ fn window_size_follows_the_env_but_never_goes_below_the_minimum() {
     assert_eq!(demo::window_size(Some("wide")), demo::WINDOW_SIZE);
     assert_eq!(demo::window_size(Some("1366xtall")), demo::WINDOW_SIZE);
     assert_eq!(demo::window_size(Some("infxinf")), demo::WINDOW_SIZE);
+    assert_eq!(
+        demo::window_size(Some("999999x999999")),
+        demo::WINDOW_MAX_SIZE
+    );
+    assert_eq!(demo::window_size(Some("2560x99999")), (2560., 4320.));
     assert_eq!(demo::window_size(Some("")), demo::WINDOW_SIZE);
 }

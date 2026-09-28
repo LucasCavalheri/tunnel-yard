@@ -285,10 +285,19 @@ impl Desk {
         let (update_tx, update_rx) = mpsc::channel();
         let (update_install_tx, update_install_rx) = mpsc::channel();
         let (setup_tx, setup_rx) = mpsc::channel();
+        // A capture never puts a real tray icon (real profiles, real disconnect) on the desktop.
+        let capture =
+            tunnel_yard::demo::is_capture(std::env::var("TUNNELYARD_SHOT").ok().as_deref());
         #[cfg(target_os = "linux")]
-        let linux_tray = spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        let linux_tray = if capture {
+            None
+        } else {
+            spawn_tray(vpn.clone(), tray_tx, quitting.clone())
+        };
         #[cfg(not(target_os = "linux"))]
-        spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        if !capture {
+            spawn_tray(vpn.clone(), tray_tx, quitting.clone());
+        }
 
         let search = cx.new(|cx| {
             InputState::new(window, cx).placeholder(translate(&locale, "ops.search", &[]))
@@ -350,7 +359,11 @@ impl Desk {
             }
             Err(_) => desk.boot_error = Some(desk.t("boot.probeFailed")),
         }
-        if tunnel_yard::demo::is_demo(std::env::var("TUNNELYARD_SHOT").ok().as_deref()) {
+        if capture {
+            // No update check either: a capture reaches nothing outside the machine.
+            desk.next_update_check_at = Instant::now() + Duration::from_secs(365 * 24 * 3600);
+        }
+        if capture {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|since| since.as_millis())
