@@ -31,8 +31,13 @@ one=$(bash "$script" --dry-run --sizes 1366x768 --shots demo --themes dark --loc
 
 expect_exit 0 --help
 
-# Timings must use a decimal point on a pt-BR desktop too (ffmpeg -ss rejects "1,30").
-grep -qx 'export LC_ALL=C' "$script" || { echo "FAIL: screenshots.sh must pin LC_ALL=C" >&2; fail=1; }
+# The recording's lead-in must keep a decimal point on a pt-BR desktop (ffmpeg -ss rejects "1,30").
+for locale in pt_BR.UTF-8 C; do
+  got=$(LC_ALL=$locale LANG=$locale bash "$script" --lead-in 1700000000.10 1700000001.60 2>/dev/null)
+  [[ $got == 1.30 ]] || { echo "FAIL: lead-in under $locale was '$got', expected 1.30" >&2; fail=1; }
+done
+got=$(bash "$script" --lead-in 1700000003.00 1700000001.00)
+[[ $got == 0.00 ]] || { echo "FAIL: a paint before launch must not give a negative lead-in, got '$got'" >&2; fail=1; }
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
 expect_exit 2 --dry-run --sizes 9000x5000

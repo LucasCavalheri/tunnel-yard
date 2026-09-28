@@ -30,6 +30,12 @@ binary=""
 out=target/screenshots
 dry_run=0
 
+# Seconds of black lead-in to cut: from launch to 0.2 s before the first paint, never negative.
+lead_in() { awk -v a="$1" -v b="$2" 'BEGIN { d = b - a - 0.2; printf "%.2f", (d > 0 ? d : 0) }'; }
+
+# Internal, for scripts/screenshots.test.sh: prints lead_in STARTED PAINTED and exits.
+if [[ ${1:-} == --lead-in ]]; then lead_in "$2" "$3"; echo; exit 0; fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --sizes) sizes="$2"; shift 2 ;;
@@ -180,7 +186,7 @@ for s in "${size_list[@]}"; do
     if [[ -n $rec_pid ]]; then
       kill -INT "$rec_pid" 2>/dev/null || true
       wait "$rec_pid" 2>/dev/null || true
-      lead=$(awk -v a="$started" -v b="$painted" 'BEGIN { d = b - a - 0.2; printf "%.2f", (d > 0 ? d : 0) }')
+      lead=$(lead_in "$started" "$painted")
       ffmpeg -loglevel error -y -ss "$lead" -i "$scratch/raw.mp4" -t "$wait_s" \
         -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -c:v libx264 -pix_fmt yuv420p "$out/$name.mp4"
       frames=$(( wait_s * 30 ))
