@@ -38,6 +38,16 @@ When a platform cannot be exercised locally, keep a platform-specific test or
 fixture in the repository and run it in the native CI matrix. Do not silently
 replace a real platform test with a weaker string check.
 
+## Refutation — in rounds, with a limit
+
+Every change (feature, fix, refactor, visual change) goes through the **`refuter`** subagent (`.claude/agents/refuter.md`) before it is called done. No exception for "small" ones.
+
+1. Finish the change, with tests green, fmt and clippy passing.
+2. **Round 1:** run the `refuter`, telling it the round, the commits and the surfaces touched (VPN engine, settings, tray, updater, UI, scripts, site).
+3. Fix every blocker and must-fix. Fix the should-fix and nice-to-have items too, in the same change; they do not trigger a new round.
+4. **Round 2:** run the `refuter` again **only on the fixes**. It checks each must-fix is gone and looks for regressions in what was touched.
+5. Repeat until zero blocker/must-fix, **at most 3 rounds**. Whatever is still open after round 3 is reported to the human, not hidden.
+
 <!-- SEMBLE_START -->
 For CLI fallback or sub-agents without MCP access, use:
 
