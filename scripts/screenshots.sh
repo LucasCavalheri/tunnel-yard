@@ -30,6 +30,24 @@ binary=""
 out=target/screenshots
 dry_run=0
 
+# Mean luma (YAVG) of one frame, on the limited-range scale ffmpeg converts to: black is 16,
+# white 235. The darkest real capture (Afterlife-like dark theme) reads about 31.
+luma_of() {
+  ffmpeg -loglevel error "$@" -frames:v 1 \
+    -vf "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null - 2>/dev/null \
+    | sed -n 's/.*YAVG=\([0-9.]*\).*/\1/p' | head -1
+}
+luma() { luma_of -f x11grab -draw_mouse 0 -video_size "$1" -i "$display"; }
+
+# Painted once the screen is clearly above black (16): 20 leaves room below the darkest theme.
+is_painted() { [[ -n $1 ]] && awk -v y="$1" 'BEGIN { exit !(y > 20) }'; }
+
+# Internal, for scripts/screenshots.test.sh: "painted" or "blank" for an image file.
+if [[ ${1:-} == --painted ]]; then
+  if is_painted "$(luma_of -i "$2")"; then echo painted; else echo blank; fi
+  exit 0
+fi
+
 # Seconds of black at the very start of a recording, read from ffmpeg's blackdetect log on stdin:
 # the end of a black stretch that starts at 0. No such stretch: 0.
 black_lead() {
@@ -103,7 +121,7 @@ if [[ $dry_run == 1 ]]; then
   exit 0
 fi
 
-for tool in Xvfb ffmpeg; do
+for tool in Xvfb ffmpeg ffprobe; do
   command -v "$tool" >/dev/null || { echo "$tool is missing (sudo apt install xvfb ffmpeg mesa-vulkan-drivers)" >&2; exit 1; }
 done
 if [[ -z $binary ]]; then
@@ -125,13 +143,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Luma of the virtual screen: ~0 while it is still black, above 3 once the window has painted.
-luma() {
-  ffmpeg -loglevel error -f x11grab -video_size "$1" -i "$display" -frames:v 1 \
-    -vf "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null - 2>/dev/null \
-    | sed -n 's/.*YAVG=\([0-9.]*\).*/\1/p' | head -1
-}
-
 # Blocks until the app paints something, up to 30 s. Fails if the app dies first.
 wait_for_paint() {
   local size=$1 deadline
@@ -140,7 +151,7 @@ wait_for_paint() {
     kill -0 "$app_pid" 2>/dev/null || return 1
     local y
     y=$(luma "$size")
-    if [[ -n $y ]] && awk -v y="$y" 'BEGIN { exit !(y > 3) }'; then return 0; fi
+    if is_painted "$y"; then return 0; fi
     sleep 0.2
   done
   return 1
@@ -176,7 +187,7 @@ for s in "${size_list[@]}"; do
     rec_pid=""
     if [[ $video == 1 ]]; then
       # Record from launch; the first paint is found below and the black lead-in is cut off.
-      ffmpeg -loglevel error -y -f x11grab -framerate 30 -video_size "${w}x${h}" -i "$display" \
+      ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -framerate 30 -video_size "${w}x${h}" -i "$display" \
         -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$scratch/raw.mp4" </dev/null &
       rec_pid=$!
     fi
@@ -188,10 +199,15 @@ for s in "${size_list[@]}"; do
       exit 1
     fi
     sleep "$wait_s"
-    ffmpeg -loglevel error -y -f x11grab -video_size "${w}x${h}" -i "$display" -frames:v 1 -update 1 "$out/$name.png"
+    ffmpeg -loglevel error -y -f x11grab -draw_mouse 0 -video_size "${w}x${h}" -i "$display" -frames:v 1 -update 1 "$out/$name.png"
     if [[ -n $rec_pid ]]; then
       kill -INT "$rec_pid" 2>/dev/null || true
       wait "$rec_pid" 2>/dev/null || true
+      rec_pid=""
+      if ! [[ -s $scratch/raw.mp4 ]]; then
+        echo "$name: the recording is missing or empty (ffmpeg x11grab failed on $display)" >&2
+        exit 1
+      fi
       # Cut what is still black before the window shows (Xvfb and software Vulkan start slowly).
       lead=$(ffmpeg -loglevel info -i "$scratch/raw.mp4" -vf "blackdetect=d=0.1:pix_th=0.05" -an -f null - 2>&1 | black_lead)
       ffmpeg -loglevel error -y -ss "$lead" -i "$scratch/raw.mp4" -t "$wait_s" \

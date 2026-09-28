@@ -277,7 +277,16 @@ impl Desk {
     ) -> Self {
         // The backend writes status and console lines in the UI language.
         set_current_locale(&locale);
-        let (vpn, events) = VpnManager::subscribe();
+        // A capture (`TUNNELYARD_SHOT`) touches nothing real. Two layers keep the tray off the
+        // desktop: no spawn_tray here, and scripts/screenshots.sh points the session bus nowhere.
+        // Keep both. The manager never reads /etc/openfortivpn either.
+        let capture =
+            tunnel_yard::demo::is_capture(std::env::var("TUNNELYARD_SHOT").ok().as_deref());
+        let (vpn, events) = if capture {
+            VpnManager::subscribe_offline()
+        } else {
+            VpnManager::subscribe()
+        };
         vpn.set_auto_reconnect(auto_reconnect);
         let vpn = Arc::new(Mutex::new(vpn));
         let quitting = Arc::new(Mutex::new(false));
@@ -285,9 +294,6 @@ impl Desk {
         let (update_tx, update_rx) = mpsc::channel();
         let (update_install_tx, update_install_rx) = mpsc::channel();
         let (setup_tx, setup_rx) = mpsc::channel();
-        // A capture never puts a real tray icon (real profiles, real disconnect) on the desktop.
-        let capture =
-            tunnel_yard::demo::is_capture(std::env::var("TUNNELYARD_SHOT").ok().as_deref());
         #[cfg(target_os = "linux")]
         let linux_tray = if capture {
             None
@@ -537,6 +543,8 @@ impl Desk {
                         self.logs.drain(0..self.logs.len() - 400);
                     }
                 }
+                // A capture shows only made-up profiles, whatever reaches the channel.
+                VpnEvent::Profiles(_) if self.demo.is_some() => {}
                 VpnEvent::Profiles(profiles) => {
                     self.profiles = profiles;
                     self.rebuild_os_tray();

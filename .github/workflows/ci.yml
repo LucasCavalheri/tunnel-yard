@@ -44,7 +44,9 @@ jobs:
       - name: Test CI aggregator
         run: bash scripts/ci-gate.test.sh
       - name: Test screenshot script arguments
-        run: bash scripts/screenshots.test.sh
+        run: |
+          sudo apt-get install -y ffmpeg
+          bash scripts/screenshots.test.sh
 
   test:
     name: test (${{ matrix.target }})

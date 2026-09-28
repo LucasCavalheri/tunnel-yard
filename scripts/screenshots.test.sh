@@ -50,6 +50,21 @@ for count in 12 13 24 67 90 91 143 144 300; do
 done
 [[ $(bash "$script" --strip-every 5) == 1 ]] || { echo "FAIL: a clip under 12 frames must keep every frame" >&2; fail=1; }
 
+# The paint check on ffmpeg's luma scale (black is 16, not 0): a black screen is not a window.
+if command -v ffmpeg >/dev/null; then
+  frames=$(mktemp -d)
+  ffmpeg -loglevel error -y -f lavfi -i color=black:s=64x64 -frames:v 1 "$frames/black.png"
+  ffmpeg -loglevel error -y -f lavfi -i color=0x1a1d21:s=64x64 -frames:v 1 "$frames/dark.png"
+  ffmpeg -loglevel error -y -f lavfi -i color=0xf4f1ea:s=64x64 -frames:v 1 "$frames/light.png"
+  [[ $(bash "$script" --painted "$frames/black.png") == blank ]] || { echo "FAIL: a black screen counted as painted" >&2; fail=1; }
+  [[ $(bash "$script" --painted "$frames/dark.png") == painted ]] || { echo "FAIL: the dark theme did not count as painted" >&2; fail=1; }
+  [[ $(bash "$script" --painted "$frames/light.png") == painted ]] || { echo "FAIL: the light theme did not count as painted" >&2; fail=1; }
+  rm -rf "$frames"
+else
+  echo "FAIL: ffmpeg is needed to test the paint check" >&2
+  fail=1
+fi
+
 expect_exit 2 --dry-run --sizes 800x600
 expect_exit 2 --dry-run --sizes 1366
 expect_exit 2 --dry-run --sizes 9000x5000
