@@ -14,14 +14,14 @@
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
-    "@iconify-json/simple-icons": "^1.2.96",
-    "@lucide/astro": "^1.47.0",
-    "astro": "^7.3.3",
+    "@iconify-json/simple-icons": "^1.2.98",
+    "@lucide/astro": "^1.49.0",
+    "astro": "^7.3.5",
     "astro-icon": "^1.2.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@iconify-json/circle-flags": "^1.2.11",
+    "@iconify-json/circle-flags": "^1.2.12",
     "typescript": "^6.0.3"
   }
 }
