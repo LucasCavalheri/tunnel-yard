@@ -64,7 +64,7 @@ jobs:
           mkdir -p dist-release
           binary="target/${{ matrix.target }}/release/tunnel-yard"
           cp "$binary" "dist-release/${{ matrix.artifact }}"
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-${{ matrix.artifact }}
           if-no-files-found: error
@@ -115,7 +115,7 @@ jobs:
             "$version" \
             "${{ matrix.package_arch }}" \
             dist-release
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-linux-${{ matrix.package_arch }}
           if-no-files-found: error
