@@ -16,7 +16,7 @@
   "dependencies": {
     "@iconify-json/simple-icons": "^1.2.96",
     "@lucide/astro": "^1.47.0",
-    "astro": "^7.3.3",
+    "astro": "^7.4.12",
     "astro-icon": "^1.2.0"
   },
   "devDependencies": {
